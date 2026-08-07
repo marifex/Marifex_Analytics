@@ -1,14 +1,14 @@
-# Phase 0 technical foundation
+# Phase 0 overview
 
-## Architecture boundary
+## How data is queried
 
-MarifeX has three explicit query paths:
+MarifeX uses three query paths:
 
 1. **Live GLPI** for indexed, point-in-time operational counts.
 2. **Plugin Data Mart** for historical series, durations and reconstructed state.
 3. **Hybrid** metrics, added later, that combine a live value with a Data Mart baseline.
 
-The metric controller never accepts a table, column, expression, join, grouping or SQL fragment. A requested key is resolved in `MetricRegistry`, then a dedicated implementation builds the database request. Every implementation adds the current session's active entity IDs.
+The metric controller does not accept table names, columns, expressions, joins, grouping rules, or SQL fragments. It looks up each requested key in `MetricRegistry`, then runs the matching query implementation. Every query is limited to the active entity IDs in the current session.
 
 ## Phase 0 tables
 
@@ -21,9 +21,9 @@ The metric controller never accepts a table, column, expression, join, grouping 
 | `glpi_plugin_marifex_daily_rollups` | day + entity + metric + dimension | Dashboard-ready aggregates |
 | `glpi_plugin_marifex_dashboard_definitions` | dashboard | Versionable dashboard metadata |
 
-All tables use the GLPI plugin prefix, InnoDB, `utf8mb4`, and purpose-specific unique/index keys. No foreign keys point into GLPI core, avoiding upgrade and deletion coupling.
+All tables use the GLPI plugin prefix, InnoDB, `utf8mb4`, and indexes chosen for their workload. They do not use foreign keys into GLPI core tables, which keeps plugin upgrades and data removal independent from GLPI core.
 
-## ETL guarantees
+## ETL behavior
 
 - A unique SHA-256 event key makes retries idempotent.
 - Separate checkpoints store the initial high-water ticket ID and the composite `date_mod + id` update watermark.
@@ -46,7 +46,7 @@ Ticket IDs are used only for initial backfill. A second pipeline captures update
 - No ticket subject, content, requester data or other sensitive text in the initial mart
 - No unrestricted SQL, formulas or JavaScript from users
 
-## Installation verification
+## How to verify an installation
 
 1. Run `composer dump-autoload`, `composer lint`, and `composer test`.
 2. Run `npm install`, `npm run typecheck`, and `npm run build`.
@@ -61,15 +61,15 @@ Ticket IDs are used only for initial backfill. A second pipeline captures update
 
 ## GLPI 11.0.8 integration result
 
-Version `0.1.4-dev` was installed and activated in the Laragon development instance using PHP 8.3 CLI against the live MySQL 8.4 database. The installation registered both automatic actions, created or upgraded all six plugin-owned tables, migrated all MarifeX `datetime` fields to GLPI 11-compatible `timestamp` fields, and granted MarifeX administration rights to the native profile administrators. The incremental ETL and daily snapshot jobs completed against the development dataset.
+We installed and activated version `0.1.4-dev` in the Laragon development environment with PHP 8.3 and MySQL 8.4. The installation registered both automatic actions, created or upgraded all six plugin tables, converted MarifeX `datetime` fields to GLPI 11-compatible `timestamp` fields, and granted MarifeX administration rights to the appropriate GLPI profiles. The incremental ETL and daily snapshot jobs completed successfully against the development data.
 
-The native plugin **Configure** action opens `/plugins/marifex/Settings` and exposes safe Phase 0 controls plus read-only pipeline health. Full browser verification still requires an authenticated GLPI session.
+The plugin's **Configure** action opens `/plugins/marifex/Settings`. It provides Phase 0 settings and a read-only view of pipeline health. The authenticated dashboard test also confirms that the live ticket count and historical backlog chart load correctly.
 
-## Exit criteria for the next phase
+## What must be complete before the next phase
 
 - Integration suite passes on the supported GLPI 11 patch version.
 - Profile installation APIs and plugin menu behavior are confirmed against the installed release.
 - Entity isolation tests include parent, child, recursive, sibling and root entity contexts.
 - Ticket-log event mapping is verified from GLPI source and reproducible fixtures.
 - Reconciliation reports zero unexplained differences between source tickets and imported ticket-created events.
-- Measured ETL and dashboard timings replace any speculative throughput claims.
+- ETL and dashboard performance claims are based on measured timings.

@@ -1,8 +1,8 @@
 # MarifeX Advanced Analytics for GLPI
 
-Phase 0 foundation for a GLPI 11 native analytics plugin. MarifeX keeps historical analytics in plugin-owned MariaDB/MySQL tables and leaves GLPI core files and tables unchanged. Current development version: `0.1.4-dev`.
+MarifeX is a native analytics plugin for GLPI 11. It stores historical analytics in its own MariaDB or MySQL tables and does not change GLPI core files or tables. The current development version is `0.1.4-dev`.
 
-## Phase 0 capabilities
+## What Phase 0 includes
 
 - GLPI 11 plugin bootstrap, automatic controller discovery, Twig dashboard and menu entry
 - Profile rights for dashboard access and analytics administration
@@ -16,7 +16,7 @@ Phase 0 foundation for a GLPI 11 native analytics plugin. MarifeX keeps historic
 - Retain-by-default uninstall behavior for analytics data
 - Native plugin configuration page for ETL, timezone, retention and pipeline health
 
-This phase deliberately does not parse `glpi_logs`. That mapping must be verified against the installed GLPI 11 release before status and assignment history reconstruction is enabled.
+Phase 0 does not parse `glpi_logs`. We need to confirm the log mapping against the installed GLPI 11 release before enabling status and assignment history reconstruction.
 
 ## Development
 
@@ -31,16 +31,16 @@ npm run build
 
 ## Local version archive
 
-Before a build is installed or upgraded, preserve its deployable runtime package under `versions/<version>/marifex`. The `versions/` directory is intentionally local-only and excluded from Git so each tested build remains available without duplicating release artifacts in source history.
+Before installing or upgrading a build, save its deployable package under `versions/<version>/marifex`. Git ignores the `versions/` directory, so tested local builds remain available without adding release copies to the repository.
 
-The deployable directory must be named `marifex` and placed in GLPI's `plugins/` directory. Install and activate it from **Setup → Plugins**, then configure GLPI's external automatic actions so `incrementalEtl` and `dailySnapshot` run without depending on web traffic.
+Name the deployable directory `marifex` and place it in GLPI's `plugins/` directory. Install and activate it from **Setup > Plugins**. Configure GLPI's external automatic actions so `incrementalEtl` and `dailySnapshot` run without depending on web traffic.
 
 ## Routes
 
 - Dashboard: `/plugins/marifex/Dashboard`
 - Metric API: `/plugins/marifex/api/metrics/{metricKey}`
 
-The API is session-authenticated by GLPI, checks the `plugin_marifex_dashboard` right, derives entity IDs only from the active GLPI session, validates dates, disables shared caching, and accepts only registered metric keys. It has no custom SQL parameter.
+GLPI authenticates every API request through the current session. The API checks the `plugin_marifex_dashboard` right, uses entity IDs from the active session, validates dates, disables shared caching, and accepts only registered metric keys. Users cannot pass custom SQL.
 
 ## Data retention
 
