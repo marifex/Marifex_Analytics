@@ -1,0 +1,24 @@
+{
+  "name": "marifex/glpi-analytics",
+  "version": "0.1.0",
+  "description": "MarifeX Advanced Analytics and Dashboard for GLPI 11",
+  "type": "glpi-plugin",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "GlpiPlugin\\Marifex\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "GlpiPlugin\\Marifex\\Tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "lint": "@php tools/lint.php",
+    "test": "@php tools/test.php"
+  }
+}

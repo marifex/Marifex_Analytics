@@ -1,0 +1,17 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: MarifeX 0.1.0-dev\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Analytics"
+msgstr ""
+
+msgid "Advanced Analytics"
+msgstr ""
+
+msgid "View analytics dashboards"
+msgstr ""
+
+msgid "Administer MarifeX analytics"
+msgstr ""
+

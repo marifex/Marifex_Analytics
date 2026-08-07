@@ -1,0 +1,10 @@
+/vendor/
+/node_modules/
+/.npm-cache/
+/.reference/
+/.phpunit.cache/
+/.php-cs-fixer.cache
+/public/build/
+/.idea/
+/.vscode/
+*.log

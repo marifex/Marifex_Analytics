@@ -1,0 +1,136 @@
+<?php
+
+declare(strict_types=1);
+
+namespace GlpiPlugin\Marifex;
+
+use CommonGLPI;
+use Html;
+use ProfileRight;
+use Session;
+
+final class Profile extends \Profile
+{
+    public static $rightname = 'profile';
+
+    public const RIGHT_DASHBOARD = 'plugin_marifex_dashboard';
+    public const RIGHT_ADMIN = 'plugin_marifex_admin';
+
+    public static function getAllRights($all = false): array
+    {
+        return [
+            [
+                'itemtype' => self::class,
+                'label' => __('View analytics dashboards', 'marifex'),
+                'field' => self::RIGHT_DASHBOARD,
+                'rights' => [READ => __('Read')],
+            ],
+            [
+                'itemtype' => self::class,
+                'label' => __('Administer MarifeX analytics', 'marifex'),
+                'field' => self::RIGHT_ADMIN,
+                'rights' => [READ => __('Read'), UPDATE => __('Update')],
+            ],
+        ];
+    }
+
+    public static function getTypeName($nb = 0): string
+    {
+        return __('MarifeX Analytics', 'marifex');
+    }
+
+    public static function canView(): bool
+    {
+        return Session::haveRight(self::RIGHT_DASHBOARD, READ);
+    }
+
+    public static function canAdminister(): bool
+    {
+        return Session::haveRight(self::RIGHT_ADMIN, UPDATE);
+    }
+
+    public static function installRights(): void
+    {
+        global $DB;
+
+        foreach ([self::RIGHT_DASHBOARD, self::RIGHT_ADMIN] as $right) {
+            if ($DB->request(['FROM' => 'glpi_profilerights', 'WHERE' => ['name' => $right]])->count() === 0) {
+                ProfileRight::addProfileRights([$right]);
+            }
+        }
+
+        $activeProfile = (int) ($_SESSION['glpiactiveprofile']['id'] ?? 0);
+        if ($activeProfile > 0 && Session::haveRight('profile', UPDATE)) {
+            self::setProfileRights($activeProfile, [
+                self::RIGHT_DASHBOARD => READ,
+                self::RIGHT_ADMIN => READ | UPDATE,
+            ]);
+        }
+    }
+
+    public static function uninstallRights(): void
+    {
+        ProfileRight::deleteProfileRights([self::RIGHT_DASHBOARD, self::RIGHT_ADMIN]);
+        unset(
+            $_SESSION['glpiactiveprofile'][self::RIGHT_DASHBOARD],
+            $_SESSION['glpiactiveprofile'][self::RIGHT_ADMIN]
+        );
+    }
+
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0): string
+    {
+        return $item instanceof \Profile ? self::createTabEntry(self::getTypeName()) : '';
+    }
+
+    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0): bool
+    {
+        if (!$item instanceof \Profile) {
+            return false;
+        }
+
+        $profileId = (int) $item->getID();
+        self::ensureProfileRows($profileId);
+        $canEdit = Session::haveRight('profile', UPDATE);
+
+        echo "<form method='post' action='" . $item->getFormURL() . "'>";
+        $item->displayRightsChoiceMatrix(self::getAllRights(), [
+            'canedit' => $canEdit,
+            'title' => self::getTypeName(),
+        ]);
+        if ($canEdit) {
+            echo Html::hidden('id', ['value' => $profileId]);
+            echo Html::submit(_sx('button', 'Save'), ['name' => 'update', 'class' => 'btn btn-primary']);
+        }
+        Html::closeForm();
+
+        return true;
+    }
+
+    /** @param array<string, int> $rights */
+    private static function setProfileRights(int $profileId, array $rights): void
+    {
+        global $DB;
+        foreach ($rights as $name => $value) {
+            $DB->updateOrInsert('glpi_profilerights', ['rights' => $value], [
+                'profiles_id' => $profileId,
+                'name' => $name,
+            ]);
+            if ((int) ($_SESSION['glpiactiveprofile']['id'] ?? 0) === $profileId) {
+                $_SESSION['glpiactiveprofile'][$name] = $value;
+            }
+        }
+    }
+
+    private static function ensureProfileRows(int $profileId): void
+    {
+        global $DB;
+        foreach ([self::RIGHT_DASHBOARD, self::RIGHT_ADMIN] as $right) {
+            if ($DB->request([
+                'FROM' => 'glpi_profilerights',
+                'WHERE' => ['profiles_id' => $profileId, 'name' => $right],
+            ])->count() === 0) {
+                $DB->insert('glpi_profilerights', ['profiles_id' => $profileId, 'name' => $right, 'rights' => 0]);
+            }
+        }
+    }
+}
