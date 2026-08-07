@@ -11,7 +11,7 @@ use RuntimeException;
 
 final class Installer
 {
-    private const VERSION = 110;
+    private const VERSION = 120;
     private const TABLE_PREFIX = 'glpi_plugin_marifex_';
 
     public function install(): void
@@ -65,12 +65,13 @@ final class Installer
         }
         $migration->executeMigration();
 
-        Config::setConfigurationValues('plugin:marifex', [
-            'schema_version' => (string) self::VERSION,
+        Config::setConfigurationValues('plugin:marifex', array_merge([
             'retain_analytics_on_uninstall' => 1,
             'etl_batch_size' => 500,
             'snapshot_timezone' => 'UTC',
-        ]);
+        ], $configuration, [
+            'schema_version' => (string) self::VERSION,
+        ]));
     }
 
     public function uninstall(): bool

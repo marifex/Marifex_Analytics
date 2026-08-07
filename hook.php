@@ -28,6 +28,18 @@ function plugin_marifex_install(): bool
         DAY_TIMESTAMP,
         ['mode' => CronTask::MODE_EXTERNAL, 'comment' => 'MarifeX logical daily backlog snapshot']
     );
+    CronTask::register(
+        AnalyticsCron::class,
+        'incrementalLogEtl',
+        300,
+        ['mode' => CronTask::MODE_EXTERNAL, 'comment' => 'MarifeX incremental ticket log ETL']
+    );
+    CronTask::register(
+        AnalyticsCron::class,
+        'reconcileAnalytics',
+        DAY_TIMESTAMP,
+        ['mode' => CronTask::MODE_EXTERNAL, 'comment' => 'MarifeX analytics reconciliation']
+    );
 
     return true;
 }

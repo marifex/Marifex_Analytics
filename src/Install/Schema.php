@@ -90,6 +90,36 @@ final class Schema
                 `date_mod` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (`id`), KEY `entity_active` (`entities_id`,`is_active`)
             ) $suffix",
+            'glpi_plugin_marifex_event_mappings' => "CREATE TABLE `glpi_plugin_marifex_event_mappings` (
+                `id` int unsigned NOT NULL AUTO_INCREMENT,
+                `itemtype` varchar(128) NOT NULL,
+                `source_table` varchar(128) NOT NULL,
+                `source_field` varchar(128) NOT NULL,
+                `search_option_id` int unsigned NOT NULL,
+                `semantic_event` varchar(80) NOT NULL,
+                `glpi_version_min` varchar(32) NOT NULL,
+                `glpi_version_max` varchar(32) NOT NULL,
+                `mapping_version` int unsigned NOT NULL DEFAULT 1,
+                `validation_status` enum('verified','invalid') NOT NULL DEFAULT 'invalid',
+                `validated_at` timestamp NULL DEFAULT NULL,
+                `date_mod` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `semantic_version` (`semantic_event`,`glpi_version_min`,`glpi_version_max`),
+                KEY `runtime_lookup` (`itemtype`,`search_option_id`,`validation_status`)
+            ) $suffix",
+            'glpi_plugin_marifex_reconciliation_runs' => "CREATE TABLE `glpi_plugin_marifex_reconciliation_runs` (
+                `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+                `scope` varchar(80) NOT NULL,
+                `started_at` timestamp NOT NULL,
+                `completed_at` timestamp NULL DEFAULT NULL,
+                `source_count` bigint unsigned NOT NULL DEFAULT 0,
+                `analytics_count` bigint unsigned NOT NULL DEFAULT 0,
+                `missing_count` bigint unsigned NOT NULL DEFAULT 0,
+                `orphan_count` bigint unsigned NOT NULL DEFAULT 0,
+                `status` enum('running','passed','warning','failed') NOT NULL DEFAULT 'running',
+                `details` json DEFAULT NULL,
+                PRIMARY KEY (`id`), KEY `scope_completed` (`scope`,`completed_at`)
+            ) $suffix",
         ];
     }
 }
