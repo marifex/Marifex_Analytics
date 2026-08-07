@@ -1,6 +1,6 @@
 # MarifeX Advanced Analytics for GLPI
 
-Phase 0 foundation for a GLPI 11 native analytics plugin. MarifeX keeps historical analytics in plugin-owned MariaDB/MySQL tables and leaves GLPI core files and tables unchanged. Current development version: `0.1.3-dev`.
+Phase 0 foundation for a GLPI 11 native analytics plugin. MarifeX keeps historical analytics in plugin-owned MariaDB/MySQL tables and leaves GLPI core files and tables unchanged. Current development version: `0.1.4-dev`.
 
 ## Phase 0 capabilities
 

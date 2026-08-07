@@ -1,6 +1,8 @@
-{% extends "layout/page_card_notoolbar.html.twig" %}
+{% extends "layout/page_without_tabs.html.twig" %}
 
-{% block title %}{{ __('Analytics', 'marifex') }}{% endblock %}
+{% set title = __('Analytics', 'marifex') %}
+
+{% block content_title %}{{ title }}{% endblock %}
 
 {% block content_body %}
   <div

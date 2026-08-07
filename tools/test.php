@@ -34,6 +34,18 @@ $settings = file_get_contents(dirname(__DIR__) . '/src/Controller/SettingsContro
 $assert(str_contains($settings, 'Profile::canAdminister()'), 'Settings controller must enforce the plugin admin right.');
 $assert(str_contains(file_get_contents(dirname(__DIR__) . '/setup.php'), "Hooks::CONFIG_PAGE]['marifex'] = 'Settings'"), 'Plugin must expose its native configuration action.');
 
+$profile = file_get_contents(dirname(__DIR__) . '/src/Profile.php');
+$assert(
+    substr_count($profile, '(bool) Session::haveRight(') >= 2,
+    'Profile permission helpers must normalize GLPI integer rights to bool.'
+);
+
+$dashboardTemplate = file_get_contents(dirname(__DIR__) . '/templates/dashboard/index.html.twig');
+$assert(
+    str_contains($dashboardTemplate, 'layout/page_without_tabs.html.twig'),
+    'Dashboard must extend a layout provided by GLPI 11.'
+);
+
 if ($failures !== []) {
     foreach ($failures as $failure) {
         fwrite(STDERR, "FAIL: $failure" . PHP_EOL);

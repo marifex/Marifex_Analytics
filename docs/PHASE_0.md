@@ -61,7 +61,7 @@ Ticket IDs are used only for initial backfill. A second pipeline captures update
 
 ## GLPI 11.0.8 integration result
 
-Version `0.1.3-dev` was installed and activated in the Laragon development instance using PHP 8.3 CLI against the live MySQL 8.4 database. The installation registered both automatic actions, created or upgraded all six plugin-owned tables, migrated all MarifeX `datetime` fields to GLPI 11-compatible `timestamp` fields, and granted MarifeX administration rights to the native profile administrators. The incremental ETL and daily snapshot jobs completed against the development dataset.
+Version `0.1.4-dev` was installed and activated in the Laragon development instance using PHP 8.3 CLI against the live MySQL 8.4 database. The installation registered both automatic actions, created or upgraded all six plugin-owned tables, migrated all MarifeX `datetime` fields to GLPI 11-compatible `timestamp` fields, and granted MarifeX administration rights to the native profile administrators. The incremental ETL and daily snapshot jobs completed against the development dataset.
 
 The native plugin **Configure** action opens `/plugins/marifex/Settings` and exposes safe Phase 0 controls plus read-only pipeline health. Full browser verification still requires an authenticated GLPI session.
 

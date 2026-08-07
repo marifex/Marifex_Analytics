@@ -41,12 +41,12 @@ final class Profile extends \Profile
 
     public static function canView(): bool
     {
-        return Session::haveRight(self::RIGHT_DASHBOARD, READ);
+        return (bool) Session::haveRight(self::RIGHT_DASHBOARD, READ);
     }
 
     public static function canAdminister(): bool
     {
-        return Session::haveRight(self::RIGHT_ADMIN, UPDATE);
+        return (bool) Session::haveRight(self::RIGHT_ADMIN, UPDATE);
     }
 
     public static function installRights(): void
