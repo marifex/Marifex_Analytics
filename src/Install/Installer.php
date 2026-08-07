@@ -11,7 +11,7 @@ use RuntimeException;
 
 final class Installer
 {
-    private const VERSION = 100;
+    private const VERSION = 110;
     private const TABLE_PREFIX = 'glpi_plugin_marifex_';
 
     public function install(): void
@@ -22,11 +22,46 @@ final class Installer
             throw new RuntimeException('GLPI database connection is unavailable.');
         }
 
+        $configuration = Config::getConfigurationValues('plugin:marifex');
+        $installedVersion = (int) ($configuration['schema_version'] ?? 0);
         $migration = new Migration(self::VERSION);
         foreach (Schema::tables() as $table => $sql) {
             if (!$DB->tableExists($table)) {
                 $DB->doQuery($sql);
             }
+        }
+
+        if ($installedVersion > 0 && $installedVersion < 110) {
+            $migration->changeField(
+                'glpi_plugin_marifex_etl_checkpoints',
+                'watermark_date',
+                'watermark_date',
+                'timestamp NULL DEFAULT NULL'
+            );
+            $migration->changeField(
+                'glpi_plugin_marifex_etl_checkpoints',
+                'locked_at',
+                'locked_at',
+                'timestamp NULL DEFAULT NULL'
+            );
+            $migration->changeField(
+                'glpi_plugin_marifex_ticket_events',
+                'occurred_at',
+                'occurred_at',
+                'timestamp NOT NULL'
+            );
+            $migration->changeField(
+                'glpi_plugin_marifex_state_intervals',
+                'started_at',
+                'started_at',
+                'timestamp NOT NULL'
+            );
+            $migration->changeField(
+                'glpi_plugin_marifex_state_intervals',
+                'ended_at',
+                'ended_at',
+                'timestamp NULL DEFAULT NULL'
+            );
         }
         $migration->executeMigration();
 

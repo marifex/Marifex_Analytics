@@ -1,6 +1,6 @@
 # MarifeX Advanced Analytics for GLPI
 
-Phase 0 foundation for a GLPI 11 native analytics plugin. MarifeX keeps historical analytics in plugin-owned MariaDB/MySQL tables and leaves GLPI core files and tables unchanged.
+Phase 0 foundation for a GLPI 11 native analytics plugin. MarifeX keeps historical analytics in plugin-owned MariaDB/MySQL tables and leaves GLPI core files and tables unchanged. Current development version: `0.1.3-dev`.
 
 ## Phase 0 capabilities
 
@@ -14,6 +14,7 @@ Phase 0 foundation for a GLPI 11 native analytics plugin. MarifeX keeps historic
 - GLPI automatic actions for incremental ETL and daily snapshots
 - Vue 3 + Apache ECharts frontend with isolated CSS, dark-theme tokens, RTL-safe layout and responsive behavior
 - Retain-by-default uninstall behavior for analytics data
+- Native plugin configuration page for ETL, timezone, retention and pipeline health
 
 This phase deliberately does not parse `glpi_logs`. That mapping must be verified against the installed GLPI 11 release before status and assignment history reconstruction is enabled.
 
@@ -27,6 +28,10 @@ npm install
 npm run typecheck
 npm run build
 ```
+
+## Local version archive
+
+Before a build is installed or upgraded, preserve its deployable runtime package under `versions/<version>/marifex`. The `versions/` directory is intentionally local-only and excluded from Git so each tested build remains available without duplicating release artifacts in source history.
 
 The deployable directory must be named `marifex` and placed in GLPI's `plugins/` directory. Install and activate it from **Setup → Plugins**, then configure GLPI's external automatic actions so `incrementalEtl` and `dailySnapshot` run without depending on web traffic.
 

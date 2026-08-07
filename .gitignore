@@ -2,6 +2,7 @@
 /node_modules/
 /.npm-cache/
 /.reference/
+/versions/
 /.phpunit.cache/
 /.php-cs-fixer.cache
 /public/build/

@@ -23,11 +23,16 @@ $assert(count($tables) === 6, 'Phase 0 schema must contain six plugin-owned tabl
 foreach ($tables as $name => $sql) {
     $assert(str_starts_with($name, 'glpi_plugin_marifex_'), "Unexpected table name: $name");
     $assert(!str_contains($sql, 'glpi_tickets` ('), 'Schema must not modify the operational ticket table.');
+    $assert(!str_contains(strtoupper($sql), 'DATETIME'), 'GLPI 11 plugin tables must use TIMESTAMP instead of DATETIME.');
 }
 
 $controller = file_get_contents(dirname(__DIR__) . '/src/Controller/MetricController.php');
 $assert(!str_contains($controller, 'SELECT '), 'Metric controller must not accept or build SQL.');
 $assert(str_contains($controller, 'Profile::canView()'), 'Metric controller must enforce the plugin profile right.');
+
+$settings = file_get_contents(dirname(__DIR__) . '/src/Controller/SettingsController.php');
+$assert(str_contains($settings, 'Profile::canAdminister()'), 'Settings controller must enforce the plugin admin right.');
+$assert(str_contains(file_get_contents(dirname(__DIR__) . '/setup.php'), "Hooks::CONFIG_PAGE]['marifex'] = 'Settings'"), 'Plugin must expose its native configuration action.');
 
 if ($failures !== []) {
     foreach ($failures as $failure) {

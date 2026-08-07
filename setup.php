@@ -6,7 +6,7 @@ use Glpi\Plugin\Hooks;
 use GlpiPlugin\Marifex\DashboardMenu;
 use GlpiPlugin\Marifex\Profile;
 
-define('PLUGIN_MARIFEX_VERSION', '0.1.0-dev');
+define('PLUGIN_MARIFEX_VERSION', '0.1.3-dev');
 define('PLUGIN_MARIFEX_MIN_GLPI_VERSION', '11.0.0');
 define('PLUGIN_MARIFEX_MAX_GLPI_VERSION', '12.0.0');
 define('PLUGIN_MARIFEX_ROOT', __DIR__);
@@ -28,6 +28,7 @@ function plugin_init_marifex(): void
     $PLUGIN_HOOKS[Hooks::MENU_TOADD]['marifex'] = [
         'tools' => DashboardMenu::class,
     ];
+    $PLUGIN_HOOKS[Hooks::CONFIG_PAGE]['marifex'] = 'Settings';
     $requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
     if (is_string($requestPath) && str_ends_with($requestPath, '/plugins/marifex/Dashboard')) {
         $PLUGIN_HOOKS[Hooks::ADD_CSS]['marifex'][] = 'css/marifex.css';

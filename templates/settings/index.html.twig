@@ -1,0 +1,61 @@
+{% extends "layout/page_card_notoolbar.html.twig" %}
+
+{% block title %}{{ __('MarifeX configuration', 'marifex') }}{% endblock %}
+
+{% block content_body %}
+  <form method="post" action="{{ path('marifex_settings') }}" class="card">
+    <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token() }}">
+    <div class="card-header">
+      <h1 class="card-title">{{ __('MarifeX configuration', 'marifex') }}</h1>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label" for="marifex-etl-batch-size">{{ __('ETL batch size', 'marifex') }}</label>
+          <input id="marifex-etl-batch-size" class="form-control" type="number" name="etl_batch_size" min="50" max="5000" step="50" value="{{ config.etl_batch_size|default(500) }}" required>
+          <div class="form-hint">{{ __('Records processed by each incremental pipeline run (50–5,000).', 'marifex') }}</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="marifex-snapshot-timezone">{{ __('Snapshot timezone', 'marifex') }}</label>
+          <select id="marifex-snapshot-timezone" class="form-select" name="snapshot_timezone" required>
+            {% for timezone in timezones %}
+              <option value="{{ timezone }}" {{ timezone == config.snapshot_timezone|default('UTC') ? 'selected' : '' }}>{{ timezone }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="retain_analytics_on_uninstall" value="1" {{ config.retain_analytics_on_uninstall|default(1) ? 'checked' : '' }}>
+            <span class="form-check-label">{{ __('Retain analytics data when the plugin is uninstalled', 'marifex') }}</span>
+          </label>
+          <div class="form-hint">{{ __('Recommended. Turning this off causes plugin-owned analytics tables to be removed during uninstall; GLPI operational tables are never removed.', 'marifex') }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer text-end">
+      <button class="btn btn-primary" type="submit">{{ _x('button', 'Save') }}</button>
+    </div>
+  </form>
+
+  <div class="card mt-3">
+    <div class="card-header"><h2 class="card-title">{{ __('Pipeline health', 'marifex') }}</h2></div>
+    <div class="table-responsive">
+      <table class="table table-vcenter card-table">
+        <thead><tr><th>{{ __('Pipeline', 'marifex') }}</th><th>{{ __('Source', 'marifex') }}</th><th>{{ __('Status') }}</th><th>{{ __('Watermark', 'marifex') }}</th><th>{{ __('Last error', 'marifex') }}</th></tr></thead>
+        <tbody>
+          {% for pipeline in pipelines %}
+            <tr>
+              <td><code>{{ pipeline.pipeline }}</code></td>
+              <td>{{ pipeline.source_table }}</td>
+              <td><span class="badge {{ pipeline.status == 'failed' ? 'bg-red-lt' : (pipeline.status == 'running' ? 'bg-yellow-lt' : 'bg-green-lt') }}">{{ pipeline.status }}</span></td>
+              <td>{{ pipeline.watermark_date|default('—') }} · #{{ pipeline.watermark_id }}</td>
+              <td>{{ pipeline.last_error|default('—') }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="text-secondary">{{ __('No ETL pipeline has run yet.', 'marifex') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

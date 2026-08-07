@@ -59,8 +59,26 @@ final class Profile extends \Profile
             }
         }
 
+        $privilegedProfiles = [];
+        foreach ($DB->request([
+            'SELECT' => ['profiles_id', 'rights'],
+            'FROM' => 'glpi_profilerights',
+            'WHERE' => ['name' => 'profile'],
+        ]) as $profileRight) {
+            if (((int) $profileRight['rights'] & UPDATE) === UPDATE) {
+                $privilegedProfiles[] = (int) $profileRight['profiles_id'];
+            }
+        }
+
+        foreach (array_unique($privilegedProfiles) as $profileId) {
+            self::setProfileRights($profileId, [
+                self::RIGHT_DASHBOARD => READ,
+                self::RIGHT_ADMIN => READ | UPDATE,
+            ]);
+        }
+
         $activeProfile = (int) ($_SESSION['glpiactiveprofile']['id'] ?? 0);
-        if ($activeProfile > 0 && Session::haveRight('profile', UPDATE)) {
+        if ($activeProfile > 0 && Session::haveRight('profile', UPDATE) && !in_array($activeProfile, $privilegedProfiles, true)) {
             self::setProfileRights($activeProfile, [
                 self::RIGHT_DASHBOARD => READ,
                 self::RIGHT_ADMIN => READ | UPDATE,
