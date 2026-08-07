@@ -19,7 +19,7 @@ $assert(count($definitions) === 2, 'Phase 0 must expose exactly two approved met
 $assert(array_column($definitions, 'source') === ['live', 'data_mart'], 'Metrics must prove both live and Data Mart paths.');
 
 $tables = Schema::tables();
-$assert(count($tables) === 6, 'Phase 0 schema must contain six plugin-owned tables.');
+$assert(count($tables) === 8, 'Analytics schema must contain eight plugin-owned tables.');
 foreach ($tables as $name => $sql) {
     $assert(str_starts_with($name, 'glpi_plugin_marifex_'), "Unexpected table name: $name");
     $assert(!str_contains($sql, 'glpi_tickets` ('), 'Schema must not modify the operational ticket table.');
@@ -46,6 +46,22 @@ $assert(
     'Dashboard must extend a layout provided by GLPI 11.'
 );
 
+$logEtl = file_get_contents(dirname(__DIR__) . '/src/Etl/IncrementalLogEtl.php');
+$assert(
+    str_contains($logEtl, 'EventMappingRegistry::TICKET_STATUS_CHANGED'),
+    'Log ETL must use the verified semantic mapping registry.'
+);
+$assert(
+    !str_contains($logEtl, "'id_search_option' => 12"),
+    'Log ETL must not hardcode the ticket status search option.'
+);
+
+$settingsTemplate = file_get_contents(dirname(__DIR__) . '/templates/settings/index.html.twig');
+$assert(
+    str_contains($settingsTemplate, 'layout/page_without_tabs.html.twig'),
+    'Settings must extend a layout provided by GLPI 11.'
+);
+
 if ($failures !== []) {
     foreach ($failures as $failure) {
         fwrite(STDERR, "FAIL: $failure" . PHP_EOL);
@@ -53,4 +69,4 @@ if ($failures !== []) {
     exit(1);
 }
 
-fwrite(STDOUT, 'All Phase 0 structural tests passed.' . PHP_EOL);
+fwrite(STDOUT, 'All analytics structural tests passed.' . PHP_EOL);

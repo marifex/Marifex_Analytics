@@ -37,6 +37,8 @@ final class SettingsController extends AbstractController
             'config' => Config::getConfigurationValues('plugin:marifex'),
             'timezones' => DateTimeZone::listIdentifiers(),
             'pipelines' => $this->pipelines(),
+            'mappings' => $this->mappings(),
+            'reconciliations' => $this->reconciliations(),
         ]);
     }
 
@@ -76,5 +78,36 @@ final class SettingsController extends AbstractController
             $pipelines[] = $row;
         }
         return $pipelines;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function mappings(): array
+    {
+        global $DB;
+        if (!$DB->tableExists('glpi_plugin_marifex_event_mappings')) {
+            return [];
+        }
+
+        return iterator_to_array($DB->request([
+            'SELECT' => ['semantic_event', 'source_field', 'search_option_id', 'glpi_version_min', 'validation_status', 'validated_at'],
+            'FROM' => 'glpi_plugin_marifex_event_mappings',
+            'ORDER' => ['semantic_event ASC'],
+        ]));
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function reconciliations(): array
+    {
+        global $DB;
+        if (!$DB->tableExists('glpi_plugin_marifex_reconciliation_runs')) {
+            return [];
+        }
+
+        return iterator_to_array($DB->request([
+            'SELECT' => ['scope', 'completed_at', 'source_count', 'analytics_count', 'missing_count', 'orphan_count', 'status'],
+            'FROM' => 'glpi_plugin_marifex_reconciliation_runs',
+            'ORDER' => ['id DESC'],
+            'LIMIT' => 5,
+        ]));
     }
 }
