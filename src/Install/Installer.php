@@ -11,7 +11,7 @@ use RuntimeException;
 
 final class Installer
 {
-    private const VERSION = 120;
+    private const VERSION = 130;
     private const TABLE_PREFIX = 'glpi_plugin_marifex_';
 
     public function install(): void
@@ -61,6 +61,15 @@ final class Installer
                 'ended_at',
                 'ended_at',
                 'timestamp NULL DEFAULT NULL'
+            );
+        }
+        if ($installedVersion > 0 && $installedVersion < 130) {
+            $migration->dropKey('glpi_plugin_marifex_state_intervals', 'interval_identity');
+            $migration->addKey(
+                'glpi_plugin_marifex_state_intervals',
+                ['tickets_id', 'state_type', 'state_value', 'started_at'],
+                'interval_identity',
+                'UNIQUE'
             );
         }
         $migration->executeMigration();

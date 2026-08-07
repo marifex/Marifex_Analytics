@@ -32,6 +32,12 @@ final class MetricRegistry
                 'data_mart',
                 'duration_series'
             ),
+            'historical_group_backlog' => new MetricDefinition(
+                'historical_group_backlog',
+                'Historical backlog by assigned group',
+                'data_mart',
+                'dimension_series'
+            ),
         ];
     }
 

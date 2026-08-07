@@ -51,7 +51,7 @@ final class Schema
                 `duration_seconds` bigint unsigned DEFAULT NULL,
                 `source_event_start_id` bigint unsigned DEFAULT NULL,
                 `source_event_end_id` bigint unsigned DEFAULT NULL,
-                PRIMARY KEY (`id`), UNIQUE KEY `interval_identity` (`tickets_id`,`state_type`,`started_at`), KEY `entity_state_time` (`entities_id`,`state_type`,`started_at`), KEY `open_intervals` (`ended_at`)
+                PRIMARY KEY (`id`), UNIQUE KEY `interval_identity` (`tickets_id`,`state_type`,`state_value`,`started_at`), KEY `entity_state_time` (`entities_id`,`state_type`,`started_at`), KEY `open_intervals` (`ended_at`)
             ) $suffix",
             'glpi_plugin_marifex_daily_snapshots' => "CREATE TABLE `glpi_plugin_marifex_daily_snapshots` (
                 `id` bigint unsigned NOT NULL AUTO_INCREMENT,

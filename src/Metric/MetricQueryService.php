@@ -35,6 +35,11 @@ final class MetricQueryService
                 $from ?? new DateTimeImmutable('-30 days'),
                 $to ?? new DateTimeImmutable('today')
             ),
+            'historical_group_backlog' => $this->groupBacklogSeries(
+                $definition,
+                $from ?? new DateTimeImmutable('-30 days'),
+                $to ?? new DateTimeImmutable('today')
+            ),
         };
     }
 
@@ -125,5 +130,41 @@ final class MetricQueryService
         if (!$database instanceof DBmysql) {
             throw new RuntimeException('GLPI database connection is unavailable.');
         }
+    }
+
+    /** @return array<string, mixed> */
+    private function groupBacklogSeries(MetricDefinition $definition, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        global $DB;
+        $this->assertDatabase($DB);
+        if ($from > $to || $from->diff($to)->days > 3660) {
+            throw new RuntimeException('Invalid metric date range.');
+        }
+
+        $rows = iterator_to_array($DB->request([
+            'SELECT' => ['rollup_date', 'dimension_value', new QueryExpression('SUM(`metric_value`) AS value')],
+            'FROM' => 'glpi_plugin_marifex_daily_rollups',
+            'WHERE' => array_merge($this->entityScope->criteria(), [
+                'metric_key' => $definition->key,
+                'dimension_key' => 'group',
+                ['rollup_date' => ['>=', $from->format('Y-m-d')]],
+                ['rollup_date' => ['<=', $to->format('Y-m-d')]],
+            ]),
+            'GROUPBY' => ['rollup_date', 'dimension_value'],
+            'ORDER' => ['rollup_date ASC', 'dimension_value ASC'],
+        ]));
+        $groupIds = array_values(array_unique(array_map(static fn (array $row): int => (int) $row['dimension_value'], $rows)));
+        $groupNames = [];
+        if ($groupIds !== []) {
+            foreach ($DB->request(['SELECT' => ['id', 'completename'], 'FROM' => 'glpi_groups', 'WHERE' => ['id' => $groupIds]]) as $group) {
+                $groupNames[(int) $group['id']] = (string) $group['completename'];
+            }
+        }
+        $series = array_map(static function (array $row) use ($groupNames): array {
+            $groupId = (int) $row['dimension_value'];
+            return ['date' => $row['rollup_date'], 'dimension_id' => $groupId, 'dimension' => $groupNames[$groupId] ?? ('Group #' . $groupId), 'value' => (int) $row['value']];
+        }, $rows);
+
+        return ['metric' => $definition->key, 'label' => __($definition->label, 'marifex'), 'source' => $definition->source, 'from' => $from->format('Y-m-d'), 'to' => $to->format('Y-m-d'), 'series' => $series];
     }
 }

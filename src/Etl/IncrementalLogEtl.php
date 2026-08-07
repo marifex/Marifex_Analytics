@@ -9,7 +9,7 @@ use Throwable;
 
 final class IncrementalLogEtl
 {
-    private const PIPELINE = 'ticket_logs_v1';
+    private const PIPELINE = 'ticket_logs_v2';
     private const SOURCE = 'glpi_logs';
 
     public function __construct(
@@ -22,8 +22,11 @@ final class IncrementalLogEtl
     {
         global $DB;
 
-        $this->mappings->refreshTicketStatus();
-        $mapping = $this->mappings->verified(EventMappingRegistry::TICKET_STATUS_CHANGED);
+        $mappings = $this->mappings->refreshAll();
+        $mappingsByOption = [];
+        foreach ($mappings as $mapping) {
+            $mappingsByOption[(int) $mapping['search_option_id']] = $mapping;
+        }
         $token = $this->token();
         $this->checkpoints->acquire(self::PIPELINE, self::SOURCE, $token);
         $watermark = $this->checkpoints->watermark(self::PIPELINE, self::SOURCE);
@@ -33,11 +36,11 @@ final class IncrementalLogEtl
 
         try {
             $logs = $DB->request([
-                'SELECT' => ['id', 'items_id', 'date_mod', 'old_value', 'new_value'],
+                'SELECT' => ['id', 'items_id', 'id_search_option', 'date_mod', 'old_value', 'new_value'],
                 'FROM' => self::SOURCE,
                 'WHERE' => [
                     'itemtype' => 'Ticket',
-                    'id_search_option' => (int) $mapping['search_option_id'],
+                    'id_search_option' => array_keys($mappingsByOption),
                     [
                         'OR' => [
                             ['date_mod' => ['>', $watermark['date']]],
@@ -54,6 +57,8 @@ final class IncrementalLogEtl
 
             $rows = iterator_to_array($logs);
             $ticketIds = array_values(array_unique(array_map(static fn (array $row): int => (int) $row['items_id'], $rows)));
+            $statusTicketIds = [];
+            $assignmentTicketIds = [];
             $entities = [];
             if ($ticketIds !== []) {
                 foreach ($DB->request([
@@ -66,6 +71,7 @@ final class IncrementalLogEtl
             }
 
             foreach ($rows as $log) {
+                $mapping = $mappingsByOption[(int) $log['id_search_option']];
                 $logId = (int) $log['id'];
                 $ticketId = (int) $log['items_id'];
                 $eventKey = hash('sha256', implode('|', [
@@ -76,6 +82,15 @@ final class IncrementalLogEtl
                     $mapping['mapping_version'],
                 ]));
 
+                $isAssignment = in_array($mapping['semantic_event'], [
+                    EventMappingRegistry::TICKET_TECHNICIAN_ASSIGNMENT_CHANGED,
+                    EventMappingRegistry::TICKET_GROUP_ASSIGNMENT_CHANGED,
+                ], true);
+                if ($isAssignment) {
+                    $assignmentTicketIds[] = $ticketId;
+                } else {
+                    $statusTicketIds[] = $ticketId;
+                }
                 $DB->updateOrInsert('glpi_plugin_marifex_ticket_events', [
                     'tickets_id' => $ticketId,
                     'entities_id' => $entities[$ticketId] ?? 0,
@@ -83,11 +98,12 @@ final class IncrementalLogEtl
                     'source_type' => 'log',
                     'source_id' => $logId,
                     'occurred_at' => $log['date_mod'],
-                    'old_value' => (string) $log['old_value'],
-                    'new_value' => (string) $log['new_value'],
+                    'old_value' => $isAssignment ? $this->referenceId((string) $log['old_value']) : (string) $log['old_value'],
+                    'new_value' => $isAssignment ? $this->referenceId((string) $log['new_value']) : (string) $log['new_value'],
                     'payload' => json_encode([
                         'mapping_version' => (int) $mapping['mapping_version'],
                         'source_missing' => !isset($entities[$ticketId]),
+                        'source_labels_redacted' => $isAssignment,
                     ], JSON_THROW_ON_ERROR),
                 ], ['event_key' => $eventKey]);
 
@@ -95,7 +111,8 @@ final class IncrementalLogEtl
                 ++$processed;
             }
 
-            (new StateIntervalProjector())->rebuildMany($ticketIds);
+            (new StateIntervalProjector())->rebuildMany($statusTicketIds);
+            (new AssignmentIntervalProjector())->rebuildMany($assignmentTicketIds);
             $this->checkpoints->complete(self::PIPELINE, self::SOURCE, $token, $watermark['id'], $watermark['date']);
             return $processed;
         } catch (Throwable $exception) {
@@ -108,5 +125,10 @@ final class IncrementalLogEtl
     {
         $hex = bin2hex(random_bytes(16));
         return sprintf('%s-%s-%s-%s-%s', substr($hex, 0, 8), substr($hex, 8, 4), substr($hex, 12, 4), substr($hex, 16, 4), substr($hex, 20));
+    }
+
+    private function referenceId(string $value): string
+    {
+        return preg_match('/\((\d+)\)\s*$/', $value, $matches) === 1 ? $matches[1] : '';
     }
 }

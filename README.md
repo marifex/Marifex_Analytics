@@ -1,6 +1,6 @@
 # MarifeX Advanced Analytics for GLPI
 
-MarifeX is a native analytics plugin for GLPI 11. It stores historical analytics in its own MariaDB or MySQL tables and does not change GLPI core files or tables. The current development version is `0.3.0-dev`.
+MarifeX is a native analytics plugin for GLPI 11. It stores historical analytics in its own MariaDB or MySQL tables and does not change GLPI core files or tables. The current development version is `0.4.0-dev`.
 
 ## What Phase 0 includes
 
@@ -56,3 +56,4 @@ GLPI authenticates every API request through the current session. The API checks
 See [docs/PHASE_0.md](docs/PHASE_0.md) for architecture and verification details.
 See [docs/PHASE_1.md](docs/PHASE_1.md) for verified ticket-history ingestion and reconciliation.
 See [docs/PHASE_2.md](docs/PHASE_2.md) for deterministic intervals, logical snapshots and certified rollups.
+See [docs/PHASE_3.md](docs/PHASE_3.md) for verified assignment history and group workload analytics.

@@ -15,8 +15,8 @@ $assert = static function (bool $condition, string $message) use (&$failures): v
 };
 
 $definitions = (new MetricRegistry())->all();
-$assert(count($definitions) === 3, 'The semantic layer must expose exactly three approved metrics.');
-$assert(array_column($definitions, 'source') === ['live', 'data_mart', 'data_mart'], 'Metrics must keep live and Data Mart sources explicit.');
+$assert(count($definitions) === 4, 'The semantic layer must expose exactly four approved metrics.');
+$assert(array_column($definitions, 'source') === ['live', 'data_mart', 'data_mart', 'data_mart'], 'Metrics must keep live and Data Mart sources explicit.');
 
 $tables = Schema::tables();
 $assert(count($tables) === 8, 'Analytics schema must contain eight plugin-owned tables.');
@@ -48,14 +48,23 @@ $assert(
 
 $logEtl = file_get_contents(dirname(__DIR__) . '/src/Etl/IncrementalLogEtl.php');
 $assert(
-    str_contains($logEtl, 'EventMappingRegistry::TICKET_STATUS_CHANGED'),
-    'Log ETL must use the verified semantic mapping registry.'
+    str_contains($logEtl, 'mappings->refreshAll()'),
+    'Log ETL must refresh every verified semantic mapping.'
 );
 $assert(
     !str_contains($logEtl, "'id_search_option' => 12"),
     'Log ETL must not hardcode the ticket status search option.'
 );
 $assert(str_contains($logEtl, 'StateIntervalProjector())->rebuildMany'), 'Imported status events must rebuild deterministic ticket intervals.');
+$assert(str_contains($logEtl, 'AssignmentIntervalProjector())->rebuildMany'), 'Imported assignment events must rebuild membership intervals.');
+$assert(str_contains($logEtl, "'source_labels_redacted'"), 'Assignment labels must be redacted from analytics events.');
+
+$mappingRegistry = file_get_contents(dirname(__DIR__) . '/src/Etl/EventMappingRegistry.php');
+$assert(str_contains($mappingRegistry, "['NEWTABLE.type'] ?? null"), 'Assignment mappings must verify the GLPI role discriminator.');
+
+$assignmentProjector = file_get_contents(dirname(__DIR__) . '/src/Etl/AssignmentIntervalProjector.php');
+$assert(str_contains($assignmentProjector, "'technician'"), 'Technician membership intervals must be projected.');
+$assert(str_contains($assignmentProjector, "'group'"), 'Group membership intervals must be projected.');
 
 $projector = file_get_contents(dirname(__DIR__) . '/src/Etl/StateIntervalProjector.php');
 $assert(str_contains($projector, "'occurred_at ASC', 'id ASC'"), 'Status events must be projected in deterministic order.');
@@ -66,6 +75,7 @@ $assert(str_contains($projector, "ticket['date_creation']"), 'Tickets without a 
 $snapshot = file_get_contents(dirname(__DIR__) . '/src/Etl/SnapshotBuilder.php');
 $assert(str_contains($snapshot, "new DateTimeImmutable('yesterday'"), 'The scheduled snapshot must default to the last completed day.');
 $assert(str_contains($snapshot, "'average_open_ticket_age'"), 'Daily rollups must include average open ticket age.');
+$assert(str_contains($snapshot, "'historical_group_backlog'"), 'Daily rollups must include assigned group backlog.');
 
 $settingsTemplate = file_get_contents(dirname(__DIR__) . '/templates/settings/index.html.twig');
 $assert(

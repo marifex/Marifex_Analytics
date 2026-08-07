@@ -79,18 +79,39 @@ final class SnapshotBuilder
             $this->writeRollup($snapshotDate, (int) $row['entities_id'], 'average_open_ticket_age', (float) $row['average_age'], (int) $row['backlog_value']);
         }
 
+        if ($ticketIds !== []) {
+            $groupCounts = [];
+            foreach ($DB->request([
+                'SELECT' => ['tickets_id', 'entities_id', 'state_value'],
+                'FROM' => 'glpi_plugin_marifex_state_intervals',
+                'WHERE' => [
+                    'tickets_id' => $ticketIds,
+                    'state_type' => 'group',
+                    ['started_at' => ['<', $cutoff]],
+                    ['OR' => [['ended_at' => null], ['ended_at' => ['>', $cutoff]]]],
+                ],
+            ]) as $groupInterval) {
+                $key = (int) $groupInterval['entities_id'] . ':' . (int) $groupInterval['state_value'];
+                $groupCounts[$key] = ($groupCounts[$key] ?? 0) + 1;
+            }
+            foreach ($groupCounts as $key => $count) {
+                [$entityId, $groupId] = array_map('intval', explode(':', $key, 2));
+                $this->writeRollup($snapshotDate, $entityId, 'historical_group_backlog', (float) $count, $count, 'group', (string) $groupId);
+            }
+        }
+
         return $processed;
     }
 
-    private function writeRollup(string $date, int $entityId, string $metric, float $value, int $samples): void
+    private function writeRollup(string $date, int $entityId, string $metric, float $value, int $samples, string $dimensionKey = '', string $dimensionValue = ''): void
     {
         global $DB;
         $DB->insert('glpi_plugin_marifex_daily_rollups', [
             'rollup_date' => $date,
             'entities_id' => $entityId,
             'metric_key' => $metric,
-            'dimension_key' => '',
-            'dimension_value' => '',
+            'dimension_key' => $dimensionKey,
+            'dimension_value' => $dimensionValue,
             'metric_value' => $value,
             'sample_count' => $samples,
         ]);

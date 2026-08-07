@@ -8,12 +8,13 @@ import { CanvasRenderer } from 'echarts/renderers';
 use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
 
 type Point = { date: string; value: number };
+type DimensionPoint = Point & { dimension_id: number; dimension: string };
 type MetricResponse = {
   metric: string;
   label: string;
   source: 'live' | 'data_mart';
   value?: number;
-  series?: Point[];
+  series?: Array<Point | DimensionPoint>;
 };
 
 const props = defineProps<{ endpoint: string }>();
@@ -22,6 +23,7 @@ const error = ref('');
 const live = ref<MetricResponse | null>(null);
 const history = ref<MetricResponse | null>(null);
 const averageAge = ref<MetricResponse | null>(null);
+const groupBacklog = ref<MetricResponse | null>(null);
 const chartElement = ref<HTMLElement | null>(null);
 let chart: ECharts | null = null;
 
@@ -32,20 +34,27 @@ const averageAgeLabel = computed(() => {
   const days = seconds / 86400;
   return days < 1 ? `${Math.round(seconds / 3600)} hours` : `${days.toFixed(1)} days`;
 });
+const latestGroups = computed(() => {
+  const points = (groupBacklog.value?.series ?? []) as DimensionPoint[];
+  const latestDate = points.at(-1)?.date;
+  return points.filter((point) => point.date === latestDate).sort((a, b) => b.value - a.value);
+});
 
 async function load(): Promise<void> {
   loading.value = true;
   error.value = '';
   try {
-    const [liveResponse, historyResponse, ageResponse] = await Promise.all([
+    const [liveResponse, historyResponse, ageResponse, groupResponse] = await Promise.all([
       fetch(`${props.endpoint}/current_open_tickets`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
       fetch(`${props.endpoint}/historical_open_backlog`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
       fetch(`${props.endpoint}/average_open_ticket_age`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
+      fetch(`${props.endpoint}/historical_group_backlog`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
     ]);
-    if (!liveResponse.ok || !historyResponse.ok || !ageResponse.ok) throw new Error('Metric request failed');
+    if (!liveResponse.ok || !historyResponse.ok || !ageResponse.ok || !groupResponse.ok) throw new Error('Metric request failed');
     live.value = await liveResponse.json();
     history.value = await historyResponse.json();
     averageAge.value = await ageResponse.json();
+    groupBacklog.value = await groupResponse.json();
     await nextTick();
     drawChart();
   } catch {
@@ -93,7 +102,7 @@ onBeforeUnmount(() => { window.removeEventListener('resize', resize); chart?.dis
       <article class="card marifex-kpi">
         <div class="card-body">
           <span class="marifex-kpi__label">Current open tickets</span>
-          <strong class="marifex-kpi__value">{{ loading ? '…' : openTickets }}</strong>
+          <strong class="marifex-kpi__value">{{ loading ? '...' : openTickets }}</strong>
           <span class="badge bg-blue-lt">Live GLPI</span>
         </div>
       </article>
@@ -107,6 +116,18 @@ onBeforeUnmount(() => { window.removeEventListener('resize', resize); chart?.dis
       <article class="card marifex-chart-card">
         <div class="card-header"><h2 class="card-title">Historical open backlog</h2><span class="badge bg-purple-lt">Data Mart</span></div>
         <div ref="chartElement" class="marifex-chart" role="img" aria-label="Historical open ticket backlog line chart"></div>
+      </article>
+      <article class="card marifex-team-card">
+        <div class="card-header"><h2 class="card-title">Backlog by assigned group</h2><span class="badge bg-purple-lt">Data Mart</span></div>
+        <div class="table-responsive">
+          <table class="table table-vcenter card-table">
+            <thead><tr><th>Group</th><th class="text-end">Open tickets</th></tr></thead>
+            <tbody>
+              <tr v-for="group in latestGroups" :key="group.dimension_id"><td>{{ group.dimension }}</td><td class="text-end">{{ group.value.toLocaleString() }}</td></tr>
+              <tr v-if="!loading && latestGroups.length === 0"><td colspan="2" class="text-secondary">No assigned group history is available yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
       </article>
     </div>
   </section>
