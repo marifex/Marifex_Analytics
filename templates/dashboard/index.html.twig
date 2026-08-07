@@ -1,0 +1,17 @@
+{% extends "layout/page_card_notoolbar.html.twig" %}
+
+{% block title %}{{ __('Analytics', 'marifex') }}{% endblock %}
+
+{% block content_body %}
+  <div
+    id="marifex-dashboard"
+    class="marifex-dashboard"
+    data-metric-endpoint="{{ metric_endpoint|e('html_attr') }}"
+    dir="auto"
+  >
+    <div class="marifex-dashboard__loading" role="status">
+      {{ __('Loading analytics…', 'marifex') }}
+    </div>
+  </div>
+{% endblock %}
+

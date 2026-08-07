@@ -1,0 +1,21 @@
+{
+  "name": "marifex-glpi-analytics",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "echarts": "6.0.0",
+    "vue": "3.5.18"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "6.0.1",
+    "typescript": "5.9.2",
+    "vite": "7.1.1",
+    "vue-tsc": "3.0.5"
+  }
+}
+
