@@ -8,49 +8,96 @@ use DateTimeImmutable;
 
 final class StateIntervalProjector
 {
-    public function project(
-        int $ticketId,
-        int $entityId,
-        string $stateType,
-        string $stateValue,
-        string $observedAt,
-    ): void {
-        global $DB;
-        $open = $DB->request([
-            'FROM' => 'glpi_plugin_marifex_state_intervals',
-            'WHERE' => [
-                'tickets_id' => $ticketId,
-                'state_type' => $stateType,
-                'ended_at' => null,
-            ],
-            'ORDER' => ['started_at DESC'],
-            'LIMIT' => 1,
-        ])->current();
-
-        if ($open && (string) $open['state_value'] === $stateValue) {
-            return;
-        }
-
-        if ($open) {
-            $start = new DateTimeImmutable((string) $open['started_at']);
-            $end = new DateTimeImmutable($observedAt);
-            if ($end >= $start) {
-                $DB->update('glpi_plugin_marifex_state_intervals', [
-                    'ended_at' => $observedAt,
-                    'duration_seconds' => $end->getTimestamp() - $start->getTimestamp(),
-                ], ['id' => (int) $open['id'], 'ended_at' => null]);
+    /** @param list<int> $ticketIds */
+    public function rebuildMany(array $ticketIds): int
+    {
+        $rebuilt = 0;
+        foreach (array_values(array_unique(array_filter($ticketIds))) as $ticketId) {
+            if ($this->rebuildTicket((int) $ticketId)) {
+                ++$rebuilt;
             }
         }
+        return $rebuilt;
+    }
 
-        $DB->updateOrInsert('glpi_plugin_marifex_state_intervals', [
-            'entities_id' => $entityId,
-            'state_value' => $stateValue,
-            'ended_at' => null,
-            'duration_seconds' => null,
-        ], [
+    public function rebuildTicket(int $ticketId): bool
+    {
+        global $DB;
+        $ticket = $DB->request([
+            'SELECT' => ['id', 'entities_id', 'date', 'date_creation', 'date_mod', 'status'],
+            'FROM' => 'glpi_tickets',
+            'WHERE' => ['id' => $ticketId],
+            'LIMIT' => 1,
+        ])->current();
+        if (!$ticket) {
+            return false;
+        }
+
+        $events = iterator_to_array($DB->request([
+            'SELECT' => ['id', 'occurred_at', 'old_value', 'new_value'],
+            'FROM' => 'glpi_plugin_marifex_ticket_events',
+            'WHERE' => ['tickets_id' => $ticketId, 'event_type' => 'ticket_status_changed'],
+            'ORDER' => ['occurred_at ASC', 'id ASC'],
+        ]));
+        $changes = [];
+        foreach ($events as $event) {
+            $changes[(string) $event['occurred_at']] = $event;
+        }
+        $changes = array_values($changes);
+
+        $state = $changes !== [] && $this->isStatus($changes[0]['old_value'])
+            ? (string) $changes[0]['old_value']
+            : (string) $ticket['status'];
+        $startedAt = (string) ($ticket['date'] ?: $ticket['date_creation'] ?: $ticket['date_mod']);
+        $sourceStartId = null;
+
+        $DB->delete('glpi_plugin_marifex_state_intervals', [
             'tickets_id' => $ticketId,
-            'state_type' => $stateType,
-            'started_at' => $observedAt,
+            'state_type' => 'status',
         ]);
+
+        foreach ($changes as $event) {
+            if (!$this->isStatus($event['new_value']) || (string) $event['occurred_at'] < $startedAt) {
+                continue;
+            }
+            $newState = (string) $event['new_value'];
+            if ($newState === $state) {
+                continue;
+            }
+            if ((string) $event['occurred_at'] === $startedAt) {
+                $state = $newState;
+                $sourceStartId = (int) $event['id'];
+                continue;
+            }
+            $this->insertInterval($ticketId, (int) $ticket['entities_id'], $state, $startedAt, (string) $event['occurred_at'], $sourceStartId, (int) $event['id']);
+            $state = $newState;
+            $startedAt = (string) $event['occurred_at'];
+            $sourceStartId = (int) $event['id'];
+        }
+
+        $this->insertInterval($ticketId, (int) $ticket['entities_id'], $state, $startedAt, null, $sourceStartId, null);
+        return true;
+    }
+
+    private function insertInterval(int $ticketId, int $entityId, string $state, string $startedAt, ?string $endedAt, ?int $sourceStartId, ?int $sourceEndId): void
+    {
+        global $DB;
+        $duration = $endedAt === null ? null : max(0, (new DateTimeImmutable($endedAt))->getTimestamp() - (new DateTimeImmutable($startedAt))->getTimestamp());
+        $DB->insert('glpi_plugin_marifex_state_intervals', [
+            'tickets_id' => $ticketId,
+            'entities_id' => $entityId,
+            'state_type' => 'status',
+            'state_value' => $state,
+            'started_at' => $startedAt,
+            'ended_at' => $endedAt,
+            'duration_seconds' => $duration,
+            'source_event_start_id' => $sourceStartId,
+            'source_event_end_id' => $sourceEndId,
+        ]);
+    }
+
+    private function isStatus(mixed $value): bool
+    {
+        return in_array((string) $value, ['1', '2', '3', '4', '5', '6'], true);
     }
 }

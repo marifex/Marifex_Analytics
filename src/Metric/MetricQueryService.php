@@ -30,6 +30,11 @@ final class MetricQueryService
                 $from ?? new DateTimeImmutable('-30 days'),
                 $to ?? new DateTimeImmutable('today')
             ),
+            'average_open_ticket_age' => $this->dailyRollupSeries(
+                $definition,
+                $from ?? new DateTimeImmutable('-30 days'),
+                $to ?? new DateTimeImmutable('today')
+            ),
         };
     }
 
@@ -72,11 +77,27 @@ final class MetricQueryService
             throw new RuntimeException('Invalid metric date range.');
         }
 
+        return $this->dailyRollupSeries($definition, $from, $to);
+    }
+
+    /** @return array<string, mixed> */
+    private function dailyRollupSeries(MetricDefinition $definition, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        global $DB;
+        $this->assertDatabase($DB);
+
+        if ($from > $to || $from->diff($to)->days > 3660) {
+            throw new RuntimeException('Invalid metric date range.');
+        }
+
+        $valueExpression = $definition->format === 'duration_series'
+            ? 'SUM(`metric_value` * `sample_count`) / NULLIF(SUM(`sample_count`), 0) AS value'
+            : 'SUM(`metric_value`) AS value';
         $iterator = $DB->request([
-            'SELECT' => ['rollup_date', new QueryExpression('SUM(`metric_value`) AS value')],
+            'SELECT' => ['rollup_date', new QueryExpression($valueExpression)],
             'FROM' => 'glpi_plugin_marifex_daily_rollups',
             'WHERE' => array_merge($this->entityScope->criteria(), [
-                'metric_key' => 'historical_open_backlog',
+                'metric_key' => $definition->key,
                 ['rollup_date' => ['>=', $from->format('Y-m-d')]],
                 ['rollup_date' => ['<=', $to->format('Y-m-d')]],
             ]),

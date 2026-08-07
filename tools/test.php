@@ -15,8 +15,8 @@ $assert = static function (bool $condition, string $message) use (&$failures): v
 };
 
 $definitions = (new MetricRegistry())->all();
-$assert(count($definitions) === 2, 'Phase 0 must expose exactly two approved metrics.');
-$assert(array_column($definitions, 'source') === ['live', 'data_mart'], 'Metrics must prove both live and Data Mart paths.');
+$assert(count($definitions) === 3, 'The semantic layer must expose exactly three approved metrics.');
+$assert(array_column($definitions, 'source') === ['live', 'data_mart', 'data_mart'], 'Metrics must keep live and Data Mart sources explicit.');
 
 $tables = Schema::tables();
 $assert(count($tables) === 8, 'Analytics schema must contain eight plugin-owned tables.');
@@ -55,6 +55,17 @@ $assert(
     !str_contains($logEtl, "'id_search_option' => 12"),
     'Log ETL must not hardcode the ticket status search option.'
 );
+$assert(str_contains($logEtl, 'StateIntervalProjector())->rebuildMany'), 'Imported status events must rebuild deterministic ticket intervals.');
+
+$projector = file_get_contents(dirname(__DIR__) . '/src/Etl/StateIntervalProjector.php');
+$assert(str_contains($projector, "'occurred_at ASC', 'id ASC'"), 'Status events must be projected in deterministic order.');
+$assert(str_contains($projector, "'source_event_end_id'"), 'Intervals must retain event lineage.');
+$assert(str_contains($projector, "event['occurred_at'] === \$startedAt"), 'A status change at ticket creation time must not create duplicate interval identities.');
+$assert(str_contains($projector, "ticket['date_creation']"), 'Tickets without a business date must use a stable GLPI timestamp fallback.');
+
+$snapshot = file_get_contents(dirname(__DIR__) . '/src/Etl/SnapshotBuilder.php');
+$assert(str_contains($snapshot, "new DateTimeImmutable('yesterday'"), 'The scheduled snapshot must default to the last completed day.');
+$assert(str_contains($snapshot, "'average_open_ticket_age'"), 'Daily rollups must include average open ticket age.');
 
 $settingsTemplate = file_get_contents(dirname(__DIR__) . '/templates/settings/index.html.twig');
 $assert(

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace GlpiPlugin\Marifex\Etl;
 
+use Config;
 use DateTimeImmutable;
+use DateTimeZone;
 use Glpi\DBAL\QueryExpression;
 
 final class SnapshotBuilder
@@ -12,46 +14,85 @@ final class SnapshotBuilder
     public function run(?DateTimeImmutable $date = null): int
     {
         global $DB;
-        $date ??= new DateTimeImmutable('today');
-        $snapshotDate = $date->format('Y-m-d');
-        $processed = 0;
+        $config = Config::getConfigurationValues('plugin:marifex');
+        $timezone = new DateTimeZone((string) ($config['snapshot_timezone'] ?? 'UTC'));
+        $date ??= new DateTimeImmutable('yesterday', $timezone);
+        $localDay = $date->setTimezone($timezone)->setTime(0, 0);
+        $snapshotDate = $localDay->format('Y-m-d');
+        $cutoffUtc = $localDay->modify('+1 day')->setTimezone(new DateTimeZone('UTC'));
+        $cutoff = $cutoffUtc->format('Y-m-d H:i:s');
 
-        $tickets = $DB->request([
-            'SELECT' => ['id', 'entities_id', 'status', 'priority', 'date'],
-            'FROM' => 'glpi_tickets',
-            'WHERE' => ['is_deleted' => 0, 'status' => [1, 2, 3, 4]],
+        $DB->delete('glpi_plugin_marifex_daily_snapshots', ['snapshot_date' => $snapshotDate]);
+        $DB->delete('glpi_plugin_marifex_daily_rollups', ['rollup_date' => $snapshotDate]);
+
+        $intervals = $DB->request([
+            'SELECT' => ['tickets_id', 'entities_id', 'state_value', 'started_at'],
+            'FROM' => 'glpi_plugin_marifex_state_intervals',
+            'WHERE' => [
+                'state_type' => 'status',
+                'state_value' => ['1', '2', '3', '4'],
+                ['started_at' => ['<', $cutoff]],
+                ['OR' => [['ended_at' => null], ['ended_at' => ['>', $cutoff]]]],
+            ],
         ]);
 
-        foreach ($tickets as $ticket) {
-            $created = new DateTimeImmutable($ticket['date']);
-            $DB->updateOrInsert('glpi_plugin_marifex_daily_snapshots', [
-                'entities_id' => (int) $ticket['entities_id'],
-                'status' => (int) $ticket['status'],
-                'priority' => (int) $ticket['priority'],
-                'age_seconds' => max(0, $date->getTimestamp() - $created->getTimestamp()),
+        $intervalRows = iterator_to_array($intervals);
+        $ticketIds = array_values(array_unique(array_map(static fn (array $row): int => (int) $row['tickets_id'], $intervalRows)));
+        $createdDates = [];
+        if ($ticketIds !== []) {
+            foreach ($DB->request([
+                'SELECT' => ['id', 'date', 'date_creation', 'date_mod'],
+                'FROM' => 'glpi_tickets',
+                'WHERE' => ['id' => $ticketIds],
+            ]) as $ticket) {
+                $createdDates[(int) $ticket['id']] = (string) ($ticket['date'] ?: $ticket['date_creation'] ?: $ticket['date_mod']);
+            }
+        }
+
+        $processed = 0;
+        foreach ($intervalRows as $interval) {
+            $ticketId = (int) $interval['tickets_id'];
+            if (!isset($createdDates[$ticketId])) {
+                continue;
+            }
+            $createdAt = new DateTimeImmutable($createdDates[$ticketId], new DateTimeZone('UTC'));
+            $DB->insert('glpi_plugin_marifex_daily_snapshots', [
+                'snapshot_date' => $snapshotDate,
+                'tickets_id' => $ticketId,
+                'entities_id' => (int) $interval['entities_id'],
+                'status' => (int) $interval['state_value'],
+                'priority' => 0,
+                'age_seconds' => max(0, $cutoffUtc->getTimestamp() - $createdAt->getTimestamp()),
                 'is_open' => 1,
-            ], ['snapshot_date' => $snapshotDate, 'tickets_id' => (int) $ticket['id']]);
+            ]);
             ++$processed;
         }
 
-        $counts = $DB->request([
-            'SELECT' => ['entities_id', new QueryExpression('COUNT(*) AS value')],
+        $aggregates = $DB->request([
+            'SELECT' => ['entities_id', new QueryExpression('COUNT(*) AS backlog_value'), new QueryExpression('AVG(`age_seconds`) AS average_age')],
             'FROM' => 'glpi_plugin_marifex_daily_snapshots',
             'WHERE' => ['snapshot_date' => $snapshotDate, 'is_open' => 1],
             'GROUPBY' => ['entities_id'],
         ]);
-        foreach ($counts as $row) {
-            $DB->updateOrInsert('glpi_plugin_marifex_daily_rollups', [
-                'metric_value' => (int) $row['value'], 'sample_count' => (int) $row['value'],
-            ], [
-                'rollup_date' => $snapshotDate,
-                'entities_id' => (int) $row['entities_id'],
-                'metric_key' => 'historical_open_backlog',
-                'dimension_key' => '',
-                'dimension_value' => '',
-            ]);
+        foreach ($aggregates as $row) {
+            $this->writeRollup($snapshotDate, (int) $row['entities_id'], 'historical_open_backlog', (float) $row['backlog_value'], (int) $row['backlog_value']);
+            $this->writeRollup($snapshotDate, (int) $row['entities_id'], 'average_open_ticket_age', (float) $row['average_age'], (int) $row['backlog_value']);
         }
 
         return $processed;
+    }
+
+    private function writeRollup(string $date, int $entityId, string $metric, float $value, int $samples): void
+    {
+        global $DB;
+        $DB->insert('glpi_plugin_marifex_daily_rollups', [
+            'rollup_date' => $date,
+            'entities_id' => $entityId,
+            'metric_key' => $metric,
+            'dimension_key' => '',
+            'dimension_value' => '',
+            'metric_value' => $value,
+            'sample_count' => $samples,
+        ]);
     }
 }

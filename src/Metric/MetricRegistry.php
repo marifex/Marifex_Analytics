@@ -26,6 +26,12 @@ final class MetricRegistry
                 'data_mart',
                 'time_series'
             ),
+            'average_open_ticket_age' => new MetricDefinition(
+                'average_open_ticket_age',
+                'Average open ticket age',
+                'data_mart',
+                'duration_series'
+            ),
         ];
     }
 

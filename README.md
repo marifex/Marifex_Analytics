@@ -1,6 +1,6 @@
 # MarifeX Advanced Analytics for GLPI
 
-MarifeX is a native analytics plugin for GLPI 11. It stores historical analytics in its own MariaDB or MySQL tables and does not change GLPI core files or tables. The current development version is `0.2.0-dev`.
+MarifeX is a native analytics plugin for GLPI 11. It stores historical analytics in its own MariaDB or MySQL tables and does not change GLPI core files or tables. The current development version is `0.3.0-dev`.
 
 ## What Phase 0 includes
 
@@ -16,7 +16,7 @@ MarifeX is a native analytics plugin for GLPI 11. It stores historical analytics
 - Retain-by-default uninstall behavior for analytics data
 - Native plugin configuration page for ETL, timezone, retention and pipeline health
 
-Phase 0 does not parse `glpi_logs`. We need to confirm the log mapping against the installed GLPI 11 release before enabling status and assignment history reconstruction.
+Phase 1 added a runtime-verified GLPI status mapping and incremental log ingestion. Phase 2 rebuilds deterministic status intervals and derives logical daily backlog and ticket-age rollups from them.
 
 ## Development
 
@@ -48,10 +48,11 @@ GLPI authenticates every API request through the current session. The API checks
 
 ## Current limits
 
-- The initial ETL imports ticket-created facts and captures status observations for subsequent ticket changes. Complete historical reconstruction still follows log-forensics validation.
+- Status history is supported. Assignment and priority history still need their own verified mappings before historical dimensions can be enabled.
 - Initial backfill advances by ticket ID; subsequent updates advance by a composite `date_mod + id` watermark.
-- The daily snapshot currently stores open-ticket state; assignment dimensions are reserved but not populated in Phase 0.
+- Daily snapshots store historical open status and age. Reserved assignment fields are not populated yet, and priority is zero until priority history is verified.
 - Full integration testing requires a GLPI 11.0.7+ test installation and MariaDB/MySQL.
 
 See [docs/PHASE_0.md](docs/PHASE_0.md) for architecture and verification details.
 See [docs/PHASE_1.md](docs/PHASE_1.md) for verified ticket-history ingestion and reconciliation.
+See [docs/PHASE_2.md](docs/PHASE_2.md) for deterministic intervals, logical snapshots and certified rollups.

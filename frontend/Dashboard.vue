@@ -21,22 +21,31 @@ const loading = ref(true);
 const error = ref('');
 const live = ref<MetricResponse | null>(null);
 const history = ref<MetricResponse | null>(null);
+const averageAge = ref<MetricResponse | null>(null);
 const chartElement = ref<HTMLElement | null>(null);
 let chart: ECharts | null = null;
 
-const openTickets = computed(() => live.value?.value?.toLocaleString() ?? '—');
+const openTickets = computed(() => live.value?.value?.toLocaleString() ?? 'Not available');
+const averageAgeLabel = computed(() => {
+  const seconds = averageAge.value?.series?.at(-1)?.value;
+  if (seconds === undefined) return 'Not available';
+  const days = seconds / 86400;
+  return days < 1 ? `${Math.round(seconds / 3600)} hours` : `${days.toFixed(1)} days`;
+});
 
 async function load(): Promise<void> {
   loading.value = true;
   error.value = '';
   try {
-    const [liveResponse, historyResponse] = await Promise.all([
+    const [liveResponse, historyResponse, ageResponse] = await Promise.all([
       fetch(`${props.endpoint}/current_open_tickets`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
       fetch(`${props.endpoint}/historical_open_backlog`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
+      fetch(`${props.endpoint}/average_open_ticket_age`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
     ]);
-    if (!liveResponse.ok || !historyResponse.ok) throw new Error('Metric request failed');
+    if (!liveResponse.ok || !historyResponse.ok || !ageResponse.ok) throw new Error('Metric request failed');
     live.value = await liveResponse.json();
     history.value = await historyResponse.json();
+    averageAge.value = await ageResponse.json();
     await nextTick();
     drawChart();
   } catch {
@@ -86,6 +95,13 @@ onBeforeUnmount(() => { window.removeEventListener('resize', resize); chart?.dis
           <span class="marifex-kpi__label">Current open tickets</span>
           <strong class="marifex-kpi__value">{{ loading ? '…' : openTickets }}</strong>
           <span class="badge bg-blue-lt">Live GLPI</span>
+        </div>
+      </article>
+      <article class="card marifex-kpi">
+        <div class="card-body">
+          <span class="marifex-kpi__label">Average open ticket age</span>
+          <strong class="marifex-kpi__value marifex-kpi__value--compact">{{ loading ? '...' : averageAgeLabel }}</strong>
+          <span class="badge bg-purple-lt">Data Mart</span>
         </div>
       </article>
       <article class="card marifex-chart-card">

@@ -95,6 +95,7 @@ final class IncrementalLogEtl
                 ++$processed;
             }
 
+            (new StateIntervalProjector())->rebuildMany($ticketIds);
             $this->checkpoints->complete(self::PIPELINE, self::SOURCE, $token, $watermark['id'], $watermark['date']);
             return $processed;
         } catch (Throwable $exception) {
