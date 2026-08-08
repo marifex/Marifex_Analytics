@@ -100,6 +100,7 @@ final class SnapshotBuilder
             }
         }
 
+        (new TicketOperationsSnapshotBuilder())->run($localDay, $timezone);
         (new DomainSnapshotBuilder())->run($localDay, $timezone);
 
         return $processed;

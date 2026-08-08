@@ -2,12 +2,12 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { init, use, type ECharts } from 'echarts/core';
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
-import { GridComponent, TooltipComponent } from 'echarts/components';
+import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { DimensionPoint, MetricResponse, Point, WidgetDefinition } from './types';
 import { widgetPalette, widgetPalettes, type WidgetPaletteKey } from './palettes';
 
-use([BarChart, LineChart, PieChart, GridComponent, TooltipComponent, CanvasRenderer]);
+use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
 const props = defineProps<{ widget: WidgetDefinition; gridX: number; gridY: number; data?: MetricResponse; loading: boolean; editing: boolean; interacting: boolean; interactionMode: 'drag' | 'resize' | null; selectedGroup: number | null; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string }>();
 const emit = defineEmits<{ remove: [id: string]; rename: [id: string, title: string]; palette: [id: string, palette: WidgetPaletteKey]; selectGroup: [id: number | null]; interactionStart: [id: string, mode: 'drag' | 'resize', event: PointerEvent] }>();
@@ -27,8 +27,9 @@ const latestGroups = computed(() => {
 const kpiValue = computed(() => {
   const value = props.data?.value ?? points.value.at(-1)?.value;
   if (value === undefined) return 'Not available';
-  if (props.widget.metric === 'average_open_ticket_age') return `${(value / 86400).toFixed(1)} days`;
-  if (props.widget.metric === 'software_license_compliance_rate') return `${value.toFixed(1)}%`;
+  if (['average_open_ticket_age', 'average_unassigned_time'].includes(props.widget.metric)) return `${(value / 86400).toFixed(1)} days`;
+  if (['software_license_compliance_rate', 'sla_breach_rate'].includes(props.widget.metric)) return `${value.toFixed(1)}%`;
+  if (props.widget.metric === 'assignment_changes_per_ticket') return value.toFixed(2);
   return value.toLocaleString();
 });
 const isGroupMetric = computed(() => props.widget.metric === 'historical_group_backlog');
@@ -36,12 +37,25 @@ const dimensionHeader = computed(() => {
   if (props.widget.metric === 'asset_inventory_by_state') return 'Lifecycle state';
   if (props.widget.metric === 'open_change_status_distribution') return 'Change status';
   if (props.widget.metric === 'open_problem_status_distribution') return 'Problem status';
+  if (props.widget.metric === 'open_tickets_by_priority') return 'Priority';
+  if (props.widget.metric === 'tickets_by_request_source') return 'Request source';
+  if (['sla_breaches_by_technician', 'technician_workload_distribution'].includes(props.widget.metric)) return 'Technician';
+  if (props.widget.metric === 'resolution_time_age_bands') return 'Resolution band';
+  if (['prohibited_software_installations', 'unlicensed_software_installations'].includes(props.widget.metric)) return 'Software';
+  if (props.widget.metric === 'incidents_by_operating_system') return 'Operating system';
+  if (props.widget.metric === 'repeat_incident_computers') return 'Computer';
+  if (props.widget.metric === 'created_vs_resolved_tickets') return 'Flow';
   return 'Service group';
 });
 const valueHeader = computed(() => {
   if (props.widget.metric === 'asset_inventory_by_state') return 'Computers';
   if (props.widget.metric === 'open_change_status_distribution') return 'Changes';
   if (props.widget.metric === 'open_problem_status_distribution') return 'Problems';
+  if (['prohibited_software_installations', 'unlicensed_software_installations'].includes(props.widget.metric)) return 'Installations';
+  if (['incidents_by_operating_system', 'repeat_incident_computers'].includes(props.widget.metric)) return 'Incidents';
+  if (props.widget.metric === 'sla_breaches_by_technician') return 'Breaches';
+  if (props.widget.metric === 'technician_workload_distribution') return 'Open';
+  if (props.widget.metric === 'created_vs_resolved_tickets') return 'Tickets';
   return 'Open';
 });
 const trend = computed(() => {
@@ -52,8 +66,8 @@ const trend = computed(() => {
   return ((current - previous) / previous) * 100;
 });
 const drilldown = (groupId?: number) => {
-  if (props.widget.metric.startsWith('asset_') || props.widget.metric === 'stale_computer_inventory') return props.assetSearchUrl;
-  if (props.widget.metric.startsWith('software_license_')) return props.licenceSearchUrl;
+  if (props.widget.metric.startsWith('asset_') || ['stale_computer_inventory', 'low_disk_capacity_computers', 'computers_in_stock_over_30_days', 'incidents_by_operating_system', 'repeat_incident_computers'].includes(props.widget.metric)) return props.assetSearchUrl;
+  if (props.widget.metric.startsWith('software_license_') || ['prohibited_software_installations', 'unlicensed_software_installations'].includes(props.widget.metric)) return props.licenceSearchUrl;
   if (props.widget.metric.includes('change')) return props.changeSearchUrl;
   if (props.widget.metric.includes('problem')) return props.problemSearchUrl;
   if (!groupId) return props.ticketSearchUrl;
@@ -77,7 +91,23 @@ function draw(): void {
   const border = activePalette.value.border;
   const accent = activePalette.value.colors[0];
   if (props.widget.type === 'line') {
-    chart.setOption({ animationDuration: 350, textStyle: { color: text }, grid: { left: 46, right: 20, top: 24, bottom: 32 }, tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: points.value.map(p => p.date), axisLabel: { color: text }, axisLine: { lineStyle: { color: border } } }, yAxis: { type: 'value', minInterval: 1, axisLabel: { color: text }, splitLine: { lineStyle: { color: border } } }, series: [{ type: 'line', smooth: true, symbol: 'none', lineStyle: { width: 3, color: accent }, itemStyle: { color: accent }, areaStyle: { color: accent, opacity: .12 }, data: points.value.map(p => p.value) }] }, true);
+    if (props.widget.metric === 'created_vs_resolved_tickets') {
+      const dates = [...new Set(groupPoints.value.map(point => point.date))];
+      const dimensions = [...new Map(groupPoints.value.map(point => [point.dimension_id, point.dimension])).entries()];
+      chart.setOption({
+        animationDuration: 350,
+        color: donutColors.value,
+        textStyle: { color: text },
+        legend: { type: 'plain', top: 0, textStyle: { color: text } },
+        grid: { left: 46, right: 20, top: 48, bottom: 32 },
+        tooltip: { trigger: 'axis' },
+        xAxis: { type: 'category', data: dates, axisLabel: { color: text }, axisLine: { lineStyle: { color: border } } },
+        yAxis: { type: 'value', minInterval: 1, axisLabel: { color: text }, splitLine: { lineStyle: { color: border } } },
+        series: dimensions.map(([id, name]) => ({ type: 'line', name, smooth: true, symbol: 'none', lineStyle: { width: 3 }, data: dates.map(date => groupPoints.value.find(point => point.date === date && point.dimension_id === id)?.value ?? 0) })),
+      }, true);
+    } else {
+      chart.setOption({ animationDuration: 350, textStyle: { color: text }, grid: { left: 46, right: 20, top: 24, bottom: 32 }, tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: points.value.map(p => p.date), axisLabel: { color: text }, axisLine: { lineStyle: { color: border } } }, yAxis: { type: 'value', minInterval: 1, axisLabel: { color: text }, splitLine: { lineStyle: { color: border } } }, series: [{ type: 'line', smooth: true, symbol: 'none', lineStyle: { width: 3, color: accent }, itemStyle: { color: accent }, areaStyle: { color: accent, opacity: .12 }, data: points.value.map(p => p.value) }] }, true);
+    }
   } else {
     const groups = latestGroups.value.slice(0, 12);
     if (props.widget.type === 'donut') {
@@ -106,7 +136,7 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); chart?.dispose(); });
 </script>
 
 <template>
-  <article ref="widgetElement" class="card marifex-widget" :class="[`marifex-widget--${widget.type}`, `marifex-widget--palette-${activePalette.key}`, { 'marifex-widget--editing': editing, 'marifex-widget--dragging': interacting && interactionMode === 'drag', 'marifex-widget--resizing': interacting && interactionMode === 'resize' }]" :style="{ '--marifex-widget-rows': String(widget.h), gridColumn: `${gridX} / span ${widget.w}`, gridRow: `${gridY} / span ${widget.h}` }" :data-widget-id="widget.id">
+  <article ref="widgetElement" class="card marifex-widget" :class="[`marifex-widget--${widget.type}`, `marifex-widget--palette-${activePalette.key}`, { 'marifex-widget--editing': editing, 'marifex-widget--dragging': interacting && interactionMode === 'drag', 'marifex-widget--resizing': interacting && interactionMode === 'resize' }]" :style="{ '--marifex-widget-rows': String(widget.h), gridColumn: `${gridX} / span ${widget.w}`, gridRow: `${gridY} / span ${widget.h}` }" :data-widget-id="widget.id" :data-widget-width="widget.w">
     <div class="card-header marifex-widget__header" :class="{ 'marifex-widget__drag-handle': editing }" @pointerdown="editing && emit('interactionStart', widget.id, 'drag', $event)">
       <div><span v-if="data?.source === 'live'" class="marifex-widget__kicker">Live GLPI</span><h2 class="card-title">{{ widget.title }}</h2></div>
       <div v-if="editing" class="marifex-widget__actions">

@@ -18,16 +18,25 @@ Some imported GLPI records can have an empty business date. MarifeX uses the GLP
 
 ## Certified rollups
 
-Each daily snapshot produces two entity-scoped rollups:
+Each daily snapshot produces the original backlog and age rollups plus the approved operational service-desk rollups:
 
 - Historical open backlog
 - Average open ticket age
+- Open tickets by priority
+- Unassigned open tickets and average current unassigned age
+- Tickets approaching SLA breach, breached tickets and SLA breach rate
+- SLA breaches and workload by technician
+- Open tickets by request source
+- Created versus resolved ticket flow
+- Technician assignment changes per ticket
+- Unsatisfied survey responses
+- Resolution-time age bands
 
 The metric API accepts only keys registered in the semantic metric catalog. Average age is weighted by ticket count when a user can see more than one entity.
 
 ## Dashboard
 
-The dashboard shows current open tickets from live GLPI, average open ticket age from the Data Mart, and the historical backlog chart. The layout remains responsive, follows GLPI theme colors, supports dark mode, and uses logical layout properties for right-to-left pages.
+The dashboard shows the certified operational metrics from the Data Mart and current open tickets from live GLPI. Default KPI cards align four per desktop row, standard charts align in equal two-column rows, and the layout reflows responsively while preserving mouse drag and resize behavior.
 
 For a new installation, an administrator can run `tools/backfill_analytics.php` from the command line to finish the bounded ETL backlog and build up to 366 completed daily snapshots. Normal operation remains scheduled through GLPI automatic actions.
 

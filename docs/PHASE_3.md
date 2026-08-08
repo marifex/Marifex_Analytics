@@ -13,7 +13,10 @@ Phase 3 delivers the low-code analytics dashboard builder defined by the product
 
 ## Grid and widget editing
 
-- Responsive 12-column CSS grid
+- Responsive 12-column CSS grid with a 16-pixel gap and aligned row boundaries
+- Default `3 x 2` KPI cards aligned four per desktop row
+- Default `6-column` charts and tables aligned in equal-height pairs
+- Responsive four-to-two-to-one KPI and two-to-one chart reflow
 - Drag-and-drop card ordering
 - Direct mouse/touch resizing from each widget's corner grip, with live chart reflow
 - Add, remove and rename widgets
@@ -30,7 +33,7 @@ Every catalog item maps to a pre-approved metric and compatible visualization. D
 - Native GLPI authentication and profile rights
 - Native GLPI CSRF validation on POST, PUT and DELETE
 - Dashboard ownership restricted by user and active entity
-- Maximum 20 dashboards per user/entity and 24 widgets per dashboard
+- Maximum 20 dashboards per user/entity and 40 widgets per dashboard
 - Entity-scoped metric queries and controlled native ticket drilldowns
 - Private, non-cacheable JSON responses
 
@@ -44,3 +47,4 @@ Every catalog item maps to a pre-approved metric and compatible visualization. D
 6. Cross-filtering redraws widgets without a full-page reload.
 7. Another user or entity cannot activate, update or delete the dashboard.
 8. Requests without a valid CSRF token are rejected.
+9. Default rows remain aligned after content changes, browser resizing and direct mouse resizing.

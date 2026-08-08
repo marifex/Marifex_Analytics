@@ -9,6 +9,12 @@ Phase 4 extends the governed MarifeX Data Mart and Home dashboard builder to the
 | Assets | `asset_inventory_total` | Daily managed, non-template computer count |
 | Assets | `asset_inventory_by_state` | Daily computer count by GLPI lifecycle state |
 | Assets | `stale_computer_inventory` | Computers whose last inventory is missing or older than 30 days |
+| Assets | `prohibited_software_installations` | Installed software whose GLPI software record is marked invalid |
+| Assets | `unlicensed_software_installations` | Software installations exceeding valid recorded entitlement seats |
+| Assets | `low_disk_capacity_computers` | Computers with a discovered disk below 10 percent free capacity |
+| Assets | `computers_in_stock_over_30_days` | Computers in a stock/store lifecycle state for more than 30 days |
+| Assets | `incidents_by_operating_system` | Trailing 30-day computer-linked ticket count by operating system |
+| Assets | `repeat_incident_computers` | Computers with at least two linked tickets in the trailing 30 days |
 | Licences | `software_license_entitlements` | Valid licence seats recorded in GLPI |
 | Licences | `software_license_allocations` | Items explicitly allocated to GLPI licence records |
 | Licences | `software_license_overallocated_seats` | Allocations above entitlement, summed per licence |
@@ -32,7 +38,7 @@ Every rollup includes `rollup_date` and `entities_id`. API queries intersect tho
 
 All Phase 4 widgets are available in the certified widget library. KPI, line, bar, donut and table presentations remain subject to the server-side metric/type allowlist. Native drill-downs route to GLPI Computers, Software Licences, Changes or Problems.
 
-The Executive Operations Command dashboard is upgraded once per user and active entity with a cross-domain summary covering service desk, assets, licences, changes and problems. Asset and Licence Governance, Change Control and Problem Control remain provisioned as optional persona-focused deep dives; Phase 4 does not force users to leave the Executive view. Provisioning keeps the user's current dashboard active and never recreates a deep-dive dashboard after that user deliberately deletes it. The plugin Settings page lists all 15 certified metrics with their latest snapshot, stored grain count and current/stale/missing status for the active entity scope.
+The Executive Operations Command dashboard is upgraded once per user and active entity with a cross-domain summary covering service desk, assets, licences, changes and problems. Asset and Licence Governance, Change Control and Problem Control remain provisioned as optional persona-focused deep dives; Phase 4 does not force users to leave the Executive view. Provisioning keeps the user's current dashboard active and never recreates a deep-dive dashboard after that user deliberately deletes it. The plugin Settings page lists all certified metrics with their latest snapshot, stored grain count and current/stale/missing status for the active entity scope.
 
 ## ETL behavior
 
@@ -44,7 +50,7 @@ Licence compliance is deliberately based on explicit `glpi_items_softwarelicense
 
 ## Acceptance checks
 
-1. The automatic action creates all 15 Phase 4 metric keys without changing GLPI core tables.
+1. The automatic action creates all Phase 4 metric keys without changing GLPI core tables.
 2. Re-running a snapshot day produces one rollup per metric/entity/dimension grain.
 3. All Phase 4 API results are restricted to active GLPI entities.
 4. The Asset, Change and Problem dashboards appear automatically on Home and can be activated, edited, saved and reloaded.

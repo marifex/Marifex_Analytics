@@ -73,6 +73,9 @@
 .marifex-layout-interacting,.marifex-layout-interacting * { cursor: grabbing !important; user-select: none !important; }
 .marifex-widget--resizing,.marifex-widget--resizing * { cursor: nwse-resize !important; }
 .marifex-widget__header { align-items: flex-start; display: flex; gap: 1rem; justify-content: space-between; min-block-size: 4.2rem; }
+.marifex-widget:not(.marifex-widget--editing) .marifex-widget__header { block-size: 4.2rem; }
+.marifex-widget__header > div:first-child { min-inline-size: 0; }
+.marifex-widget__header .card-title { display: -webkit-box; line-height: 1.22; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .marifex-widget__drag-handle { cursor: grab; touch-action: none; }
 .marifex-widget__drag-handle:active { cursor: grabbing; }
 .marifex-widget__header .card-title { font-size: .98rem; font-weight: 700; margin-block-start: .2rem; }
@@ -117,7 +120,7 @@
 @keyframes marifex-shimmer { to { background-position: -200% 0; } }
 [dir=rtl] .marifex-command__hero,[dir=rtl] .marifex-widget__header,[dir=rtl] .marifex-catalog > header { flex-direction: row-reverse; }
 [dir=rtl] .marifex-catalog { box-shadow: .8rem 0 2.5rem color-mix(in srgb, #000 25%, transparent); }
-@container (width < 70rem) { .marifex-filterbar { grid-template-columns: 1fr 1fr; } }
+@container (width < 70rem) { .marifex-filterbar { grid-template-columns: 1fr 1fr; } .marifex-widget { grid-row: span var(--marifex-widget-rows) !important; } .marifex-widget[data-widget-width="3"],.marifex-widget[data-widget-width="4"] { grid-column: span 6 !important; } .marifex-widget[data-widget-width="5"],.marifex-widget[data-widget-width="6"],.marifex-widget[data-widget-width="7"],.marifex-widget[data-widget-width="8"] { grid-column: 1 / -1 !important; } }
 @container (width < 44rem) { .marifex-command__hero { align-items: flex-start; flex-direction: column; } .marifex-builderbar,.marifex-filterbar,.marifex-widget__settings { grid-template-columns: 1fr; } .marifex-widget { grid-column: 1 / -1 !important; grid-row: span var(--marifex-widget-rows) !important; } .marifex-catalog__grid { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .marifex-widget,.marifex-catalog-item,.marifex-skeleton span { animation: none !important; transition: none !important; } }
 .marifex-report-scheduler { width: min(760px, calc(100vw - 2rem)); }

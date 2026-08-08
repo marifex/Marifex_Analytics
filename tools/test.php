@@ -15,9 +15,9 @@ $assert = static function (bool $condition, string $message) use (&$failures): v
 };
 
 $definitions = (new MetricRegistry())->all();
-$assert(count($definitions) === 19, 'The semantic layer must expose the four ticket metrics and fifteen Phase 4 metrics.');
+$assert(count($definitions) === 38, 'The semantic layer must expose all certified ticket, service-desk and Phase 4 metrics.');
 $assert(count(array_filter($definitions, static fn ($definition): bool => $definition->source === 'live')) === 1, 'Only current open tickets may query the operational source live.');
-$assert(count(array_filter($definitions, static fn ($definition): bool => $definition->source === 'data_mart')) === 18, 'Historical and Phase 4 metrics must use governed Data Mart rollups.');
+$assert(count(array_filter($definitions, static fn ($definition): bool => $definition->source === 'data_mart')) === 37, 'Historical, service-desk and Phase 4 metrics must use governed Data Mart rollups.');
 
 $tables = Schema::tables();
 $assert(count($tables) === 11, 'Analytics schema must contain eleven plugin-owned tables.');
@@ -39,6 +39,9 @@ $assert(str_contains($settings, 'Profile::canAdminister()'), 'Settings controlle
 $assert(str_contains($settings, 'Phase4StatusService'), 'Settings must expose Phase 4 metric health.');
 $assert(str_contains($settings, 'HeadlessPdfRenderer'), 'Settings must expose Phase 5 PDF engine readiness.');
 $assert(str_contains(file_get_contents(dirname(__DIR__) . '/setup.php'), "Hooks::CONFIG_PAGE]['marifex'] = 'Settings'"), 'Plugin must expose its native configuration action.');
+
+$phase4Status = file_get_contents(dirname(__DIR__) . '/src/Metric/Phase4StatusService.php');
+$assert(str_contains($phase4Status, '$domainLatest'), 'Zero-result dimension metrics must inherit the completed domain snapshot date instead of appearing missing.');
 
 $profile = file_get_contents(dirname(__DIR__) . '/src/Profile.php');
 $assert(
@@ -82,7 +85,15 @@ $snapshot = file_get_contents(dirname(__DIR__) . '/src/Etl/SnapshotBuilder.php')
 $assert(str_contains($snapshot, "new DateTimeImmutable('yesterday'"), 'The scheduled snapshot must default to the last completed day.');
 $assert(str_contains($snapshot, "'average_open_ticket_age'"), 'Daily rollups must include average open ticket age.');
 $assert(str_contains($snapshot, "'historical_group_backlog'"), 'Daily rollups must include assigned group backlog.');
+$assert(str_contains($snapshot, 'new TicketOperationsSnapshotBuilder()'), 'Daily snapshots must build the approved service-desk metrics.');
 $assert(str_contains($snapshot, 'new DomainSnapshotBuilder()'), 'Daily snapshots must extend into Phase 4 domains.');
+
+$ticketOperations = file_get_contents(dirname(__DIR__) . '/src/Etl/TicketOperationsSnapshotBuilder.php');
+$assert(str_contains($ticketOperations, "'open_tickets_by_priority'"), 'Service-desk ETL must snapshot open tickets by priority.');
+$assert(str_contains($ticketOperations, "'average_unassigned_time'"), 'Service-desk ETL must snapshot unassigned age.');
+$assert(str_contains($ticketOperations, "'created_vs_resolved_tickets'"), 'Service-desk ETL must snapshot created versus resolved flow.');
+$assert(str_contains($ticketOperations, "'assignment_changes_per_ticket'"), 'Service-desk ETL must use verified assignment events for reassignment frequency.');
+$assert(str_contains($ticketOperations, "'resolution_time_age_bands'"), 'Service-desk ETL must snapshot resolution-time age bands.');
 
 $domainSnapshot = file_get_contents(dirname(__DIR__) . '/src/Etl/DomainSnapshotBuilder.php');
 $assert(str_contains($domainSnapshot, "'FROM' => 'glpi_computers'"), 'Phase 4 ETL must snapshot GLPI computers.');
@@ -90,6 +101,10 @@ $assert(str_contains($domainSnapshot, "'FROM' => 'glpi_softwarelicenses'"), 'Pha
 $assert(str_contains($domainSnapshot, "'FROM' => 'glpi_items_softwarelicenses'"), 'Licence compliance must use explicit GLPI licence allocations.');
 $assert(str_contains($domainSnapshot, "'glpi_changes', 'change'"), 'Phase 4 ETL must snapshot changes.');
 $assert(str_contains($domainSnapshot, "'glpi_problems', 'problem'"), 'Phase 4 ETL must snapshot problems.');
+$assert(str_contains($domainSnapshot, "'low_disk_capacity_computers'"), 'Phase 4 ETL must snapshot low-capacity computers.');
+$assert(str_contains($domainSnapshot, "'prohibited_software_installations'"), 'Phase 4 ETL must snapshot explicitly invalid software installations.');
+$assert(str_contains($domainSnapshot, "'unlicensed_software_installations'"), 'Phase 4 ETL must snapshot installations above recorded entitlement.');
+$assert(str_contains($domainSnapshot, "'repeat_incident_computers'"), 'Phase 4 ETL must snapshot repeat-incident computers.');
 $assert(str_contains($domainSnapshot, "'metric_key' => self::METRICS"), 'Phase 4 daily reruns must replace only the governed Phase 4 metric keys.');
 
 $metricQueries = file_get_contents(dirname(__DIR__) . '/src/Metric/MetricQueryService.php');
@@ -105,7 +120,7 @@ $assert(
 );
 
 $dashboardDefinition = file_get_contents(dirname(__DIR__) . '/src/Dashboard/DashboardDefinitionService.php');
-$assert(str_contains($dashboardDefinition, 'count($widgets) > 24'), 'Saved dashboards must enforce a bounded widget count.');
+$assert(str_contains($dashboardDefinition, 'MAX_WIDGETS = 40'), 'Saved dashboards must enforce the expanded but bounded widget count.');
 $assert(str_contains($dashboardDefinition, 'MAX_DASHBOARDS = 20'), 'Dashboard builder must bound personal dashboards per entity.');
 $assert(str_contains($dashboardDefinition, 'self::METRICS[$metric]'), 'Saved widgets must use the certified metric and type allowlist.');
 $assert(!str_contains($dashboardDefinition, 'SELECT '), 'Dashboard definitions must not accept or build SQL.');
@@ -122,6 +137,8 @@ $assert(str_contains($dashboardDefinition, 'provisionPhase4Executive()'), 'The e
 $assert(str_contains($dashboardDefinition, "'executive-change-open'"), 'The Executive dashboard must include Change analytics.');
 $assert(str_contains($dashboardDefinition, "'executive-problem-open'"), 'The Executive dashboard must include Problem analytics.');
 $assert(str_contains($dashboardDefinition, "'executive-asset-total'"), 'The Executive dashboard must include Asset analytics.');
+$assert(str_contains($dashboardDefinition, 'provisionAlignedMetrics()'), 'Existing Executive dashboards must receive the approved aligned metric release once per user and entity.');
+$assert(str_contains($dashboardDefinition, "'executive-priority'") && str_contains($dashboardDefinition, "'executive-low-disk'"), 'The Executive dashboard must include the newly approved service-desk and asset metrics.');
 $assert(str_contains($dashboardDefinition, "['is_active'] = 0"), 'Phase 4 provisioning must preserve the currently active dashboard.');
 $assert(str_contains($dashboardDefinition, "'software_license_compliance_rate' => ['kpi', 'line']"), 'Phase 4 widgets must remain behind the certified metric/type allowlist.');
 

@@ -42,6 +42,16 @@ final class MetricQueryService
                 $to ?? new DateTimeImmutable('today')
             ),
             'asset_inventory_by_state',
+            'open_tickets_by_priority',
+            'sla_breaches_by_technician',
+            'tickets_by_request_source',
+            'created_vs_resolved_tickets',
+            'technician_workload_distribution',
+            'resolution_time_age_bands',
+            'prohibited_software_installations',
+            'unlicensed_software_installations',
+            'incidents_by_operating_system',
+            'repeat_incident_computers',
             'open_change_status_distribution',
             'open_problem_status_distribution' => $this->dimensionSeries(
                 $definition,
@@ -50,6 +60,15 @@ final class MetricQueryService
             ),
             'asset_inventory_total',
             'stale_computer_inventory',
+            'unassigned_open_tickets',
+            'average_unassigned_time',
+            'tickets_approaching_sla_breach',
+            'sla_breach_count',
+            'sla_breach_rate',
+            'assignment_changes_per_ticket',
+            'unsatisfied_survey_responses',
+            'low_disk_capacity_computers',
+            'computers_in_stock_over_30_days',
             'software_license_entitlements',
             'software_license_allocations',
             'software_license_overallocated_seats',
@@ -144,7 +163,7 @@ final class MetricQueryService
             throw new RuntimeException('Invalid metric date range.');
         }
 
-        $valueExpression = in_array($definition->format, ['duration_series', 'percentage_series'], true)
+        $valueExpression = in_array($definition->format, ['duration_series', 'percentage_series', 'decimal_series'], true)
             ? 'SUM(`metric_value` * `sample_count`) / NULLIF(SUM(`sample_count`), 0) AS value'
             : 'SUM(`metric_value`) AS value';
         $iterator = $DB->request([
@@ -163,7 +182,11 @@ final class MetricQueryService
         foreach ($iterator as $row) {
             $series[] = [
                 'date' => $row['rollup_date'],
-                'value' => $definition->format === 'percentage_series' ? round((float) $row['value'], 1) : (int) $row['value'],
+                'value' => match ($definition->format) {
+                    'percentage_series' => round((float) $row['value'], 1),
+                    'decimal_series' => round((float) $row['value'], 2),
+                    default => (int) $row['value'],
+                },
             ];
         }
 
@@ -266,6 +289,14 @@ final class MetricQueryService
         $dimensionIds = array_values(array_unique(array_map(static fn (array $row): int => (int) $row['dimension_value'], $rows)));
         $labels = match ($definition->key) {
             'asset_inventory_by_state' => $this->stateLabels($dimensionIds),
+            'open_tickets_by_priority' => $this->priorityLabels($dimensionIds),
+            'sla_breaches_by_technician', 'technician_workload_distribution' => $this->userLabels($dimensionIds),
+            'tickets_by_request_source' => $this->tableLabels('glpi_requesttypes', $dimensionIds, 'Request source'),
+            'created_vs_resolved_tickets' => [1 => __('Created', 'marifex'), 2 => __('Resolved', 'marifex')],
+            'resolution_time_age_bands' => [1 => __('< 1 day', 'marifex'), 2 => __('1-3 days', 'marifex'), 3 => __('3-7 days', 'marifex'), 4 => __('7-30 days', 'marifex'), 5 => __('30+ days', 'marifex')],
+            'prohibited_software_installations', 'unlicensed_software_installations' => $this->tableLabels('glpi_softwares', $dimensionIds, 'Software'),
+            'incidents_by_operating_system' => $this->tableLabels('glpi_operatingsystems', $dimensionIds, 'Operating system'),
+            'repeat_incident_computers' => $this->tableLabels('glpi_computers', $dimensionIds, 'Computer'),
             'open_change_status_distribution' => $this->statusLabels('Change', $dimensionIds),
             'open_problem_status_distribution' => $this->statusLabels('Problem', $dimensionIds),
             default => [],
@@ -307,6 +338,51 @@ final class MetricQueryService
             if (($counts[$label] ?? 0) > 1) {
                 $labels[$id] = sprintf('%s · State #%d', $label, $id);
             }
+        }
+        return $labels;
+    }
+
+    /** @param list<int> $ids
+     *  @return array<int, string>
+     */
+    private function priorityLabels(array $ids): array
+    {
+        $known = [1 => __('Very low', 'marifex'), 2 => __('Low', 'marifex'), 3 => __('Medium', 'marifex'), 4 => __('High', 'marifex'), 5 => __('Very high', 'marifex'), 6 => __('Major', 'marifex')];
+        return array_intersect_key($known, array_flip($ids));
+    }
+
+    /** @param list<int> $ids
+     *  @return array<int, string>
+     */
+    private function userLabels(array $ids): array
+    {
+        global $DB;
+        $labels = [];
+        if ($ids === []) {
+            return $labels;
+        }
+        foreach ($DB->request(['SELECT' => ['id', 'name', 'firstname', 'realname'], 'FROM' => 'glpi_users', 'WHERE' => ['id' => $ids]]) as $user) {
+            $fullName = trim((string) $user['firstname'] . ' ' . (string) $user['realname']);
+            $labels[(int) $user['id']] = $fullName !== '' ? $fullName : (string) $user['name'];
+        }
+        return $labels;
+    }
+
+    /** @param list<int> $ids
+     *  @return array<int, string>
+     */
+    private function tableLabels(string $table, array $ids, string $fallback): array
+    {
+        global $DB;
+        $labels = [0 => __('Unspecified', 'marifex')];
+        $positiveIds = array_values(array_filter($ids, static fn(int $id): bool => $id > 0));
+        if ($positiveIds !== []) {
+            foreach ($DB->request(['SELECT' => ['id', 'name'], 'FROM' => $table, 'WHERE' => ['id' => $positiveIds]]) as $row) {
+                $labels[(int) $row['id']] = (string) $row['name'];
+            }
+        }
+        foreach ($ids as $id) {
+            $labels[$id] ??= sprintf('%s #%d', $fallback, $id);
         }
         return $labels;
     }

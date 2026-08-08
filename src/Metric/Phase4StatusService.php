@@ -12,8 +12,9 @@ use QueryExpression;
 final class Phase4StatusService
 {
     private const DOMAINS = [
-        'Assets' => ['asset_inventory_total', 'asset_inventory_by_state', 'stale_computer_inventory'],
-        'Licences' => ['software_license_entitlements', 'software_license_allocations', 'software_license_overallocated_seats', 'software_license_compliance_rate'],
+        'Service desk' => ['open_tickets_by_priority', 'unassigned_open_tickets', 'average_unassigned_time', 'tickets_approaching_sla_breach', 'sla_breach_count', 'sla_breach_rate', 'sla_breaches_by_technician', 'tickets_by_request_source', 'created_vs_resolved_tickets', 'assignment_changes_per_ticket', 'technician_workload_distribution', 'unsatisfied_survey_responses', 'resolution_time_age_bands'],
+        'Assets' => ['asset_inventory_total', 'asset_inventory_by_state', 'stale_computer_inventory', 'low_disk_capacity_computers', 'computers_in_stock_over_30_days', 'incidents_by_operating_system', 'repeat_incident_computers'],
+        'Licences' => ['software_license_entitlements', 'software_license_allocations', 'software_license_overallocated_seats', 'software_license_compliance_rate', 'prohibited_software_installations', 'unlicensed_software_installations'],
         'Changes' => ['open_changes', 'daily_change_volume', 'daily_change_resolutions', 'open_change_status_distribution'],
         'Problems' => ['open_problems', 'daily_problem_volume', 'daily_problem_resolutions', 'open_problem_status_distribution'],
     ];
@@ -35,6 +36,12 @@ final class Phase4StatusService
         $expectedDate = (new DateTimeImmutable('yesterday', new DateTimeZone('UTC')))->format('Y-m-d');
         $statuses = [];
         foreach (self::DOMAINS as $domain => $keys) {
+            $domainRow = $DB->request([
+                'SELECT' => [new QueryExpression('MAX(`rollup_date`) AS latest_date')],
+                'FROM' => 'glpi_plugin_marifex_daily_rollups',
+                'WHERE' => $this->entityScope->criteria() + ['metric_key' => $keys],
+            ])->current();
+            $domainLatest = $domainRow && $domainRow['latest_date'] ? (string) $domainRow['latest_date'] : null;
             foreach ($keys as $key) {
                 $row = $DB->request([
                     'SELECT' => [
@@ -44,7 +51,10 @@ final class Phase4StatusService
                     'FROM' => 'glpi_plugin_marifex_daily_rollups',
                     'WHERE' => $this->entityScope->criteria() + ['metric_key' => $key],
                 ])->current();
-                $latest = $row && $row['latest_date'] ? (string) $row['latest_date'] : null;
+                // Dimension metrics legitimately have no row when a completed
+                // domain snapshot finds zero matching items. In that case the
+                // domain's snapshot date proves the collector ran successfully.
+                $latest = $row && $row['latest_date'] ? (string) $row['latest_date'] : $domainLatest;
                 $statuses[] = [
                     'domain' => $domain,
                     'metric' => $key,

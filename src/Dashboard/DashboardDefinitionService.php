@@ -11,8 +11,10 @@ use Session;
 final class DashboardDefinitionService
 {
     private const MAX_DASHBOARDS = 20;
+    private const MAX_WIDGETS = 40;
     private const PHASE4_PROVISION = 'phase4-domain-dashboards-v1';
     private const PHASE4_EXECUTIVE_PROVISION = 'phase4-executive-dashboard-v1';
+    private const ALIGNED_METRICS_PROVISION = 'aligned-certified-metrics-v1';
     private const PHASE4_TEMPLATES = ['asset-governance', 'change-control', 'problem-control'];
     private const WIDGET_PALETTES = ['cream_gold', 'ocean', 'mint', 'lavender', 'charcoal_gold', 'neutral', 'classic_blue', 'teal_green', 'deep_purple', 'warm_amber', 'coral_red', 'sky_blue', 'bright_orange', 'rose_pink', 'forest_green', 'slate_gray'];
     private const METRICS = [
@@ -20,9 +22,28 @@ final class DashboardDefinitionService
         'average_open_ticket_age' => ['kpi', 'line'],
         'historical_open_backlog' => ['kpi', 'line', 'bar'],
         'historical_group_backlog' => ['bar', 'donut', 'table'],
+        'open_tickets_by_priority' => ['bar', 'donut', 'table'],
+        'unassigned_open_tickets' => ['kpi', 'line'],
+        'average_unassigned_time' => ['kpi', 'line'],
+        'tickets_approaching_sla_breach' => ['kpi', 'line'],
+        'sla_breach_count' => ['kpi', 'line'],
+        'sla_breach_rate' => ['kpi', 'line'],
+        'sla_breaches_by_technician' => ['bar', 'donut', 'table'],
+        'tickets_by_request_source' => ['bar', 'donut', 'table'],
+        'created_vs_resolved_tickets' => ['line', 'bar', 'table'],
+        'assignment_changes_per_ticket' => ['kpi', 'line'],
+        'technician_workload_distribution' => ['bar', 'donut', 'table'],
+        'unsatisfied_survey_responses' => ['kpi', 'line'],
+        'resolution_time_age_bands' => ['bar', 'donut', 'table'],
         'asset_inventory_total' => ['kpi', 'line'],
         'asset_inventory_by_state' => ['bar', 'donut', 'table'],
         'stale_computer_inventory' => ['kpi', 'line'],
+        'prohibited_software_installations' => ['bar', 'donut', 'table'],
+        'unlicensed_software_installations' => ['bar', 'donut', 'table'],
+        'low_disk_capacity_computers' => ['kpi', 'line'],
+        'computers_in_stock_over_30_days' => ['kpi', 'line'],
+        'incidents_by_operating_system' => ['bar', 'donut', 'table'],
+        'repeat_incident_computers' => ['bar', 'donut', 'table'],
         'software_license_entitlements' => ['kpi', 'line'],
         'software_license_allocations' => ['kpi', 'line'],
         'software_license_overallocated_seats' => ['kpi', 'line'],
@@ -44,6 +65,7 @@ final class DashboardDefinitionService
     /** @return array<string, mixed> */
     public function workspace(): array
     {
+        $this->provisionAlignedMetrics();
         $this->provisionPhase4Executive();
         $this->provisionPhase4Dashboards();
         $rows = $this->rows();
@@ -261,6 +283,57 @@ final class DashboardDefinitionService
         }
     }
 
+    private function provisionAlignedMetrics(): void
+    {
+        global $DB;
+        if (!$DB->tableExists('glpi_plugin_marifex_dashboard_provisions')) {
+            return;
+        }
+        $marker = $this->ownershipWhere() + ['release_key' => self::ALIGNED_METRICS_PROVISION];
+        if ($DB->request([
+            'SELECT' => ['id'],
+            'FROM' => 'glpi_plugin_marifex_dashboard_provisions',
+            'WHERE' => $marker,
+            'LIMIT' => 1,
+        ])->current()) {
+            return;
+        }
+
+        $row = $DB->request([
+            'SELECT' => ['id', 'definition'],
+            'FROM' => 'glpi_plugin_marifex_dashboard_definitions',
+            'WHERE' => $this->ownershipWhere() + ['name' => 'Executive Operations Command'],
+            'LIMIT' => 1,
+        ])->current();
+        if ($row) {
+            $current = $this->validate(json_decode((string) $row['definition'], true, 64, JSON_THROW_ON_ERROR));
+            $currentById = [];
+            foreach ($current['widgets'] as $widget) {
+                $currentById[$widget['id']] = $widget;
+            }
+            $aligned = [];
+            $templateIds = [];
+            foreach ($this->templates()['executive']['definition']['widgets'] as $widget) {
+                $templateIds[$widget['id']] = true;
+                if (isset($currentById[$widget['id']])) {
+                    $widget['title'] = $currentById[$widget['id']]['title'];
+                    $widget['palette'] = $currentById[$widget['id']]['palette'];
+                }
+                $aligned[] = $widget;
+            }
+            foreach ($current['widgets'] as $widget) {
+                if (!isset($templateIds[$widget['id']]) && count($aligned) < self::MAX_WIDGETS) {
+                    $aligned[] = $widget;
+                }
+            }
+            $current['widgets'] = $aligned;
+            $DB->update('glpi_plugin_marifex_dashboard_definitions', [
+                'definition' => json_encode($this->validate($current), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
+            ], $this->ownershipWhere() + ['id' => (int) $row['id']]);
+        }
+        $DB->insert('glpi_plugin_marifex_dashboard_provisions', $marker + ['date_creation' => gmdate('Y-m-d H:i:s')]);
+    }
+
     private function provisionPhase4Executive(): void
     {
         global $DB;
@@ -287,7 +360,7 @@ final class DashboardDefinitionService
             $definition = $this->validate(json_decode((string) $row['definition'], true, 64, JSON_THROW_ON_ERROR));
             $ids = array_fill_keys(array_column($definition['widgets'], 'id'), true);
             foreach ($this->templates()['executive']['definition']['widgets'] as $widget) {
-                if (count($definition['widgets']) >= 24) {
+                if (count($definition['widgets']) >= self::MAX_WIDGETS) {
                     break;
                 }
                 if (!isset($ids[$widget['id']])) {
@@ -346,8 +419,8 @@ final class DashboardDefinitionService
             throw new InvalidArgumentException('Invalid saved group filter.');
         }
         $widgets = $input['widgets'] ?? null;
-        if (!is_array($widgets) || count($widgets) < 1 || count($widgets) > 24) {
-            throw new InvalidArgumentException('A dashboard must contain between 1 and 24 widgets.');
+        if (!is_array($widgets) || count($widgets) < 1 || count($widgets) > self::MAX_WIDGETS) {
+            throw new InvalidArgumentException(sprintf('A dashboard must contain between 1 and %d widgets.', self::MAX_WIDGETS));
         }
         $validated = [];
         $ids = [];
@@ -421,22 +494,47 @@ final class DashboardDefinitionService
             'executive' => [
                 'key' => 'executive',
                 'name' => 'Executive Operations Command',
-                'description' => 'Current state, trajectory, workload concentration and service ownership.',
+                'description' => 'Aligned enterprise command view across certified service desk, asset, licence, change and problem metrics.',
                 'definition' => $base + ['widgets' => [
                     ['id' => 'open-now', 'metric' => 'current_open_tickets', 'type' => 'kpi', 'title' => 'Open now', 'w' => 3, 'h' => 2],
-                    ['id' => 'average-age', 'metric' => 'average_open_ticket_age', 'type' => 'kpi', 'title' => 'Average ticket age', 'w' => 3, 'h' => 2],
-                    ['id' => 'backlog-trend', 'metric' => 'historical_open_backlog', 'type' => 'line', 'title' => 'Enterprise backlog trajectory', 'w' => 6, 'h' => 4],
-                    ['id' => 'group-share', 'metric' => 'historical_group_backlog', 'type' => 'donut', 'title' => 'Workload concentration', 'w' => 5, 'h' => 4],
-                    ['id' => 'group-ranking', 'metric' => 'historical_group_backlog', 'type' => 'table', 'title' => 'Service ownership ranking', 'w' => 7, 'h' => 4],
+                    ['id' => 'executive-unassigned', 'metric' => 'unassigned_open_tickets', 'type' => 'kpi', 'title' => 'Unassigned open tickets', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-sla-approaching', 'metric' => 'tickets_approaching_sla_breach', 'type' => 'kpi', 'title' => 'Approaching SLA breach', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-sla-breaches', 'metric' => 'sla_breach_count', 'type' => 'kpi', 'title' => 'Open SLA breaches', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-sla-rate', 'metric' => 'sla_breach_rate', 'type' => 'kpi', 'title' => 'SLA breach rate', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-unassigned-age', 'metric' => 'average_unassigned_time', 'type' => 'kpi', 'title' => 'Average unassigned age', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-assignment-changes', 'metric' => 'assignment_changes_per_ticket', 'type' => 'kpi', 'title' => 'Assignment changes per ticket', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-unsatisfied', 'metric' => 'unsatisfied_survey_responses', 'type' => 'kpi', 'title' => 'Unsatisfied responses', 'w' => 3, 'h' => 2],
                     ['id' => 'executive-asset-total', 'metric' => 'asset_inventory_total', 'type' => 'kpi', 'title' => 'Managed computers', 'w' => 3, 'h' => 2],
                     ['id' => 'executive-asset-stale', 'metric' => 'stale_computer_inventory', 'type' => 'kpi', 'title' => 'Stale computer inventory', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-low-disk', 'metric' => 'low_disk_capacity_computers', 'type' => 'kpi', 'title' => 'Low disk capacity', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-stock-age', 'metric' => 'computers_in_stock_over_30_days', 'type' => 'kpi', 'title' => 'In stock over 30 days', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-licence-entitlements', 'metric' => 'software_license_entitlements', 'type' => 'kpi', 'title' => 'Licence entitlements', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-licence-allocations', 'metric' => 'software_license_allocations', 'type' => 'kpi', 'title' => 'Allocated licence seats', 'w' => 3, 'h' => 2],
                     ['id' => 'executive-licence-compliance', 'metric' => 'software_license_compliance_rate', 'type' => 'kpi', 'title' => 'Licence compliance', 'w' => 3, 'h' => 2],
                     ['id' => 'executive-licence-risk', 'metric' => 'software_license_overallocated_seats', 'type' => 'kpi', 'title' => 'Overallocated seats', 'w' => 3, 'h' => 2],
-                    ['id' => 'executive-asset-states', 'metric' => 'asset_inventory_by_state', 'type' => 'donut', 'title' => 'Asset lifecycle distribution', 'w' => 5, 'h' => 4],
                     ['id' => 'executive-change-open', 'metric' => 'open_changes', 'type' => 'kpi', 'title' => 'Open changes', 'w' => 3, 'h' => 2],
-                    ['id' => 'executive-problem-open', 'metric' => 'open_problems', 'type' => 'kpi', 'title' => 'Open problems', 'w' => 4, 'h' => 2],
-                    ['id' => 'executive-change-trend', 'metric' => 'daily_change_volume', 'type' => 'line', 'title' => 'Change demand trajectory', 'w' => 6, 'h' => 4],
-                    ['id' => 'executive-problem-trend', 'metric' => 'daily_problem_volume', 'type' => 'line', 'title' => 'Problem demand trajectory', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-change-volume', 'metric' => 'daily_change_volume', 'type' => 'kpi', 'title' => 'Changes raised', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-problem-open', 'metric' => 'open_problems', 'type' => 'kpi', 'title' => 'Open problems', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-problem-volume', 'metric' => 'daily_problem_volume', 'type' => 'kpi', 'title' => 'Problems raised', 'w' => 3, 'h' => 2],
+                    ['id' => 'average-age', 'metric' => 'average_open_ticket_age', 'type' => 'line', 'title' => 'Ticket age trajectory', 'w' => 6, 'h' => 4],
+                    ['id' => 'backlog-trend', 'metric' => 'historical_open_backlog', 'type' => 'line', 'title' => 'Enterprise backlog trajectory', 'w' => 6, 'h' => 4],
+                    ['id' => 'group-share', 'metric' => 'historical_group_backlog', 'type' => 'donut', 'title' => 'Workload concentration', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-priority', 'metric' => 'open_tickets_by_priority', 'type' => 'donut', 'title' => 'Open tickets by priority', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-sla-technician', 'metric' => 'sla_breaches_by_technician', 'type' => 'bar', 'title' => 'SLA breaches by technician', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-request-source', 'metric' => 'tickets_by_request_source', 'type' => 'donut', 'title' => 'Tickets by request source', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-ticket-flow', 'metric' => 'created_vs_resolved_tickets', 'type' => 'line', 'title' => 'Created versus resolved tickets', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-technician-workload', 'metric' => 'technician_workload_distribution', 'type' => 'bar', 'title' => 'Technician workload distribution', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-resolution-bands', 'metric' => 'resolution_time_age_bands', 'type' => 'bar', 'title' => 'Resolution-time age bands', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-asset-states', 'metric' => 'asset_inventory_by_state', 'type' => 'donut', 'title' => 'Asset lifecycle distribution', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-prohibited-software', 'metric' => 'prohibited_software_installations', 'type' => 'table', 'title' => 'Software marked invalid', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-unlicensed-software', 'metric' => 'unlicensed_software_installations', 'type' => 'table', 'title' => 'Installations above entitlement', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-incidents-os', 'metric' => 'incidents_by_operating_system', 'type' => 'bar', 'title' => 'Incidents by operating system', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-repeat-assets', 'metric' => 'repeat_incident_computers', 'type' => 'table', 'title' => 'Computers with repeated incidents', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-change-resolved', 'metric' => 'daily_change_resolutions', 'type' => 'line', 'title' => 'Change resolution trajectory', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-problem-resolved', 'metric' => 'daily_problem_resolutions', 'type' => 'line', 'title' => 'Problem resolution trajectory', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-change-status', 'metric' => 'open_change_status_distribution', 'type' => 'donut', 'title' => 'Open changes by status', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-problem-status', 'metric' => 'open_problem_status_distribution', 'type' => 'donut', 'title' => 'Open problems by status', 'w' => 6, 'h' => 4],
+                    ['id' => 'group-ranking', 'metric' => 'historical_group_backlog', 'type' => 'table', 'title' => 'Service ownership ranking', 'w' => 12, 'h' => 4],
                 ]],
             ],
             'service-desk' => [
@@ -444,10 +542,22 @@ final class DashboardDefinitionService
                 'name' => 'Service Desk Operations',
                 'description' => 'Backlog, ticket age and assignment-group workload for daily operations.',
                 'definition' => $base + ['widgets' => [
-                    ['id' => 'desk-open', 'metric' => 'current_open_tickets', 'type' => 'kpi', 'title' => 'Open service desk tickets', 'w' => 4, 'h' => 2],
-                    ['id' => 'desk-age', 'metric' => 'average_open_ticket_age', 'type' => 'line', 'title' => 'Ticket age trajectory', 'w' => 8, 'h' => 3],
+                    ['id' => 'desk-open', 'metric' => 'current_open_tickets', 'type' => 'kpi', 'title' => 'Open service desk tickets', 'w' => 3, 'h' => 2],
+                    ['id' => 'desk-unassigned', 'metric' => 'unassigned_open_tickets', 'type' => 'kpi', 'title' => 'Unassigned open tickets', 'w' => 3, 'h' => 2],
+                    ['id' => 'desk-sla-approaching', 'metric' => 'tickets_approaching_sla_breach', 'type' => 'kpi', 'title' => 'Approaching SLA breach', 'w' => 3, 'h' => 2],
+                    ['id' => 'desk-sla-rate', 'metric' => 'sla_breach_rate', 'type' => 'kpi', 'title' => 'SLA breach rate', 'w' => 3, 'h' => 2],
+                    ['id' => 'desk-unassigned-age', 'metric' => 'average_unassigned_time', 'type' => 'kpi', 'title' => 'Average unassigned age', 'w' => 3, 'h' => 2],
+                    ['id' => 'desk-assignment-changes', 'metric' => 'assignment_changes_per_ticket', 'type' => 'kpi', 'title' => 'Assignment changes per ticket', 'w' => 3, 'h' => 2],
+                    ['id' => 'desk-unsatisfied', 'metric' => 'unsatisfied_survey_responses', 'type' => 'kpi', 'title' => 'Unsatisfied responses', 'w' => 3, 'h' => 2],
+                    ['id' => 'desk-sla-breaches', 'metric' => 'sla_breach_count', 'type' => 'kpi', 'title' => 'Open SLA breaches', 'w' => 3, 'h' => 2],
+                    ['id' => 'desk-age', 'metric' => 'average_open_ticket_age', 'type' => 'line', 'title' => 'Ticket age trajectory', 'w' => 6, 'h' => 4],
                     ['id' => 'desk-backlog', 'metric' => 'historical_open_backlog', 'type' => 'line', 'title' => 'Backlog trajectory', 'w' => 6, 'h' => 4],
-                    ['id' => 'desk-groups', 'metric' => 'historical_group_backlog', 'type' => 'bar', 'title' => 'Assignment group workload', 'w' => 6, 'h' => 4],
+                    ['id' => 'desk-priority', 'metric' => 'open_tickets_by_priority', 'type' => 'donut', 'title' => 'Open tickets by priority', 'w' => 6, 'h' => 4],
+                    ['id' => 'desk-source', 'metric' => 'tickets_by_request_source', 'type' => 'donut', 'title' => 'Tickets by request source', 'w' => 6, 'h' => 4],
+                    ['id' => 'desk-flow', 'metric' => 'created_vs_resolved_tickets', 'type' => 'line', 'title' => 'Created versus resolved tickets', 'w' => 6, 'h' => 4],
+                    ['id' => 'desk-workload', 'metric' => 'technician_workload_distribution', 'type' => 'bar', 'title' => 'Technician workload distribution', 'w' => 6, 'h' => 4],
+                    ['id' => 'desk-sla-technician', 'metric' => 'sla_breaches_by_technician', 'type' => 'bar', 'title' => 'SLA breaches by technician', 'w' => 6, 'h' => 4],
+                    ['id' => 'desk-resolution-bands', 'metric' => 'resolution_time_age_bands', 'type' => 'bar', 'title' => 'Resolution-time age bands', 'w' => 6, 'h' => 4],
                 ]],
             ],
             'team-workload' => [
@@ -455,9 +565,9 @@ final class DashboardDefinitionService
                 'name' => 'Team Workload',
                 'description' => 'Focused workload distribution and service ownership ranking.',
                 'definition' => $base + ['widgets' => [
-                    ['id' => 'team-open', 'metric' => 'current_open_tickets', 'type' => 'kpi', 'title' => 'Focused open tickets', 'w' => 4, 'h' => 2],
-                    ['id' => 'team-share', 'metric' => 'historical_group_backlog', 'type' => 'donut', 'title' => 'Workload concentration', 'w' => 4, 'h' => 4],
-                    ['id' => 'team-bars', 'metric' => 'historical_group_backlog', 'type' => 'bar', 'title' => 'Group comparison', 'w' => 8, 'h' => 4],
+                    ['id' => 'team-open', 'metric' => 'current_open_tickets', 'type' => 'kpi', 'title' => 'Focused open tickets', 'w' => 3, 'h' => 2],
+                    ['id' => 'team-share', 'metric' => 'historical_group_backlog', 'type' => 'donut', 'title' => 'Workload concentration', 'w' => 6, 'h' => 4],
+                    ['id' => 'team-bars', 'metric' => 'historical_group_backlog', 'type' => 'bar', 'title' => 'Group comparison', 'w' => 6, 'h' => 4],
                     ['id' => 'team-table', 'metric' => 'historical_group_backlog', 'type' => 'table', 'title' => 'Service ownership ranking', 'w' => 12, 'h' => 4],
                 ]],
             ],
@@ -470,10 +580,16 @@ final class DashboardDefinitionService
                     ['id' => 'asset-stale', 'metric' => 'stale_computer_inventory', 'type' => 'kpi', 'title' => 'Inventory stale over 30 days', 'w' => 3, 'h' => 2],
                     ['id' => 'licence-compliance', 'metric' => 'software_license_compliance_rate', 'type' => 'kpi', 'title' => 'Licence compliance', 'w' => 3, 'h' => 2],
                     ['id' => 'licence-overallocated', 'metric' => 'software_license_overallocated_seats', 'type' => 'kpi', 'title' => 'Overallocated seats', 'w' => 3, 'h' => 2],
-                    ['id' => 'asset-states', 'metric' => 'asset_inventory_by_state', 'type' => 'donut', 'title' => 'Computer lifecycle distribution', 'w' => 5, 'h' => 4],
-                    ['id' => 'asset-state-table', 'metric' => 'asset_inventory_by_state', 'type' => 'table', 'title' => 'Lifecycle state inventory', 'w' => 7, 'h' => 4],
+                    ['id' => 'asset-states', 'metric' => 'asset_inventory_by_state', 'type' => 'donut', 'title' => 'Computer lifecycle distribution', 'w' => 6, 'h' => 4],
+                    ['id' => 'asset-state-table', 'metric' => 'asset_inventory_by_state', 'type' => 'table', 'title' => 'Lifecycle state inventory', 'w' => 6, 'h' => 4],
                     ['id' => 'licence-entitlements', 'metric' => 'software_license_entitlements', 'type' => 'line', 'title' => 'Licence entitlement trajectory', 'w' => 6, 'h' => 4],
                     ['id' => 'licence-allocations', 'metric' => 'software_license_allocations', 'type' => 'line', 'title' => 'Allocated licence trajectory', 'w' => 6, 'h' => 4],
+                    ['id' => 'asset-low-disk', 'metric' => 'low_disk_capacity_computers', 'type' => 'kpi', 'title' => 'Low disk capacity', 'w' => 3, 'h' => 2],
+                    ['id' => 'asset-stock-age', 'metric' => 'computers_in_stock_over_30_days', 'type' => 'kpi', 'title' => 'In stock over 30 days', 'w' => 3, 'h' => 2],
+                    ['id' => 'asset-prohibited-software', 'metric' => 'prohibited_software_installations', 'type' => 'table', 'title' => 'Software marked invalid', 'w' => 6, 'h' => 4],
+                    ['id' => 'asset-unlicensed-software', 'metric' => 'unlicensed_software_installations', 'type' => 'table', 'title' => 'Installations above entitlement', 'w' => 6, 'h' => 4],
+                    ['id' => 'asset-incidents-os', 'metric' => 'incidents_by_operating_system', 'type' => 'bar', 'title' => 'Incidents by operating system', 'w' => 6, 'h' => 4],
+                    ['id' => 'asset-repeat-incidents', 'metric' => 'repeat_incident_computers', 'type' => 'table', 'title' => 'Computers with repeated incidents', 'w' => 6, 'h' => 4],
                 ]],
             ],
             'change-control' => [
@@ -481,13 +597,13 @@ final class DashboardDefinitionService
                 'name' => 'Change Control',
                 'description' => 'Open change exposure, daily demand, resolutions and active status distribution.',
                 'definition' => $base + ['widgets' => [
-                    ['id' => 'change-open', 'metric' => 'open_changes', 'type' => 'kpi', 'title' => 'Open changes', 'w' => 4, 'h' => 2],
-                    ['id' => 'change-new', 'metric' => 'daily_change_volume', 'type' => 'kpi', 'title' => 'Changes raised', 'w' => 4, 'h' => 2],
-                    ['id' => 'change-resolved', 'metric' => 'daily_change_resolutions', 'type' => 'kpi', 'title' => 'Changes resolved', 'w' => 4, 'h' => 2],
-                    ['id' => 'change-trend', 'metric' => 'daily_change_volume', 'type' => 'line', 'title' => 'Change demand trajectory', 'w' => 7, 'h' => 4],
-                    ['id' => 'change-status', 'metric' => 'open_change_status_distribution', 'type' => 'donut', 'title' => 'Open changes by status', 'w' => 5, 'h' => 4],
-                    ['id' => 'change-resolution-trend', 'metric' => 'daily_change_resolutions', 'type' => 'line', 'title' => 'Change resolution trajectory', 'w' => 7, 'h' => 4],
-                    ['id' => 'change-status-table', 'metric' => 'open_change_status_distribution', 'type' => 'table', 'title' => 'Active change queue', 'w' => 5, 'h' => 4],
+                    ['id' => 'change-open', 'metric' => 'open_changes', 'type' => 'kpi', 'title' => 'Open changes', 'w' => 3, 'h' => 2],
+                    ['id' => 'change-new', 'metric' => 'daily_change_volume', 'type' => 'kpi', 'title' => 'Changes raised', 'w' => 3, 'h' => 2],
+                    ['id' => 'change-resolved', 'metric' => 'daily_change_resolutions', 'type' => 'kpi', 'title' => 'Changes resolved', 'w' => 3, 'h' => 2],
+                    ['id' => 'change-trend', 'metric' => 'daily_change_volume', 'type' => 'line', 'title' => 'Change demand trajectory', 'w' => 6, 'h' => 4],
+                    ['id' => 'change-status', 'metric' => 'open_change_status_distribution', 'type' => 'donut', 'title' => 'Open changes by status', 'w' => 6, 'h' => 4],
+                    ['id' => 'change-resolution-trend', 'metric' => 'daily_change_resolutions', 'type' => 'line', 'title' => 'Change resolution trajectory', 'w' => 6, 'h' => 4],
+                    ['id' => 'change-status-table', 'metric' => 'open_change_status_distribution', 'type' => 'table', 'title' => 'Active change queue', 'w' => 6, 'h' => 4],
                 ]],
             ],
             'problem-control' => [
@@ -495,13 +611,13 @@ final class DashboardDefinitionService
                 'name' => 'Problem Control',
                 'description' => 'Open problem exposure, new demand, resolutions and active status distribution.',
                 'definition' => $base + ['widgets' => [
-                    ['id' => 'problem-open', 'metric' => 'open_problems', 'type' => 'kpi', 'title' => 'Open problems', 'w' => 4, 'h' => 2],
-                    ['id' => 'problem-new', 'metric' => 'daily_problem_volume', 'type' => 'kpi', 'title' => 'Problems raised', 'w' => 4, 'h' => 2],
-                    ['id' => 'problem-resolved', 'metric' => 'daily_problem_resolutions', 'type' => 'kpi', 'title' => 'Problems resolved', 'w' => 4, 'h' => 2],
-                    ['id' => 'problem-trend', 'metric' => 'daily_problem_volume', 'type' => 'line', 'title' => 'Problem demand trajectory', 'w' => 7, 'h' => 4],
-                    ['id' => 'problem-status', 'metric' => 'open_problem_status_distribution', 'type' => 'donut', 'title' => 'Open problems by status', 'w' => 5, 'h' => 4],
-                    ['id' => 'problem-resolution-trend', 'metric' => 'daily_problem_resolutions', 'type' => 'line', 'title' => 'Problem resolution trajectory', 'w' => 7, 'h' => 4],
-                    ['id' => 'problem-status-table', 'metric' => 'open_problem_status_distribution', 'type' => 'table', 'title' => 'Active problem queue', 'w' => 5, 'h' => 4],
+                    ['id' => 'problem-open', 'metric' => 'open_problems', 'type' => 'kpi', 'title' => 'Open problems', 'w' => 3, 'h' => 2],
+                    ['id' => 'problem-new', 'metric' => 'daily_problem_volume', 'type' => 'kpi', 'title' => 'Problems raised', 'w' => 3, 'h' => 2],
+                    ['id' => 'problem-resolved', 'metric' => 'daily_problem_resolutions', 'type' => 'kpi', 'title' => 'Problems resolved', 'w' => 3, 'h' => 2],
+                    ['id' => 'problem-trend', 'metric' => 'daily_problem_volume', 'type' => 'line', 'title' => 'Problem demand trajectory', 'w' => 6, 'h' => 4],
+                    ['id' => 'problem-status', 'metric' => 'open_problem_status_distribution', 'type' => 'donut', 'title' => 'Open problems by status', 'w' => 6, 'h' => 4],
+                    ['id' => 'problem-resolution-trend', 'metric' => 'daily_problem_resolutions', 'type' => 'line', 'title' => 'Problem resolution trajectory', 'w' => 6, 'h' => 4],
+                    ['id' => 'problem-status-table', 'metric' => 'open_problem_status_distribution', 'type' => 'table', 'title' => 'Active problem queue', 'w' => 6, 'h' => 4],
                 ]],
             ],
         ];

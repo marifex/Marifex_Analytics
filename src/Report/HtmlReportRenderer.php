@@ -69,10 +69,10 @@ final class HtmlReportRenderer
         if ($value === null) {
             return 'Not available';
         }
-        if ($metric === 'average_open_ticket_age') {
+        if (in_array($metric, ['average_open_ticket_age', 'average_unassigned_time'], true)) {
             return number_format(((float) $value) / 86400, 1) . ' days';
         }
-        if ($metric === 'software_license_compliance_rate') {
+        if (in_array($metric, ['software_license_compliance_rate', 'sla_breach_rate'], true)) {
             return number_format((float) $value, 1) . '%';
         }
         return number_format((float) $value, is_float($value) ? 1 : 0);
