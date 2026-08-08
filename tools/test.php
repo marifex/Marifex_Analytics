@@ -77,6 +77,11 @@ $assert(str_contains($snapshot, "new DateTimeImmutable('yesterday'"), 'The sched
 $assert(str_contains($snapshot, "'average_open_ticket_age'"), 'Daily rollups must include average open ticket age.');
 $assert(str_contains($snapshot, "'historical_group_backlog'"), 'Daily rollups must include assigned group backlog.');
 
+$metricQueries = file_get_contents(dirname(__DIR__) . '/src/Metric/MetricQueryService.php');
+$assert(str_contains($metricQueries, "'FROM' => 'glpi_entities'"), 'Duplicate group names must be disambiguated with their GLPI entity path.');
+$assert(str_contains($metricQueries, "sprintf('%s — %s'"), 'Duplicate group labels must preserve distinct group IDs and show entity context.');
+$assert(str_contains($metricQueries, "sprintf('%s · Group #%d'"), 'Same-name groups in the same entity must include their GLPI group ID.');
+
 $settingsTemplate = file_get_contents(dirname(__DIR__) . '/templates/settings/index.html.twig');
 $assert(
     str_contains($settingsTemplate, 'layout/page_without_tabs.html.twig'),

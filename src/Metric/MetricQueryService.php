@@ -180,11 +180,35 @@ final class MetricQueryService
             'ORDER' => ['rollup_date ASC', 'dimension_value ASC'],
         ]));
         $groupIds = array_values(array_unique(array_map(static fn (array $row): int => (int) $row['dimension_value'], $rows)));
-        $groupNames = [];
+        $groups = [];
         if ($groupIds !== []) {
-            foreach ($DB->request(['SELECT' => ['id', 'completename'], 'FROM' => 'glpi_groups', 'WHERE' => ['id' => $groupIds]]) as $group) {
-                $groupNames[(int) $group['id']] = (string) $group['completename'];
+            foreach ($DB->request(['SELECT' => ['id', 'completename', 'entities_id'], 'FROM' => 'glpi_groups', 'WHERE' => ['id' => $groupIds]]) as $group) {
+                $groups[(int) $group['id']] = [
+                    'name' => (string) $group['completename'],
+                    'entity_id' => (int) $group['entities_id'],
+                ];
             }
+        }
+        $nameCounts = array_count_values(array_map(static fn (array $group): string => $group['name'], $groups));
+        $entityIds = array_values(array_unique(array_column($groups, 'entity_id')));
+        $entityNames = [];
+        if ($entityIds !== []) {
+            foreach ($DB->request(['SELECT' => ['id', 'completename'], 'FROM' => 'glpi_entities', 'WHERE' => ['id' => $entityIds]]) as $entity) {
+                $entityNames[(int) $entity['id']] = (string) $entity['completename'];
+            }
+        }
+        $groupNames = [];
+        $candidateNames = [];
+        foreach ($groups as $groupId => $group) {
+            $candidateNames[$groupId] = ($nameCounts[$group['name']] ?? 0) > 1
+                ? sprintf('%s — %s', $group['name'], $entityNames[$group['entity_id']] ?? ('Entity #' . $group['entity_id']))
+                : $group['name'];
+        }
+        $candidateCounts = array_count_values($candidateNames);
+        foreach ($candidateNames as $groupId => $candidateName) {
+            $groupNames[$groupId] = ($candidateCounts[$candidateName] ?? 0) > 1
+                ? sprintf('%s · Group #%d', $candidateName, $groupId)
+                : $candidateName;
         }
         $series = array_map(static function (array $row) use ($groupNames): array {
             $groupId = (int) $row['dimension_value'];
