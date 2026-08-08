@@ -17,6 +17,7 @@ Phase 3 delivers the low-code analytics dashboard builder defined by the product
 - Drag-and-drop card ordering
 - Direct mouse/touch resizing from each widget's corner grip, with live chart reflow
 - Add, remove and rename widgets
+- Per-widget curated solid, monochrome and gradient palettes, including the default Cream Gold treatment
 - KPI, line, bar, donut and table visualizations
 - Fixed chart-left/legend-right donut layout without paginated legends
 
@@ -38,7 +39,7 @@ Every catalog item maps to a pre-approved metric and compatible visualization. D
 1. Analytics is available as an additional tab on GLPI Home.
 2. The legacy plugin dashboard URL redirects to the Home Analytics tab.
 3. A user can create each template, duplicate it, switch dashboards and persist edits.
-4. Drag ordering, width, height, titles, filters and refresh settings survive reload.
+4. Drag ordering, width, height, titles, palettes, filters and refresh settings survive reload.
 5. Donut charts keep the chart left and all legends right without scrolling.
 6. Cross-filtering redraws widgets without a full-page reload.
 7. Another user or entity cannot activate, update or delete the dashboard.

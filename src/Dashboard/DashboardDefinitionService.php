@@ -14,6 +14,7 @@ final class DashboardDefinitionService
     private const PHASE4_PROVISION = 'phase4-domain-dashboards-v1';
     private const PHASE4_EXECUTIVE_PROVISION = 'phase4-executive-dashboard-v1';
     private const PHASE4_TEMPLATES = ['asset-governance', 'change-control', 'problem-control'];
+    private const WIDGET_PALETTES = ['cream_gold', 'ocean', 'mint', 'lavender', 'charcoal_gold', 'neutral'];
     private const METRICS = [
         'current_open_tickets' => ['kpi'],
         'average_open_ticket_age' => ['kpi', 'line'],
@@ -358,6 +359,7 @@ final class DashboardDefinitionService
             $metric = (string) ($widget['metric'] ?? '');
             $type = (string) ($widget['type'] ?? '');
             $title = trim((string) ($widget['title'] ?? ''));
+            $palette = (string) ($widget['palette'] ?? 'cream_gold');
             if (!preg_match('/^[a-z0-9-]{6,64}$/', $id) || isset($ids[$id])) {
                 throw new InvalidArgumentException('Widget IDs must be unique and URL-safe.');
             }
@@ -367,11 +369,15 @@ final class DashboardDefinitionService
             if ($title === '' || mb_strlen($title) > 100) {
                 throw new InvalidArgumentException('Widget title must contain 1 to 100 characters.');
             }
+            if (!in_array($palette, self::WIDGET_PALETTES, true)) {
+                throw new InvalidArgumentException('Unsupported widget color palette.');
+            }
             $validated[] = [
                 'id' => $id,
                 'metric' => $metric,
                 'type' => $type,
                 'title' => $title,
+                'palette' => $palette,
                 'w' => max(3, min(12, (int) ($widget['w'] ?? 4))),
                 'h' => max(2, min(8, (int) ($widget['h'] ?? 3))),
             ];

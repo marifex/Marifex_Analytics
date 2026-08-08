@@ -5,16 +5,18 @@ import { BarChart, LineChart, PieChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { DimensionPoint, MetricResponse, Point, WidgetDefinition } from './types';
+import { widgetPalette, widgetPalettes, type WidgetPaletteKey } from './palettes';
 
 use([BarChart, LineChart, PieChart, GridComponent, TooltipComponent, CanvasRenderer]);
 
 const props = defineProps<{ widget: WidgetDefinition; gridX: number; gridY: number; data?: MetricResponse; loading: boolean; editing: boolean; interacting: boolean; interactionMode: 'drag' | 'resize' | null; selectedGroup: number | null; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string }>();
-const emit = defineEmits<{ remove: [id: string]; rename: [id: string, title: string]; selectGroup: [id: number | null]; interactionStart: [id: string, mode: 'drag' | 'resize', event: PointerEvent] }>();
+const emit = defineEmits<{ remove: [id: string]; rename: [id: string, title: string]; palette: [id: string, palette: WidgetPaletteKey]; selectGroup: [id: number | null]; interactionStart: [id: string, mode: 'drag' | 'resize', event: PointerEvent] }>();
 const chartElement = ref<HTMLElement | null>(null);
 const widgetElement = ref<HTMLElement | null>(null);
 let chart: ECharts | null = null;
 let resizeObserver: ResizeObserver | null = null;
-const donutColors = ['#5470c6', '#b5db27', '#525a7d', '#ff6685', '#8a63c7', '#50b52d', '#ffd000', '#00a5c8', '#ff8746', '#59607e', '#9a60b4', '#ea7ccc'];
+const activePalette = computed(() => widgetPalette(props.widget.palette));
+const donutColors = computed(() => activePalette.value.colors);
 
 const points = computed(() => (props.data?.series ?? []) as Point[]);
 const groupPoints = computed(() => (props.data?.series ?? []) as DimensionPoint[]);
@@ -71,16 +73,16 @@ function draw(): void {
   }
   chart ??= init(chartElement.value);
   const styles = getComputedStyle(document.documentElement);
-  const text = styles.getPropertyValue('--tblr-body-color').trim() || '#182433';
-  const border = styles.getPropertyValue('--tblr-border-color').trim() || '#dce1e7';
-  const accent = styles.getPropertyValue('--tblr-primary').trim() || '#206bc4';
+  const text = activePalette.value.text;
+  const border = activePalette.value.border;
+  const accent = activePalette.value.colors[0];
   if (props.widget.type === 'line') {
-    chart.setOption({ animationDuration: 350, textStyle: { color: text }, grid: { left: 46, right: 20, top: 24, bottom: 32 }, tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: points.value.map(p => p.date), axisLine: { lineStyle: { color: border } } }, yAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: border } } }, series: [{ type: 'line', smooth: true, symbol: 'none', lineStyle: { width: 3, color: accent }, areaStyle: { opacity: .12 }, data: points.value.map(p => p.value) }] }, true);
+    chart.setOption({ animationDuration: 350, textStyle: { color: text }, grid: { left: 46, right: 20, top: 24, bottom: 32 }, tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: points.value.map(p => p.date), axisLabel: { color: text }, axisLine: { lineStyle: { color: border } } }, yAxis: { type: 'value', minInterval: 1, axisLabel: { color: text }, splitLine: { lineStyle: { color: border } } }, series: [{ type: 'line', smooth: true, symbol: 'none', lineStyle: { width: 3, color: accent }, itemStyle: { color: accent }, areaStyle: { color: accent, opacity: .12 }, data: points.value.map(p => p.value) }] }, true);
   } else {
     const groups = latestGroups.value.slice(0, 12);
     if (props.widget.type === 'donut') {
       chart.setOption({
-        color: donutColors,
+        color: donutColors.value,
         tooltip: { trigger: 'item' },
         series: [{
           type: 'pie',
@@ -98,13 +100,13 @@ function draw(): void {
   }
 }
 function resize(): void { chart?.resize({ animation: { duration: 0 } }); }
-watch(() => [props.data, props.widget.type, props.selectedGroup, props.loading], async () => { await nextTick(); draw(); }, { deep: true });
+watch(() => [props.data, props.widget.type, props.widget.palette, props.selectedGroup, props.loading], async () => { await nextTick(); draw(); }, { deep: true });
 onMounted(() => { draw(); resizeObserver = new ResizeObserver(() => resize()); if (widgetElement.value) resizeObserver.observe(widgetElement.value); });
 onBeforeUnmount(() => { resizeObserver?.disconnect(); chart?.dispose(); });
 </script>
 
 <template>
-  <article ref="widgetElement" class="card marifex-widget" :class="[`marifex-widget--${widget.type}`, { 'marifex-widget--editing': editing, 'marifex-widget--dragging': interacting && interactionMode === 'drag', 'marifex-widget--resizing': interacting && interactionMode === 'resize' }]" :style="{ '--marifex-widget-rows': String(widget.h), gridColumn: `${gridX} / span ${widget.w}`, gridRow: `${gridY} / span ${widget.h}` }" :data-widget-id="widget.id">
+  <article ref="widgetElement" class="card marifex-widget" :class="[`marifex-widget--${widget.type}`, `marifex-widget--palette-${activePalette.key}`, { 'marifex-widget--editing': editing, 'marifex-widget--dragging': interacting && interactionMode === 'drag', 'marifex-widget--resizing': interacting && interactionMode === 'resize' }]" :style="{ '--marifex-widget-rows': String(widget.h), gridColumn: `${gridX} / span ${widget.w}`, gridRow: `${gridY} / span ${widget.h}` }" :data-widget-id="widget.id">
     <div class="card-header marifex-widget__header" :class="{ 'marifex-widget__drag-handle': editing }" @pointerdown="editing && emit('interactionStart', widget.id, 'drag', $event)">
       <div><span v-if="data?.source === 'live'" class="marifex-widget__kicker">Live GLPI</span><h2 class="card-title">{{ widget.title }}</h2></div>
       <div v-if="editing" class="marifex-widget__actions">
@@ -112,7 +114,10 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); chart?.dispose(); });
         <button class="btn btn-sm btn-ghost-danger" type="button" title="Remove widget" @pointerdown.stop @click.stop="emit('remove', widget.id)">Remove</button>
       </div>
     </div>
-    <div v-if="editing" class="marifex-widget__rename"><input class="form-control form-control-sm" :value="widget.title" maxlength="100" aria-label="Widget title" @change="emit('rename', widget.id, ($event.target as HTMLInputElement).value)"></div>
+    <div v-if="editing" class="marifex-widget__settings">
+      <div><label class="form-label" :for="`title-${widget.id}`">Widget title</label><input :id="`title-${widget.id}`" class="form-control form-control-sm" :value="widget.title" maxlength="100" @change="emit('rename', widget.id, ($event.target as HTMLInputElement).value)"></div>
+      <div><label class="form-label" :for="`palette-${widget.id}`">Color palette</label><select :id="`palette-${widget.id}`" class="form-select form-select-sm" :value="activePalette.key" @change="emit('palette', widget.id, ($event.target as HTMLSelectElement).value as WidgetPaletteKey)"><option v-for="palette in widgetPalettes" :key="palette.key" :value="palette.key">{{ palette.label }} · {{ palette.type }}</option></select></div>
+    </div>
     <div class="card-body marifex-widget__body" :aria-busy="loading">
       <div v-if="loading" class="marifex-skeleton"><span></span><span></span><span></span></div>
       <template v-else-if="widget.type === 'kpi'">

@@ -152,7 +152,12 @@ $assert(str_contains($dashboardFrontend, "exportUrl('csv')"), 'Home dashboards m
 $assert(str_contains($dashboardFrontend, 'Schedule dashboard report'), 'Home dashboards must expose scheduled delivery configuration.');
 $assert(!str_contains($widgetFrontend, '>W {{ widget.w }}</button>') && !str_contains($widgetFrontend, '>H {{ widget.h }}</button>'), 'Builder must not expose developer-style W/H resize buttons.');
 $assert(str_contains($widgetFrontend, 'ResizeObserver'), 'Charts must observe and adapt to widget size changes.');
+$assert(str_contains($widgetFrontend, 'Color palette') && str_contains($widgetFrontend, "emit('palette'"), 'Every widget must expose a palette selector in edit mode.');
+$assert(str_contains($dashboardFrontend, '@palette="recolorWidget"'), 'Per-widget palette changes must update the saved dashboard definition.');
+$paletteFrontend = file_get_contents(dirname(__DIR__) . '/frontend/palettes.ts');
+$assert(str_contains($paletteFrontend, "defaultWidgetPalette: WidgetPaletteKey = 'cream_gold'") && str_contains($paletteFrontend, "type: 'Gradient'"), 'Cream Gold must remain the default widget gradient palette.');
 $assert(str_contains($dashboardCss, 'grid-auto-flow: row'), 'Dashboard rows must remain aligned instead of backfilling widgets into uneven masonry gaps.');
+$assert(str_contains($dashboardCss, '.marifex-widget--palette-cream_gold') && str_contains($dashboardCss, '--mx-widget-bg-end'), 'Widget palettes must control non-white card backgrounds.');
 $assert(str_contains($dashboardCss, 'container-type: size'), 'Widget content must scale against its own width and height.');
 $assert(str_contains($dashboardCss, 'min(12cqw, 28cqh)'), 'KPI typography must respond to both widget width and height.');
 $dashboardBootstrap = file_get_contents(dirname(__DIR__) . '/frontend/main.ts');
@@ -175,6 +180,8 @@ $assert(str_contains($widgetCard, 'props.assetSearchUrl'), 'Asset widgets must d
 $assert(str_contains($widgetCard, 'props.changeSearchUrl'), 'Change widgets must drill down to native GLPI change lists.');
 $assert(str_contains($widgetCard, 'props.problemSearchUrl'), 'Problem widgets must drill down to native GLPI problem lists.');
 $assert(!str_contains($widgetCard, 'Analytics Data Mart'), 'Home widget headings must not expose the Analytics Data Mart implementation label.');
+$definitionService = file_get_contents(dirname(__DIR__) . '/src/Dashboard/DashboardDefinitionService.php');
+$assert(str_contains($definitionService, 'WIDGET_PALETTES') && str_contains($definitionService, "'palette' => \$palette"), 'The server must allowlist and persist widget palettes.');
 
 $reportExport = file_get_contents(dirname(__DIR__) . '/src/Report/ReportExporter.php');
 $reportAuthorization = file_get_contents(dirname(__DIR__) . '/src/Report/ReportAuthorizationService.php');
@@ -182,6 +189,7 @@ $reportSchedule = file_get_contents(dirname(__DIR__) . '/src/Report/ReportSchedu
 $reportRunner = file_get_contents(dirname(__DIR__) . '/src/Report/ScheduledReportRunner.php');
 $csvRenderer = file_get_contents(dirname(__DIR__) . '/src/Report/CsvReportRenderer.php');
 $pdfRenderer = file_get_contents(dirname(__DIR__) . '/src/Report/HeadlessPdfRenderer.php');
+$htmlRenderer = file_get_contents(dirname(__DIR__) . '/src/Report/HtmlReportRenderer.php');
 $assert(str_contains($reportExport, 'GLPI_PLUGIN_DOC_DIR') || str_contains(file_get_contents(dirname(__DIR__) . '/src/Report/ReportFileStore.php'), 'GLPI_PLUGIN_DOC_DIR'), 'Report files must remain in GLPI protected plugin storage.');
 $assert(str_contains($reportAuthorization, 'RIGHT_EXPORT') && str_contains($reportAuthorization, 'RIGHT_SCHEDULE'), 'Scheduled execution must revalidate Phase 5 profile rights.');
 $assert(str_contains($reportAuthorization, 'getSonsOf'), 'Scheduled report authorization must respect recursive entity access.');
@@ -190,6 +198,7 @@ $assert(str_contains($reportRunner, 'validateRecipients'), 'Every scheduled deli
 $assert(str_contains($csvRenderer, "preg_match('/^[=+\\-@\\t\\r]/'"), 'CSV exports must neutralize spreadsheet formula injection.');
 $assert(str_contains($pdfRenderer, '--headless=new') && str_contains($pdfRenderer, '--print-to-pdf='), 'PDF export must use the scoped headless-browser architecture.');
 $assert(str_contains($pdfRenderer, '--no-pdf-header-footer'), 'Generated PDFs must not expose temporary renderer paths in browser headers or footers.');
+$assert(str_contains($htmlRenderer, 'palette-cream_gold') && str_contains($htmlRenderer, 'PALETTES'), 'Static PDF reports must preserve per-widget palettes.');
 $assert(str_contains($reportSchedule, 'new DateTimeZone($timezone)') && !str_contains($reportSchedule, '!in_array($timezone, DateTimeZone::listIdentifiers(), true)'), 'Schedules must accept valid IANA aliases reported by browsers.');
 $assert(str_contains(file_get_contents(dirname(__DIR__) . '/hook.php'), "'scheduledReports'"), 'Phase 5 must register the scheduled report GLPI automatic action.');
 
