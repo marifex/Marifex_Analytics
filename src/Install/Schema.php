@@ -90,6 +90,14 @@ final class Schema
                 `date_mod` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (`id`), KEY `entity_active` (`entities_id`,`is_active`)
             ) $suffix",
+            'glpi_plugin_marifex_dashboard_provisions' => "CREATE TABLE `glpi_plugin_marifex_dashboard_provisions` (
+                `id` int unsigned NOT NULL AUTO_INCREMENT,
+                `users_id` int unsigned NOT NULL,
+                `entities_id` int unsigned NOT NULL DEFAULT 0,
+                `release_key` varchar(80) NOT NULL,
+                `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`), UNIQUE KEY `user_entity_release` (`users_id`,`entities_id`,`release_key`)
+            ) $suffix",
             'glpi_plugin_marifex_event_mappings' => "CREATE TABLE `glpi_plugin_marifex_event_mappings` (
                 `id` int unsigned NOT NULL AUTO_INCREMENT,
                 `itemtype` varchar(128) NOT NULL,

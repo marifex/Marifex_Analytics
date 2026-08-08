@@ -32,6 +32,8 @@ Every rollup includes `rollup_date` and `entities_id`. API queries intersect tho
 
 All Phase 4 widgets are available in the certified widget library. KPI, line, bar, donut and table presentations remain subject to the server-side metric/type allowlist. Native drill-downs route to GLPI Computers, Software Licences, Changes or Problems.
 
+The three Phase 4 dashboards are provisioned automatically, once per user and active entity, into the Home > Analytics dashboard selector. Provisioning keeps the user's current dashboard active and never recreates a dashboard after that user deliberately deletes it. The plugin Settings page lists all 15 certified metrics with their latest snapshot, stored grain count and current/stale/missing status for the active entity scope.
+
 ## ETL behavior
 
 The existing `dailySnapshot` automatic action now runs `DomainSnapshotBuilder` after ticket rollups. Re-running the same day replaces only Phase 4 metric keys, making the domain rollups idempotent without removing ticket metrics.
@@ -45,7 +47,7 @@ Licence compliance is deliberately based on explicit `glpi_items_softwarelicense
 1. The automatic action creates all 15 Phase 4 metric keys without changing GLPI core tables.
 2. Re-running a snapshot day produces one rollup per metric/entity/dimension grain.
 3. All Phase 4 API results are restricted to active GLPI entities.
-4. The Asset, Change and Problem templates can be created, edited, saved and reloaded.
+4. The Asset, Change and Problem dashboards appear automatically on Home and can be activated, edited, saved and reloaded.
 5. Percentage KPIs render with a percent suffix and dimension widgets use domain-specific headings.
 6. Phase 4 drill-downs open native GLPI lists.
 7. Responsive chart, legend, table and KPI behavior remains valid after widget resizing.

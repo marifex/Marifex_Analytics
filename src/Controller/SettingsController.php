@@ -7,6 +7,7 @@ namespace GlpiPlugin\Marifex\Controller;
 use Config;
 use DateTimeZone;
 use Glpi\Controller\AbstractController;
+use GlpiPlugin\Marifex\Metric\Phase4StatusService;
 use GlpiPlugin\Marifex\Profile;
 use Session;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -39,6 +40,7 @@ final class SettingsController extends AbstractController
             'pipelines' => $this->pipelines(),
             'mappings' => $this->mappings(),
             'reconciliations' => $this->reconciliations(),
+            'phase4_metrics' => (new Phase4StatusService())->all(),
         ]);
     }
 

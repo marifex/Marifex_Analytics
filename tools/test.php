@@ -20,7 +20,8 @@ $assert(count(array_filter($definitions, static fn ($definition): bool => $defin
 $assert(count(array_filter($definitions, static fn ($definition): bool => $definition->source === 'data_mart')) === 18, 'Historical and Phase 4 metrics must use governed Data Mart rollups.');
 
 $tables = Schema::tables();
-$assert(count($tables) === 8, 'Analytics schema must contain eight plugin-owned tables.');
+$assert(count($tables) === 9, 'Analytics schema must contain nine plugin-owned tables.');
+$assert(isset($tables['glpi_plugin_marifex_dashboard_provisions']), 'Dashboard release provisioning must be tracked per user and entity.');
 foreach ($tables as $name => $sql) {
     $assert(str_starts_with($name, 'glpi_plugin_marifex_'), "Unexpected table name: $name");
     $assert(!str_contains($sql, 'glpi_tickets` ('), 'Schema must not modify the operational ticket table.');
@@ -33,6 +34,7 @@ $assert(str_contains($controller, 'Profile::canView()'), 'Metric controller must
 
 $settings = file_get_contents(dirname(__DIR__) . '/src/Controller/SettingsController.php');
 $assert(str_contains($settings, 'Profile::canAdminister()'), 'Settings controller must enforce the plugin admin right.');
+$assert(str_contains($settings, 'Phase4StatusService'), 'Settings must expose Phase 4 metric health.');
 $assert(str_contains(file_get_contents(dirname(__DIR__) . '/setup.php'), "Hooks::CONFIG_PAGE]['marifex'] = 'Settings'"), 'Plugin must expose its native configuration action.');
 
 $profile = file_get_contents(dirname(__DIR__) . '/src/Profile.php');
@@ -93,6 +95,7 @@ $assert(str_contains($metricQueries, "sprintf('%s — %s'"), 'Duplicate group la
 $assert(str_contains($metricQueries, "sprintf('%s · Group #%d'"), 'Same-name groups in the same entity must include their GLPI group ID.');
 
 $settingsTemplate = file_get_contents(dirname(__DIR__) . '/templates/settings/index.html.twig');
+$assert(str_contains($settingsTemplate, 'Phase 4 domain analytics'), 'Settings must display certified Phase 4 metric health.');
 $assert(
     str_contains($settingsTemplate, 'layout/page_without_tabs.html.twig'),
     'Settings must extend a layout provided by GLPI 11.'
@@ -111,6 +114,8 @@ $assert(str_contains($dashboardDefinition, "'filters' => ['groupId'"), 'Dashboar
 $assert(str_contains($dashboardDefinition, "'asset-governance'"), 'Dashboard builder must provide the Phase 4 asset and licence template.');
 $assert(str_contains($dashboardDefinition, "'change-control'"), 'Dashboard builder must provide the Phase 4 change template.');
 $assert(str_contains($dashboardDefinition, "'problem-control'"), 'Dashboard builder must provide the Phase 4 problem template.');
+$assert(str_contains($dashboardDefinition, 'provisionPhase4Dashboards()'), 'Phase 4 dashboards must be provisioned into Home once per user and entity.');
+$assert(str_contains($dashboardDefinition, "['is_active'] = 0"), 'Phase 4 provisioning must preserve the currently active dashboard.');
 $assert(str_contains($dashboardDefinition, "'software_license_compliance_rate' => ['kpi', 'line']"), 'Phase 4 widgets must remain behind the certified metric/type allowlist.');
 
 $definitionController = file_get_contents(dirname(__DIR__) . '/src/Controller/DashboardDefinitionController.php');

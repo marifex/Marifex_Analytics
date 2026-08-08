@@ -11,7 +11,7 @@ use RuntimeException;
 
 final class Installer
 {
-    private const VERSION = 130;
+    private const VERSION = 140;
     private const TABLE_PREFIX = 'glpi_plugin_marifex_';
 
     public function install(): void

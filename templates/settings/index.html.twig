@@ -84,6 +84,33 @@
   </div>
 
   <div class="card mt-3">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">{{ __('Phase 4 domain analytics', 'marifex') }}</h2>
+        <div class="text-secondary mt-1">{{ __('Certified asset, licence, change and problem metrics available to Home dashboards in the active entity scope.', 'marifex') }}</div>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-vcenter card-table">
+        <thead><tr><th>{{ __('Domain', 'marifex') }}</th><th>{{ __('Certified metric', 'marifex') }}</th><th>{{ __('Latest snapshot', 'marifex') }}</th><th>{{ __('Stored grains', 'marifex') }}</th><th>{{ __('Status') }}</th></tr></thead>
+        <tbody>
+          {% for metric in phase4_metrics %}
+            <tr>
+              <td>{{ metric.domain }}</td>
+              <td><div>{{ metric.label }}</div><code>{{ metric.metric }}</code></td>
+              <td>{{ metric.latest_date|default(__('Not available', 'marifex')) }}</td>
+              <td>{{ metric.grain_count }}</td>
+              <td><span class="badge {{ metric.status == 'current' ? 'bg-green-lt' : (metric.status == 'stale' ? 'bg-yellow-lt' : 'bg-red-lt') }}">{{ metric.status }}</span></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="text-secondary">{{ __('Phase 4 analytics schema is not available.', 'marifex') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mt-3">
     <div class="card-header"><h2 class="card-title">{{ __('Recent reconciliation checks', 'marifex') }}</h2></div>
     <div class="table-responsive">
       <table class="table table-vcenter card-table">

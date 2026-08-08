@@ -11,6 +11,8 @@ use Session;
 final class DashboardDefinitionService
 {
     private const MAX_DASHBOARDS = 20;
+    private const PHASE4_PROVISION = 'phase4-domain-dashboards-v1';
+    private const PHASE4_TEMPLATES = ['asset-governance', 'change-control', 'problem-control'];
     private const METRICS = [
         'current_open_tickets' => ['kpi'],
         'average_open_ticket_age' => ['kpi', 'line'],
@@ -40,6 +42,7 @@ final class DashboardDefinitionService
     /** @return array<string, mixed> */
     public function workspace(): array
     {
+        $this->provisionPhase4Dashboards();
         $rows = $this->rows();
         $active = null;
         foreach ($rows as $row) {
@@ -203,6 +206,49 @@ final class DashboardDefinitionService
     {
         if (count($this->rows()) >= self::MAX_DASHBOARDS) {
             throw new InvalidArgumentException('A user can save at most 20 dashboards per entity.');
+        }
+    }
+
+    private function provisionPhase4Dashboards(): void
+    {
+        global $DB;
+        $where = $this->ownershipWhere() + ['release_key' => self::PHASE4_PROVISION];
+        if (!$DB->tableExists('glpi_plugin_marifex_dashboard_provisions') || $DB->request([
+            'SELECT' => ['id'],
+            'FROM' => 'glpi_plugin_marifex_dashboard_provisions',
+            'WHERE' => $where,
+            'LIMIT' => 1,
+        ])->current()) {
+            return;
+        }
+
+        $rows = $this->rows();
+        $names = array_fill_keys(array_map(static fn(array $row): string => (string) $row['name'], $rows), true);
+        $templates = $this->templates();
+        $missing = array_values(array_filter(
+            self::PHASE4_TEMPLATES,
+            static fn(string $key): bool => !isset($names[(string) $templates[$key]['name']])
+        ));
+        if (count($rows) + count($missing) > self::MAX_DASHBOARDS) {
+            return;
+        }
+
+        $DB->beginTransaction();
+        try {
+            foreach ($missing as $key) {
+                $template = $templates[$key];
+                $values = $this->values((string) $template['name'], $this->validate($template['definition']));
+                $values['is_active'] = 0;
+                $values['date_creation'] = gmdate('Y-m-d H:i:s');
+                $DB->insert('glpi_plugin_marifex_dashboard_definitions', $values);
+            }
+            $DB->insert('glpi_plugin_marifex_dashboard_provisions', $where + [
+                'date_creation' => gmdate('Y-m-d H:i:s'),
+            ]);
+            $DB->commit();
+        } catch (\Throwable $error) {
+            $DB->rollBack();
+            throw $error;
         }
     }
 
