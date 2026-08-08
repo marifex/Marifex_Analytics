@@ -14,7 +14,7 @@ final class DashboardDefinitionService
     private const PHASE4_PROVISION = 'phase4-domain-dashboards-v1';
     private const PHASE4_EXECUTIVE_PROVISION = 'phase4-executive-dashboard-v1';
     private const PHASE4_TEMPLATES = ['asset-governance', 'change-control', 'problem-control'];
-    private const WIDGET_PALETTES = ['cream_gold', 'ocean', 'mint', 'lavender', 'charcoal_gold', 'neutral'];
+    private const WIDGET_PALETTES = ['cream_gold', 'ocean', 'mint', 'lavender', 'charcoal_gold', 'neutral', 'classic_blue', 'teal_green', 'deep_purple', 'warm_amber', 'coral_red', 'sky_blue', 'bright_orange', 'rose_pink', 'forest_green', 'slate_gray'];
     private const METRICS = [
         'current_open_tickets' => ['kpi'],
         'average_open_ticket_age' => ['kpi', 'line'],

@@ -17,7 +17,7 @@ Phase 3 delivers the low-code analytics dashboard builder defined by the product
 - Drag-and-drop card ordering
 - Direct mouse/touch resizing from each widget's corner grip, with live chart reflow
 - Add, remove and rename widgets
-- Per-widget curated solid, monochrome and gradient palettes, including the default Cream Gold treatment
+- Per-widget curated solid, monochrome and gradient palettes, including the default Cream Gold treatment and the approved Blue, Green, Purple, Amber, Red, Orange, Pink and Slate gradient collection
 - KPI, line, bar, donut and table visualizations
 - Fixed chart-left/legend-right donut layout without paginated legends
 

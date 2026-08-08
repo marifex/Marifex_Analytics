@@ -50,6 +50,16 @@
 .marifex-widget--palette-lavender { --mx-widget-accent: #7656b5; --mx-widget-bg: #fbf8ff; --mx-widget-bg-end: #eadfff; --mx-widget-border: #c7afe9; --mx-widget-muted: #706384; --mx-widget-text: #35284f; }
 .marifex-widget--palette-charcoal_gold { --mx-widget-accent: #f2bd31; --mx-widget-bg: #263247; --mx-widget-bg-end: #263247; --mx-widget-border: #58657a; --mx-widget-muted: #d7deea; --mx-widget-text: #fff; }
 .marifex-widget--palette-neutral { --mx-widget-accent: var(--tblr-primary, #206bc4); --mx-widget-bg: var(--tblr-card-bg, #fff); --mx-widget-bg-end: var(--tblr-card-bg, #fff); --mx-widget-border: var(--mx-border); --mx-widget-muted: var(--tblr-secondary-color); --mx-widget-text: var(--tblr-body-color, #182433); }
+.marifex-widget--palette-classic_blue { --mx-widget-accent: #1d4ed8; --mx-widget-bg: #eff6ff; --mx-widget-bg-end: #dbeafe; --mx-widget-border: #bfdbfe; --mx-widget-muted: #475569; --mx-widget-text: #1e3a8a; }
+.marifex-widget--palette-teal_green { --mx-widget-accent: #047857; --mx-widget-bg: #ecfdf5; --mx-widget-bg-end: #d1fae5; --mx-widget-border: #a7f3d0; --mx-widget-muted: #475569; --mx-widget-text: #064e3b; }
+.marifex-widget--palette-deep_purple { --mx-widget-accent: #5b21b6; --mx-widget-bg: #f5f3ff; --mx-widget-bg-end: #ede9fe; --mx-widget-border: #ddd6fe; --mx-widget-muted: #475569; --mx-widget-text: #4c1d95; }
+.marifex-widget--palette-warm_amber { --mx-widget-accent: #b45309; --mx-widget-bg: #fffbeb; --mx-widget-bg-end: #fef3c7; --mx-widget-border: #fde68a; --mx-widget-muted: #64748b; --mx-widget-text: #78350f; }
+.marifex-widget--palette-coral_red { --mx-widget-accent: #b91c1c; --mx-widget-bg: #fef2f2; --mx-widget-bg-end: #fee2e2; --mx-widget-border: #fecaca; --mx-widget-muted: #64748b; --mx-widget-text: #7f1d1d; }
+.marifex-widget--palette-sky_blue { --mx-widget-accent: #2563eb; --mx-widget-bg: #f0f9ff; --mx-widget-bg-end: #e0f2fe; --mx-widget-border: #bae6fd; --mx-widget-muted: #475569; --mx-widget-text: #0c4a6e; }
+.marifex-widget--palette-bright_orange { --mx-widget-accent: #c2410c; --mx-widget-bg: #fff7ed; --mx-widget-bg-end: #ffedd5; --mx-widget-border: #fed7aa; --mx-widget-muted: #64748b; --mx-widget-text: #7c2d12; }
+.marifex-widget--palette-rose_pink { --mx-widget-accent: #be185d; --mx-widget-bg: #fff5f5; --mx-widget-bg-end: #ffe4e6; --mx-widget-border: #fecdd3; --mx-widget-muted: #475569; --mx-widget-text: #881337; }
+.marifex-widget--palette-forest_green { --mx-widget-accent: #065f46; --mx-widget-bg: #f0fdf4; --mx-widget-bg-end: #dcfce7; --mx-widget-border: #bbf7d0; --mx-widget-muted: #475569; --mx-widget-text: #14532d; }
+.marifex-widget--palette-slate_gray { --mx-widget-accent: #4b5563; --mx-widget-bg: #f8fafc; --mx-widget-bg-end: #f1f5f9; --mx-widget-border: #e2e8f0; --mx-widget-muted: #475569; --mx-widget-text: #0f172a; }
 .marifex-widget .card-header,.marifex-widget .card-body { background: transparent; color: inherit; }
 .marifex-widget .card-header,.marifex-widget__settings { border-color: color-mix(in srgb, var(--mx-widget-border) 72%, transparent); }
 .marifex-widget .table { --tblr-table-bg: transparent; --tblr-table-color: var(--mx-widget-text); --tblr-table-border-color: color-mix(in srgb, var(--mx-widget-border) 65%, transparent); color: var(--mx-widget-text); }

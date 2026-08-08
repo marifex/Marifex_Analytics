@@ -156,6 +156,7 @@ $assert(str_contains($widgetFrontend, 'Color palette') && str_contains($widgetFr
 $assert(str_contains($dashboardFrontend, '@palette="recolorWidget"'), 'Per-widget palette changes must update the saved dashboard definition.');
 $paletteFrontend = file_get_contents(dirname(__DIR__) . '/frontend/palettes.ts');
 $assert(str_contains($paletteFrontend, "defaultWidgetPalette: WidgetPaletteKey = 'cream_gold'") && str_contains($paletteFrontend, "type: 'Gradient'"), 'Cream Gold must remain the default widget gradient palette.');
+$assert(substr_count($paletteFrontend, "type: 'Gradient'") >= 13 && str_contains($paletteFrontend, "key: 'classic_blue'") && str_contains($paletteFrontend, "key: 'slate_gray'"), 'The complete approved gradient palette collection must be available to widgets.');
 $assert(str_contains($dashboardCss, 'grid-auto-flow: row'), 'Dashboard rows must remain aligned instead of backfilling widgets into uneven masonry gaps.');
 $assert(str_contains($dashboardCss, '.marifex-widget--palette-cream_gold') && str_contains($dashboardCss, '--mx-widget-bg-end'), 'Widget palettes must control non-white card backgrounds.');
 $assert(str_contains($dashboardCss, 'container-type: size'), 'Widget content must scale against its own width and height.');
@@ -182,6 +183,7 @@ $assert(str_contains($widgetCard, 'props.problemSearchUrl'), 'Problem widgets mu
 $assert(!str_contains($widgetCard, 'Analytics Data Mart'), 'Home widget headings must not expose the Analytics Data Mart implementation label.');
 $definitionService = file_get_contents(dirname(__DIR__) . '/src/Dashboard/DashboardDefinitionService.php');
 $assert(str_contains($definitionService, 'WIDGET_PALETTES') && str_contains($definitionService, "'palette' => \$palette"), 'The server must allowlist and persist widget palettes.');
+$assert(str_contains($definitionService, "'classic_blue'") && str_contains($definitionService, "'slate_gray'"), 'The server palette allowlist must include the approved gradient collection.');
 
 $reportExport = file_get_contents(dirname(__DIR__) . '/src/Report/ReportExporter.php');
 $reportAuthorization = file_get_contents(dirname(__DIR__) . '/src/Report/ReportAuthorizationService.php');
@@ -199,6 +201,7 @@ $assert(str_contains($csvRenderer, "preg_match('/^[=+\\-@\\t\\r]/'"), 'CSV expor
 $assert(str_contains($pdfRenderer, '--headless=new') && str_contains($pdfRenderer, '--print-to-pdf='), 'PDF export must use the scoped headless-browser architecture.');
 $assert(str_contains($pdfRenderer, '--no-pdf-header-footer'), 'Generated PDFs must not expose temporary renderer paths in browser headers or footers.');
 $assert(str_contains($htmlRenderer, 'palette-cream_gold') && str_contains($htmlRenderer, 'PALETTES'), 'Static PDF reports must preserve per-widget palettes.');
+$assert(str_contains($htmlRenderer, 'palette-classic_blue') && str_contains($htmlRenderer, 'palette-slate_gray'), 'Static PDF reports must render the approved gradient collection.');
 $assert(str_contains($reportSchedule, 'new DateTimeZone($timezone)') && !str_contains($reportSchedule, '!in_array($timezone, DateTimeZone::listIdentifiers(), true)'), 'Schedules must accept valid IANA aliases reported by browsers.');
 $assert(str_contains(file_get_contents(dirname(__DIR__) . '/hook.php'), "'scheduledReports'"), 'Phase 5 must register the scheduled report GLPI automatic action.');
 

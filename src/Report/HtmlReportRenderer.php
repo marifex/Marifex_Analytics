@@ -13,6 +13,16 @@ final class HtmlReportRenderer
         'lavender' => ['#7656b5', '#936bd0', '#b07ee2', '#5e46a1', '#c18ce8', '#8157bf', '#a472d4', '#d0a2ef', '#684ca7', '#9b7ac5'],
         'charcoal_gold' => ['#f2bd31', '#ffe08a', '#d99a00', '#fff0b8', '#bd7f00', '#f7cf62', '#e6aa15', '#fff5d2', '#c78d16', '#f4c34a'],
         'neutral' => ['#4361ee', '#a7cf24', '#50597b', '#f05d7b', '#7656b5', '#34a853', '#f5bd00', '#009bb8', '#f47b3d', '#586174'],
+        'classic_blue' => ['#1d4ed8', '#2563eb', '#3b82f6'],
+        'teal_green' => ['#047857', '#10b981', '#34d399'],
+        'deep_purple' => ['#5b21b6', '#8b5cf6', '#a78bfa'],
+        'warm_amber' => ['#b45309', '#fbbf24', '#fde68a'],
+        'coral_red' => ['#b91c1c', '#ef4444', '#fca5a5'],
+        'sky_blue' => ['#2563eb', '#60a5fa', '#93c5fd'],
+        'bright_orange' => ['#c2410c', '#f97316', '#fb923c'],
+        'rose_pink' => ['#be185d', '#f472b6', '#fb7185'],
+        'forest_green' => ['#065f46', '#34d399', '#6ee7b7'],
+        'slate_gray' => ['#4b5563', '#9ca3af', '#cbd5e1'],
     ];
 
     /** @param array<string, mixed> $report */
@@ -25,7 +35,7 @@ final class HtmlReportRenderer
         }
         $range = $this->e(sprintf('%s to %s', $report['from'], $report['to']));
         $generated = $this->e((new \DateTimeImmutable($report['generated_at']))->format('Y-m-d H:i T'));
-        return '<!doctype html><html><head><meta charset="utf-8"><style>' . $this->css() . '</style></head><body>'
+        return '<!doctype html><html><head><meta charset="utf-8"><style>' . $this->css() . $this->extendedPaletteCss() . '</style></head><body>'
             . '<header><div><p class="brand">MARIFEX ADVANCED ANALYTICS</p><h1>' . $name . '</h1><p class="sub">Static governed dashboard report</p></div>'
             . '<div class="meta"><strong>' . $range . '</strong><span>Entity #' . (int) $report['entities_id'] . '</span></div></header>'
             . '<main>' . $cards . '</main><footer><span>Generated ' . $generated . '</span><span>MarifeX for GLPI</span></footer></body></html>';
@@ -138,6 +148,20 @@ final class HtmlReportRenderer
     }
 
     private function e(string $value): string { return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
+
+    private function extendedPaletteCss(): string
+    {
+        return '.palette-classic_blue{--card-bg:#eff6ff;--card-end:#dbeafe;--card-border:#bfdbfe;--card-muted:#475569;--card-text:#1e3a8a}'
+            . '.palette-teal_green{--card-bg:#ecfdf5;--card-end:#d1fae5;--card-border:#a7f3d0;--card-muted:#475569;--card-text:#064e3b}'
+            . '.palette-deep_purple{--card-bg:#f5f3ff;--card-end:#ede9fe;--card-border:#ddd6fe;--card-muted:#475569;--card-text:#4c1d95}'
+            . '.palette-warm_amber{--card-bg:#fffbeb;--card-end:#fef3c7;--card-border:#fde68a;--card-muted:#64748b;--card-text:#78350f}'
+            . '.palette-coral_red{--card-bg:#fef2f2;--card-end:#fee2e2;--card-border:#fecaca;--card-muted:#64748b;--card-text:#7f1d1d}'
+            . '.palette-sky_blue{--card-bg:#f0f9ff;--card-end:#e0f2fe;--card-border:#bae6fd;--card-muted:#475569;--card-text:#0c4a6e}'
+            . '.palette-bright_orange{--card-bg:#fff7ed;--card-end:#ffedd5;--card-border:#fed7aa;--card-muted:#64748b;--card-text:#7c2d12}'
+            . '.palette-rose_pink{--card-bg:#fff5f5;--card-end:#ffe4e6;--card-border:#fecdd3;--card-muted:#475569;--card-text:#881337}'
+            . '.palette-forest_green{--card-bg:#f0fdf4;--card-end:#dcfce7;--card-border:#bbf7d0;--card-muted:#475569;--card-text:#14532d}'
+            . '.palette-slate_gray{--card-bg:#f8fafc;--card-end:#f1f5f9;--card-border:#e2e8f0;--card-muted:#475569;--card-text:#0f172a}';
+    }
 
     private function css(): string
     {
