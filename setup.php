@@ -37,8 +37,8 @@ function plugin_init_marifex(): void
         || str_ends_with($requestPath, '/front/central.php')
         || str_ends_with($requestPath, '/Central')
     )) {
-        $PLUGIN_HOOKS[Hooks::ADD_CSS]['marifex'][] = 'css/marifex.css?v=0.7.0-dev.5';
-        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['marifex'][] = 'js/dashboard.js?v=0.7.0-dev.5';
+        $PLUGIN_HOOKS[Hooks::ADD_CSS]['marifex'][] = 'css/marifex.css?v=0.7.0-dev.6';
+        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['marifex'][] = 'js/dashboard.js?v=0.7.0-dev.6';
     }
 }
 

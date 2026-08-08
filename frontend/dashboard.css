@@ -64,7 +64,7 @@
 .marifex-widget__resize-handle svg { block-size: 1rem; fill: none; inline-size: 1rem; position: relative; stroke: currentColor; stroke-linecap: round; stroke-width: 1.7; }
 .marifex-button-icon { block-size: 1rem; fill: none; inline-size: 1rem; margin-inline-end: .4rem; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; vertical-align: -.15rem; }
 .marifex-widget__rename { border-block-end: 1px solid var(--mx-border); padding: .55rem 1rem; }
-.marifex-widget__body { flex: 1 1 auto; min-block-size: 0; overflow: hidden; }
+.marifex-widget__body { container-type: size; flex: 1 1 auto; min-block-size: 0; overflow: hidden; }
 .marifex-widget__chart { block-size: 100%; min-block-size: 0; inline-size: 100%; }
 .marifex-donut-layout { align-items: stretch; block-size: 100%; display: grid; gap: .35rem; grid-template-columns: minmax(0, 1.08fr) minmax(8.5rem, .92fr); min-block-size: 0; }
 .marifex-donut-layout__chart { min-block-size: 0; }
@@ -72,7 +72,9 @@
 .marifex-donut-legend__item { align-items: center; background: transparent; border: 0; color: var(--tblr-body-color); display: grid; font-size: .52rem; gap: .3rem; grid-template-columns: .7rem minmax(0, 1fr); line-height: 1.12; min-inline-size: 0; padding: .12rem 0; text-align: start; }
 .marifex-donut-legend__item:hover,.marifex-donut-legend__item.is-selected { color: var(--mx-accent); }
 .marifex-donut-legend__swatch { border-radius: .14rem; block-size: .48rem; inline-size: .7rem; }
-.marifex-executive-kpi { display: block; font-size: clamp(2.3rem, 7cqw, 4.2rem); font-variant-numeric: tabular-nums; letter-spacing: -.055em; line-height: 1; margin-block: .65rem 1rem; }
+.marifex-widget--kpi .marifex-widget__body { display: flex; flex-direction: column; justify-content: center; padding: clamp(.45rem, 4cqh, 1rem); }
+.marifex-executive-kpi { display: block; font-size: clamp(1.55rem, min(12cqw, 28cqh), 4.2rem); font-variant-numeric: tabular-nums; letter-spacing: -.055em; line-height: .94; margin-block: clamp(.15rem, 2cqh, .65rem) clamp(.25rem, 3cqh, 1rem); max-inline-size: 100%; white-space: nowrap; }
+.marifex-widget--kpi .btn { align-self: flex-start; margin-block-start: clamp(.25rem, 3cqh, .75rem) !important; }
 .marifex-kpi-context { color: var(--tblr-secondary-color); font-size: .78rem; font-weight: 600; }
 .marifex-link-button { background: none; border: 0; color: var(--tblr-link-color); font: inherit; font-weight: 600; padding: 0; text-align: start; }
 .marifex-skeleton { display: grid; gap: .7rem; padding-block: 1rem; }
