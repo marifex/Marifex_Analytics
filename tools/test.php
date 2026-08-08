@@ -102,12 +102,18 @@ $assert(str_contains($definitionController, "'activate' =>"), 'Dashboard API mus
 $assert(str_contains($definitionController, "'duplicate' =>"), 'Dashboard API must expose dashboard duplication.');
 
 $dashboardFrontend = file_get_contents(dirname(__DIR__) . '/frontend/Dashboard.vue');
+$widgetFrontend = file_get_contents(dirname(__DIR__) . '/frontend/WidgetCard.vue');
+$dashboardCss = file_get_contents(dirname(__DIR__) . '/frontend/dashboard.css');
 $assert(str_contains($dashboardFrontend, "'X-Requested-With': 'XMLHttpRequest'"), 'Dashboard writes must opt into GLPI AJAX CSRF validation.');
 $assert(str_contains($dashboardFrontend, "'X-Glpi-Csrf-Token': props.csrfToken"), 'Dashboard writes must send the GLPI CSRF header.');
 $assert(str_contains($dashboardFrontend, 'Create from template'), 'Builder must expose dashboard templates.');
 $assert(str_contains($dashboardFrontend, 'duplicateDashboard'), 'Builder must expose dashboard duplication.');
 $assert(str_contains($dashboardFrontend, 'cancelEditing'), 'Builder must preserve draft/cancel behavior.');
-$assert(str_contains($dashboardFrontend, "dimension: 'w' | 'h'"), 'Builder must resize widget width and height independently.');
+$assert(str_contains($dashboardFrontend, "mode: 'drag' | 'resize'"), 'Builder must provide pointer-driven drag and resize interactions.');
+$assert(str_contains($dashboardFrontend, 'layoutPositions'), 'Dashboard canvas must place widgets in deterministic aligned rows.');
+$assert(!str_contains($widgetFrontend, '>W {{ widget.w }}</button>') && !str_contains($widgetFrontend, '>H {{ widget.h }}</button>'), 'Builder must not expose developer-style W/H resize buttons.');
+$assert(str_contains($widgetFrontend, 'ResizeObserver'), 'Charts must observe and adapt to widget size changes.');
+$assert(str_contains($dashboardCss, 'grid-auto-flow: row'), 'Dashboard rows must remain aligned instead of backfilling widgets into uneven masonry gaps.');
 $dashboardBootstrap = file_get_contents(dirname(__DIR__) . '/frontend/main.ts');
 $assert(str_contains($dashboardBootstrap, "meta[property=\"glpi:csrf_token\"]"), 'Dashboard bootstrap must fall back to GLPI core CSRF metadata.');
 $assert(str_contains($dashboardBootstrap, 'MutationObserver'), 'Dashboard app must mount when GLPI loads the Home tab asynchronously.');

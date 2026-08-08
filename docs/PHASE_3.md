@@ -15,7 +15,7 @@ Phase 3 delivers the low-code analytics dashboard builder defined by the product
 
 - Responsive 12-column CSS grid
 - Drag-and-drop card ordering
-- Independent width and height resizing
+- Direct mouse/touch resizing from each widget's corner grip, with live chart reflow
 - Add, remove and rename widgets
 - KPI, line, bar, donut and table visualizations
 - Fixed chart-left/legend-right donut layout without paginated legends

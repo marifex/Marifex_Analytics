@@ -8,10 +8,12 @@ import type { DimensionPoint, MetricResponse, Point, WidgetDefinition } from './
 
 use([BarChart, LineChart, PieChart, GridComponent, TooltipComponent, CanvasRenderer]);
 
-const props = defineProps<{ widget: WidgetDefinition; data?: MetricResponse; loading: boolean; editing: boolean; selectedGroup: number | null; ticketSearchUrl: string }>();
-const emit = defineEmits<{ remove: [id: string]; move: [id: string, direction: -1 | 1]; resize: [id: string, dimension: 'w' | 'h']; rename: [id: string, title: string]; selectGroup: [id: number | null] }>();
+const props = defineProps<{ widget: WidgetDefinition; gridX: number; gridY: number; data?: MetricResponse; loading: boolean; editing: boolean; interacting: boolean; interactionMode: 'drag' | 'resize' | null; selectedGroup: number | null; ticketSearchUrl: string }>();
+const emit = defineEmits<{ remove: [id: string]; rename: [id: string, title: string]; selectGroup: [id: number | null]; interactionStart: [id: string, mode: 'drag' | 'resize', event: PointerEvent] }>();
 const chartElement = ref<HTMLElement | null>(null);
+const widgetElement = ref<HTMLElement | null>(null);
 let chart: ECharts | null = null;
+let resizeObserver: ResizeObserver | null = null;
 const donutColors = ['#5470c6', '#b5db27', '#525a7d', '#ff6685', '#8a63c7', '#50b52d', '#ffd000', '#00a5c8', '#ff8746', '#59607e', '#9a60b4', '#ea7ccc'];
 
 const points = computed(() => (props.data?.series ?? []) as Point[]);
@@ -73,22 +75,19 @@ function draw(): void {
     }
   }
 }
-function resize(): void { chart?.resize(); draw(); }
+function resize(): void { chart?.resize({ animation: { duration: 0 } }); }
 watch(() => [props.data, props.widget.type, props.selectedGroup, props.loading], async () => { await nextTick(); draw(); }, { deep: true });
-onMounted(() => { draw(); window.addEventListener('resize', resize); });
-onBeforeUnmount(() => { window.removeEventListener('resize', resize); chart?.dispose(); });
+onMounted(() => { draw(); resizeObserver = new ResizeObserver(() => resize()); if (widgetElement.value) resizeObserver.observe(widgetElement.value); });
+onBeforeUnmount(() => { resizeObserver?.disconnect(); chart?.dispose(); });
 </script>
 
 <template>
-  <article class="card marifex-widget" :class="[`marifex-widget--${widget.type}`, { 'marifex-widget--editing': editing }]" :style="{ gridColumn: `span ${widget.w}`, minHeight: `${widget.h * 5.25}rem` }" :draggable="editing" :data-widget-id="widget.id">
-    <div class="card-header marifex-widget__header">
+  <article ref="widgetElement" class="card marifex-widget" :class="[`marifex-widget--${widget.type}`, { 'marifex-widget--editing': editing, 'marifex-widget--dragging': interacting && interactionMode === 'drag', 'marifex-widget--resizing': interacting && interactionMode === 'resize' }]" :style="{ '--marifex-widget-rows': String(widget.h), gridColumn: `${gridX} / span ${widget.w}`, gridRow: `${gridY} / span ${widget.h}` }" :data-widget-id="widget.id">
+    <div class="card-header marifex-widget__header" :class="{ 'marifex-widget__drag-handle': editing }" @pointerdown="editing && emit('interactionStart', widget.id, 'drag', $event)">
       <div><span class="marifex-widget__kicker">{{ data?.source === 'live' ? 'Live GLPI' : 'Analytics Data Mart' }}</span><h2 class="card-title">{{ widget.title }}</h2></div>
       <div v-if="editing" class="marifex-widget__actions">
-        <button class="btn btn-sm btn-ghost-secondary" type="button" title="Move left" @click="emit('move', widget.id, -1)">&#8592;</button>
-        <button class="btn btn-sm btn-ghost-secondary" type="button" title="Move right" @click="emit('move', widget.id, 1)">&#8594;</button>
-        <button class="btn btn-sm btn-ghost-secondary" type="button" title="Cycle widget width" @click="emit('resize', widget.id, 'w')">W {{ widget.w }}</button>
-        <button class="btn btn-sm btn-ghost-secondary" type="button" title="Cycle widget height" @click="emit('resize', widget.id, 'h')">H {{ widget.h }}</button>
-        <button class="btn btn-sm btn-ghost-danger" type="button" title="Remove" @click="emit('remove', widget.id)">Remove</button>
+        <span class="marifex-drag-indicator" aria-hidden="true" title="Drag widget"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <button class="btn btn-sm btn-ghost-danger" type="button" title="Remove widget" @pointerdown.stop @click.stop="emit('remove', widget.id)">Remove</button>
       </div>
     </div>
     <div v-if="editing" class="marifex-widget__rename"><input class="form-control form-control-sm" :value="widget.title" maxlength="100" aria-label="Widget title" @change="emit('rename', widget.id, ($event.target as HTMLInputElement).value)"></div>
@@ -113,5 +112,6 @@ onBeforeUnmount(() => { window.removeEventListener('resize', resize); chart?.dis
       </div>
       <div v-else ref="chartElement" class="marifex-widget__chart" role="img" :aria-label="widget.title"></div>
     </div>
+    <button v-if="editing" class="marifex-widget__resize-handle" type="button" aria-label="Resize widget" title="Drag to resize" @pointerdown.stop="emit('interactionStart', widget.id, 'resize', $event)"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 14h8V6M10 14h4v-4"/></svg></button>
   </article>
 </template>
