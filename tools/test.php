@@ -20,8 +20,10 @@ $assert(count(array_filter($definitions, static fn ($definition): bool => $defin
 $assert(count(array_filter($definitions, static fn ($definition): bool => $definition->source === 'data_mart')) === 18, 'Historical and Phase 4 metrics must use governed Data Mart rollups.');
 
 $tables = Schema::tables();
-$assert(count($tables) === 9, 'Analytics schema must contain nine plugin-owned tables.');
+$assert(count($tables) === 11, 'Analytics schema must contain eleven plugin-owned tables.');
 $assert(isset($tables['glpi_plugin_marifex_dashboard_provisions']), 'Dashboard release provisioning must be tracked per user and entity.');
+$assert(isset($tables['glpi_plugin_marifex_report_schedules']), 'Phase 5 must persist governed report schedules.');
+$assert(isset($tables['glpi_plugin_marifex_report_runs']), 'Phase 5 must retain immutable report execution history.');
 foreach ($tables as $name => $sql) {
     $assert(str_starts_with($name, 'glpi_plugin_marifex_'), "Unexpected table name: $name");
     $assert(!str_contains($sql, 'glpi_tickets` ('), 'Schema must not modify the operational ticket table.');
@@ -35,6 +37,7 @@ $assert(str_contains($controller, 'Profile::canView()'), 'Metric controller must
 $settings = file_get_contents(dirname(__DIR__) . '/src/Controller/SettingsController.php');
 $assert(str_contains($settings, 'Profile::canAdminister()'), 'Settings controller must enforce the plugin admin right.');
 $assert(str_contains($settings, 'Phase4StatusService'), 'Settings must expose Phase 4 metric health.');
+$assert(str_contains($settings, 'HeadlessPdfRenderer'), 'Settings must expose Phase 5 PDF engine readiness.');
 $assert(str_contains(file_get_contents(dirname(__DIR__) . '/setup.php'), "Hooks::CONFIG_PAGE]['marifex'] = 'Settings'"), 'Plugin must expose its native configuration action.');
 
 $profile = file_get_contents(dirname(__DIR__) . '/src/Profile.php');
@@ -144,6 +147,9 @@ $assert(str_contains($dashboardFrontend, "metric: 'open_changes'"), 'Widget cata
 $assert(str_contains($dashboardFrontend, "metric: 'open_problems'"), 'Widget catalog must expose certified Phase 4 problem metrics.');
 $assert(str_contains($dashboardFrontend, 'v-if="hasGroupFilter"'), 'Ticket group filters must not appear on unrelated Phase 4 dashboards.');
 $assert(str_contains($dashboardFrontend, '@change="persistFilters"'), 'Dashboard horizon and global filters must persist to the active saved dashboard.');
+$assert(str_contains($dashboardFrontend, "exportUrl('pdf')"), 'Home dashboards must expose governed PDF export.');
+$assert(str_contains($dashboardFrontend, "exportUrl('csv')"), 'Home dashboards must expose governed CSV export.');
+$assert(str_contains($dashboardFrontend, 'Schedule dashboard report'), 'Home dashboards must expose scheduled delivery configuration.');
 $assert(!str_contains($widgetFrontend, '>W {{ widget.w }}</button>') && !str_contains($widgetFrontend, '>H {{ widget.h }}</button>'), 'Builder must not expose developer-style W/H resize buttons.');
 $assert(str_contains($widgetFrontend, 'ResizeObserver'), 'Charts must observe and adapt to widget size changes.');
 $assert(str_contains($dashboardCss, 'grid-auto-flow: row'), 'Dashboard rows must remain aligned instead of backfilling widgets into uneven masonry gaps.');
@@ -168,6 +174,24 @@ $assert(str_contains($widgetCard, "software_license_compliance_rate"), 'Licence 
 $assert(str_contains($widgetCard, 'props.assetSearchUrl'), 'Asset widgets must drill down to native GLPI computer lists.');
 $assert(str_contains($widgetCard, 'props.changeSearchUrl'), 'Change widgets must drill down to native GLPI change lists.');
 $assert(str_contains($widgetCard, 'props.problemSearchUrl'), 'Problem widgets must drill down to native GLPI problem lists.');
+$assert(!str_contains($widgetCard, 'Analytics Data Mart'), 'Home widget headings must not expose the Analytics Data Mart implementation label.');
+
+$reportExport = file_get_contents(dirname(__DIR__) . '/src/Report/ReportExporter.php');
+$reportAuthorization = file_get_contents(dirname(__DIR__) . '/src/Report/ReportAuthorizationService.php');
+$reportSchedule = file_get_contents(dirname(__DIR__) . '/src/Report/ReportScheduleService.php');
+$reportRunner = file_get_contents(dirname(__DIR__) . '/src/Report/ScheduledReportRunner.php');
+$csvRenderer = file_get_contents(dirname(__DIR__) . '/src/Report/CsvReportRenderer.php');
+$pdfRenderer = file_get_contents(dirname(__DIR__) . '/src/Report/HeadlessPdfRenderer.php');
+$assert(str_contains($reportExport, 'GLPI_PLUGIN_DOC_DIR') || str_contains(file_get_contents(dirname(__DIR__) . '/src/Report/ReportFileStore.php'), 'GLPI_PLUGIN_DOC_DIR'), 'Report files must remain in GLPI protected plugin storage.');
+$assert(str_contains($reportAuthorization, 'RIGHT_EXPORT') && str_contains($reportAuthorization, 'RIGHT_SCHEDULE'), 'Scheduled execution must revalidate Phase 5 profile rights.');
+$assert(str_contains($reportAuthorization, 'getSonsOf'), 'Scheduled report authorization must respect recursive entity access.');
+$assert(str_contains($reportSchedule, 'Session::checkCSRF') || str_contains(file_get_contents(dirname(__DIR__) . '/src/Controller/ReportScheduleController.php'), 'Session::checkCSRF'), 'Report schedule writes must enforce GLPI CSRF validation.');
+$assert(str_contains($reportRunner, 'validateRecipients'), 'Every scheduled delivery must revalidate recipients.');
+$assert(str_contains($csvRenderer, "preg_match('/^[=+\\-@\\t\\r]/'"), 'CSV exports must neutralize spreadsheet formula injection.');
+$assert(str_contains($pdfRenderer, '--headless=new') && str_contains($pdfRenderer, '--print-to-pdf='), 'PDF export must use the scoped headless-browser architecture.');
+$assert(str_contains($pdfRenderer, '--no-pdf-header-footer'), 'Generated PDFs must not expose temporary renderer paths in browser headers or footers.');
+$assert(str_contains($reportSchedule, 'new DateTimeZone($timezone)') && !str_contains($reportSchedule, '!in_array($timezone, DateTimeZone::listIdentifiers(), true)'), 'Schedules must accept valid IANA aliases reported by browsers.');
+$assert(str_contains(file_get_contents(dirname(__DIR__) . '/hook.php'), "'scheduledReports'"), 'Phase 5 must register the scheduled report GLPI automatic action.');
 
 $entityScope = file_get_contents(dirname(__DIR__) . '/src/Security/EntityScope.php');
 $assert(str_contains($entityScope, 'Session::getActiveEntities()'), 'Entity scope must use the supported GLPI Session adapter.');

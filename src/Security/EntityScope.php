@@ -9,9 +9,19 @@ use Session;
 
 final class EntityScope
 {
+    /** @param list<int>|null $fixedEntityIds */
+    public function __construct(
+        private readonly ?array $fixedEntityIds = null,
+        private readonly ?int $fixedEntityId = null,
+    ) {
+    }
+
     /** @return list<int> */
     public function activeEntityIds(): array
     {
+        if ($this->fixedEntityIds !== null) {
+            return $this->fixedEntityIds;
+        }
         if (Session::getLoginUserID() === false) {
             throw new RuntimeException('An authenticated GLPI session is required.');
         }
@@ -28,6 +38,9 @@ final class EntityScope
 
     public function activeEntityId(): int
     {
+        if ($this->fixedEntityId !== null) {
+            return $this->fixedEntityId;
+        }
         if (Session::getLoginUserID() === false) {
             throw new RuntimeException('An authenticated GLPI session is required.');
         }

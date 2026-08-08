@@ -70,6 +70,12 @@ final class DashboardDefinitionService
         ];
     }
 
+    /** @return array<string, mixed> */
+    public function reportDashboard(int $id): array
+    {
+        return $this->dashboardFromRow($this->ownedRow($id));
+    }
+
     /** @param array<string, mixed> $definition
      *  @return array<string, mixed>
      */

@@ -36,6 +36,10 @@ final class HomeDashboardTab extends CommonGLPI
             'licence_search_url' => '/front/softwarelicense.php',
             'change_search_url' => '/front/change.php',
             'problem_search_url' => '/front/problem.php',
+            'report_export_url' => '/plugins/marifex/reports/export',
+            'report_schedule_endpoint' => '/plugins/marifex/api/reports/schedules',
+            'can_export' => Profile::canExport(),
+            'can_schedule' => Profile::canSchedule(),
         ]);
         return true;
     }

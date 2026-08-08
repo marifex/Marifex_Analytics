@@ -106,7 +106,7 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); chart?.dispose(); });
 <template>
   <article ref="widgetElement" class="card marifex-widget" :class="[`marifex-widget--${widget.type}`, { 'marifex-widget--editing': editing, 'marifex-widget--dragging': interacting && interactionMode === 'drag', 'marifex-widget--resizing': interacting && interactionMode === 'resize' }]" :style="{ '--marifex-widget-rows': String(widget.h), gridColumn: `${gridX} / span ${widget.w}`, gridRow: `${gridY} / span ${widget.h}` }" :data-widget-id="widget.id">
     <div class="card-header marifex-widget__header" :class="{ 'marifex-widget__drag-handle': editing }" @pointerdown="editing && emit('interactionStart', widget.id, 'drag', $event)">
-      <div><span class="marifex-widget__kicker">{{ data?.source === 'live' ? 'Live GLPI' : 'Analytics Data Mart' }}</span><h2 class="card-title">{{ widget.title }}</h2></div>
+      <div><span v-if="data?.source === 'live'" class="marifex-widget__kicker">Live GLPI</span><h2 class="card-title">{{ widget.title }}</h2></div>
       <div v-if="editing" class="marifex-widget__actions">
         <span class="marifex-drag-indicator" aria-hidden="true" title="Drag widget"><i></i><i></i><i></i><i></i><i></i><i></i></span>
         <button class="btn btn-sm btn-ghost-danger" type="button" title="Remove widget" @pointerdown.stop @click.stop="emit('remove', widget.id)">Remove</button>

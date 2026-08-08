@@ -15,10 +15,24 @@ final class Profile extends \Profile
 
     public const RIGHT_DASHBOARD = 'plugin_marifex_dashboard';
     public const RIGHT_ADMIN = 'plugin_marifex_admin';
+    public const RIGHT_EXPORT = 'plugin_marifex_export';
+    public const RIGHT_SCHEDULE = 'plugin_marifex_schedule';
 
     public static function getAllRights($all = false): array
     {
         return [
+            [
+                'itemtype' => self::class,
+                'label' => __('Export analytics reports', 'marifex'),
+                'field' => self::RIGHT_EXPORT,
+                'rights' => [READ => __('Read')],
+            ],
+            [
+                'itemtype' => self::class,
+                'label' => __('Schedule analytics reports', 'marifex'),
+                'field' => self::RIGHT_SCHEDULE,
+                'rights' => [READ => __('Read'), UPDATE => __('Update')],
+            ],
             [
                 'itemtype' => self::class,
                 'label' => __('View analytics dashboards', 'marifex'),
@@ -49,11 +63,21 @@ final class Profile extends \Profile
         return (bool) Session::haveRight(self::RIGHT_ADMIN, UPDATE);
     }
 
+    public static function canExport(): bool
+    {
+        return (bool) Session::haveRight(self::RIGHT_EXPORT, READ) || self::canAdminister();
+    }
+
+    public static function canSchedule(): bool
+    {
+        return (bool) Session::haveRight(self::RIGHT_SCHEDULE, UPDATE) || self::canAdminister();
+    }
+
     public static function installRights(): void
     {
         global $DB;
 
-        foreach ([self::RIGHT_DASHBOARD, self::RIGHT_ADMIN] as $right) {
+        foreach ([self::RIGHT_DASHBOARD, self::RIGHT_EXPORT, self::RIGHT_SCHEDULE, self::RIGHT_ADMIN] as $right) {
             if ($DB->request(['FROM' => 'glpi_profilerights', 'WHERE' => ['name' => $right]])->count() === 0) {
                 ProfileRight::addProfileRights([$right]);
             }
@@ -73,6 +97,8 @@ final class Profile extends \Profile
         foreach (array_unique($privilegedProfiles) as $profileId) {
             self::setProfileRights($profileId, [
                 self::RIGHT_DASHBOARD => READ,
+                self::RIGHT_EXPORT => READ,
+                self::RIGHT_SCHEDULE => READ | UPDATE,
                 self::RIGHT_ADMIN => READ | UPDATE,
             ]);
         }
@@ -81,6 +107,8 @@ final class Profile extends \Profile
         if ($activeProfile > 0 && Session::haveRight('profile', UPDATE) && !in_array($activeProfile, $privilegedProfiles, true)) {
             self::setProfileRights($activeProfile, [
                 self::RIGHT_DASHBOARD => READ,
+                self::RIGHT_EXPORT => READ,
+                self::RIGHT_SCHEDULE => READ | UPDATE,
                 self::RIGHT_ADMIN => READ | UPDATE,
             ]);
         }
@@ -88,9 +116,11 @@ final class Profile extends \Profile
 
     public static function uninstallRights(): void
     {
-        ProfileRight::deleteProfileRights([self::RIGHT_DASHBOARD, self::RIGHT_ADMIN]);
+        ProfileRight::deleteProfileRights([self::RIGHT_DASHBOARD, self::RIGHT_EXPORT, self::RIGHT_SCHEDULE, self::RIGHT_ADMIN]);
         unset(
             $_SESSION['glpiactiveprofile'][self::RIGHT_DASHBOARD],
+            $_SESSION['glpiactiveprofile'][self::RIGHT_EXPORT],
+            $_SESSION['glpiactiveprofile'][self::RIGHT_SCHEDULE],
             $_SESSION['glpiactiveprofile'][self::RIGHT_ADMIN]
         );
     }
@@ -142,7 +172,7 @@ final class Profile extends \Profile
     private static function ensureProfileRows(int $profileId): void
     {
         global $DB;
-        foreach ([self::RIGHT_DASHBOARD, self::RIGHT_ADMIN] as $right) {
+        foreach ([self::RIGHT_DASHBOARD, self::RIGHT_EXPORT, self::RIGHT_SCHEDULE, self::RIGHT_ADMIN] as $right) {
             if ($DB->request([
                 'FROM' => 'glpi_profilerights',
                 'WHERE' => ['profiles_id' => $profileId, 'name' => $right],

@@ -32,6 +32,16 @@
           </label>
           <div class="form-hint">{{ __('Recommended. Turning this off causes plugin-owned analytics tables to be removed during uninstall; GLPI operational tables are never removed.', 'marifex') }}</div>
         </div>
+        <div class="col-md-6">
+          <label class="form-label" for="marifex-report-retention">{{ __('Report retention', 'marifex') }}</label>
+          <div class="input-group"><input id="marifex-report-retention" class="form-control" type="number" name="report_retention_days" min="1" max="365" value="{{ config.report_retention_days|default(30) }}" required><span class="input-group-text">{{ __('days') }}</span></div>
+          <div class="form-hint">{{ __('Generated report files are removed after this period; immutable run history remains available.', 'marifex') }}</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="marifex-headless-browser">{{ __('Headless browser executable', 'marifex') }}</label>
+          <input id="marifex-headless-browser" class="form-control" type="text" name="headless_browser_path" value="{{ config.headless_browser_path|default('') }}" placeholder="{{ report_engine.path|default('Auto-detect Chrome or Edge') }}">
+          <div class="form-hint"><span class="badge {{ report_engine.available ? 'bg-green-lt' : 'bg-red-lt' }}">{{ report_engine.available ? __('PDF engine ready', 'marifex') : __('PDF engine unavailable', 'marifex') }}</span></div>
+        </div>
       </div>
     </div>
     <div class="card-footer text-end">
@@ -124,6 +134,27 @@
           {% else %}
             <tr><td colspan="7" class="text-secondary">{{ __('No reconciliation check has run yet.', 'marifex') }}</td></tr>
           {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mt-3">
+    <div class="card-header">
+      <div><h2 class="card-title">{{ __('Scheduled reporting and export history', 'marifex') }}</h2><div class="text-secondary mt-1">{{ __('Governed Phase 5 report generation in the active entity scope.', 'marifex') }}</div></div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-vcenter card-table">
+        <thead><tr><th>{{ __('Started', 'marifex') }}</th><th>{{ __('Format', 'marifex') }}</th><th>{{ __('Status') }}</th><th>{{ __('Recipients', 'marifex') }}</th><th>{{ __('Result', 'marifex') }}</th></tr></thead>
+        <tbody>
+          {% for run in report_runs %}
+            <tr>
+              <td>{{ run.started_at }}</td><td>{{ run.format|upper }}</td>
+              <td><span class="badge {{ run.status == 'completed' ? 'bg-green-lt' : (run.status == 'running' ? 'bg-yellow-lt' : 'bg-red-lt') }}">{{ run.status }}</span></td>
+              <td>{{ run.recipient_count }}</td>
+              <td>{% if run.status == 'completed' and run.file_path %}<a href="{{ report_file_url }}/{{ run.id }}">{{ run.file_name }}</a>{% else %}<span class="text-secondary">{{ run.error_message|default(__('No file', 'marifex')) }}</span>{% endif %}</td>
+            </tr>
+          {% else %}<tr><td colspan="5" class="text-secondary">{{ __('No report has been generated yet.', 'marifex') }}</td></tr>{% endfor %}
         </tbody>
       </table>
     </div>

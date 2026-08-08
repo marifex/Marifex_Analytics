@@ -9,6 +9,10 @@
   data-licence-search-url="{{ licence_search_url|e('html_attr') }}"
   data-change-search-url="{{ change_search_url|e('html_attr') }}"
   data-problem-search-url="{{ problem_search_url|e('html_attr') }}"
+  data-report-export-url="{{ report_export_url|e('html_attr') }}"
+  data-report-schedule-endpoint="{{ report_schedule_endpoint|e('html_attr') }}"
+  data-can-export="{{ can_export ? '1' : '0' }}"
+  data-can-schedule="{{ can_schedule ? '1' : '0' }}"
   dir="auto"
 >
   <div class="marifex-dashboard__loading" role="status">

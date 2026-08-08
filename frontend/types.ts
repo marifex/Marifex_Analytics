@@ -14,3 +14,4 @@ export type SavedDashboard = { id: number | null; name: string; definition: Dash
 export type DashboardSummary = { id: number; name: string; is_active: boolean; date_mod: string | null };
 export type DashboardTemplate = { key: string; name: string; description: string };
 export type DashboardWorkspace = { dashboard: SavedDashboard; dashboards: DashboardSummary[]; templates: DashboardTemplate[] };
+export type ReportSchedule = { id: number; name: string; dashboard_definitions_id: number; format: 'pdf' | 'csv'; frequency: 'daily' | 'weekly' | 'monthly'; send_hour: number; weekday: number | null; monthday: number | null; timezone: string; recipients: string[]; is_active: boolean; next_run_at: string; last_run_at: string | null };

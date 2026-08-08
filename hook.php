@@ -40,6 +40,12 @@ function plugin_marifex_install(): bool
         DAY_TIMESTAMP,
         ['mode' => CronTask::MODE_EXTERNAL, 'comment' => 'MarifeX analytics reconciliation']
     );
+    CronTask::register(
+        AnalyticsCron::class,
+        'scheduledReports',
+        300,
+        ['mode' => CronTask::MODE_EXTERNAL, 'comment' => 'Generate and deliver governed MarifeX dashboard reports']
+    );
 
     return true;
 }

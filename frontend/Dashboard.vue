@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import WidgetCard from './WidgetCard.vue';
-import type { DashboardTemplate, DashboardWorkspace, MetricResponse, SavedDashboard, WidgetDefinition } from './types';
+import type { DashboardTemplate, DashboardWorkspace, MetricResponse, ReportSchedule, SavedDashboard, WidgetDefinition } from './types';
 
-const props = defineProps<{ metricEndpoint: string; definitionEndpoint: string; csrfToken: string; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string }>();
+const props = defineProps<{ metricEndpoint: string; definitionEndpoint: string; csrfToken: string; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string; reportExportUrl: string; reportScheduleEndpoint: string; canExport: boolean; canSchedule: boolean }>();
 const dashboard = ref<SavedDashboard | null>(null);
 const dashboards = ref<DashboardWorkspace['dashboards']>([]);
 const templates = ref<DashboardTemplate[]>([]);
@@ -14,6 +14,10 @@ const error = ref('');
 const editing = ref(false);
 const catalogOpen = ref(false);
 const templateOpen = ref(false);
+const scheduleOpen = ref(false);
+const schedules = ref<ReportSchedule[]>([]);
+const scheduleError = ref('');
+const scheduleForm = ref({ name: 'Executive report', format: 'pdf' as 'pdf' | 'csv', frequency: 'weekly' as 'daily' | 'weekly' | 'monthly', send_hour: 8, weekday: 1, monthday: 1, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', recipients: '' });
 const selectedTemplate = ref('executive');
 const newDashboardName = ref('Executive Operations Command');
 const selectedGroup = ref<number | null>(null);
@@ -52,6 +56,7 @@ const catalog: Array<Omit<WidgetDefinition, 'id'>> = [
 ];
 const definition = computed(() => dashboard.value?.definition);
 const hasGroupFilter = computed(() => definition.value?.widgets.some(widget => supportsGroup(widget.metric)) ?? false);
+const dashboardSchedules = computed(() => schedules.value.filter(schedule => schedule.dashboard_definitions_id === dashboard.value?.id));
 const layoutPositions = computed(() => {
   const positions: Record<string, { x: number; y: number }> = {};
   let x = 1; let y = 1; let rowHeight = 0;
@@ -107,9 +112,34 @@ async function load(): Promise<void> {
     if (!response.ok) throw new Error('Dashboard definition request failed');
     adoptWorkspace(await response.json());
     await loadMetrics();
+    if (props.canSchedule) void loadSchedules().catch(() => { scheduleError.value = 'Report schedules could not be loaded.'; });
   } catch { error.value = 'The analytics dashboard could not be loaded. Check the plugin automatic actions and try again.'; }
   finally { loading.value = false; }
 }
+function exportUrl(format: 'pdf' | 'csv'): string { return `${props.reportExportUrl}/${dashboard.value?.id ?? 0}/${format}`; }
+async function loadSchedules(): Promise<void> {
+  const response = await fetch(props.reportScheduleEndpoint, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error('Report schedules could not be loaded');
+  schedules.value = (await response.json()).schedules as ReportSchedule[];
+}
+function schedulePayload(schedule?: ReportSchedule): Record<string, unknown> {
+  if (schedule) return { id: schedule.id, name: schedule.name, dashboard_id: schedule.dashboard_definitions_id, format: schedule.format, frequency: schedule.frequency, send_hour: schedule.send_hour, weekday: schedule.weekday, monthday: schedule.monthday, timezone: schedule.timezone, recipients: schedule.recipients, is_active: schedule.is_active };
+  return { name: scheduleForm.value.name, dashboard_id: dashboard.value?.id, format: scheduleForm.value.format, frequency: scheduleForm.value.frequency, send_hour: scheduleForm.value.send_hour, weekday: scheduleForm.value.weekday, monthday: scheduleForm.value.monthday, timezone: scheduleForm.value.timezone, recipients: scheduleForm.value.recipients.split(/[;,]/).map(item => item.trim()).filter(Boolean), is_active: true };
+}
+async function writeSchedule(method: 'POST' | 'PUT' | 'DELETE', payload: Record<string, unknown>): Promise<void> {
+  scheduleError.value = '';
+  const response = await fetch(props.reportScheduleEndpoint, { method, credentials: 'same-origin', headers: headers(), body: JSON.stringify(payload) });
+  if (!response.ok) { scheduleError.value = (await response.text()) || 'The report schedule could not be saved.'; return; }
+  schedules.value = (await response.json()).schedules as ReportSchedule[];
+}
+async function createSchedule(): Promise<void> {
+  if (!dashboard.value?.id) { scheduleError.value = 'Save this dashboard before scheduling it.'; return; }
+  await writeSchedule('POST', schedulePayload());
+  if (!scheduleError.value) scheduleForm.value.name = `${dashboard.value.name} report`;
+}
+async function toggleSchedule(schedule: ReportSchedule): Promise<void> { await writeSchedule('PUT', schedulePayload({ ...schedule, is_active: !schedule.is_active })); }
+async function deleteSchedule(schedule: ReportSchedule): Promise<void> { await writeSchedule('DELETE', { id: schedule.id }); }
+function openSchedules(): void { scheduleForm.value.name = `${dashboard.value?.name ?? 'Dashboard'} report`; scheduleOpen.value = true; void loadSchedules().catch(() => { scheduleError.value = 'Report schedules could not be loaded.'; }); }
 async function loadMetrics(): Promise<void> {
   if (!definition.value) return;
   const { from, to } = range();
@@ -266,6 +296,9 @@ onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(ref
         <select v-if="dashboards.length" class="form-select marifex-dashboard-switcher" aria-label="Active analytics dashboard" :value="dashboard?.id ?? ''" :disabled="saving" @change="switchDashboard(Number(($event.target as HTMLSelectElement).value))"><option v-if="dashboard?.id === null" value="">Unsaved default</option><option v-for="item in dashboards" :key="item.id" :value="item.id">{{ item.name }}</option></select>
         <button class="btn btn-outline-secondary" type="button" @click="openTemplatePicker">New dashboard</button>
         <button v-if="dashboard?.id" class="btn btn-outline-secondary" type="button" :disabled="saving" @click="duplicateDashboard">Duplicate</button>
+        <a v-if="props.canExport && dashboard?.id" class="btn btn-outline-secondary" :href="exportUrl('pdf')">Export PDF</a>
+        <a v-if="props.canExport && dashboard?.id" class="btn btn-outline-secondary" :href="exportUrl('csv')">Export CSV</a>
+        <button v-if="props.canSchedule && dashboard?.id" class="btn btn-outline-secondary" type="button" @click="openSchedules">Schedule</button>
         <button class="btn btn-outline-secondary" type="button" :disabled="loading" @click="loadMetrics">Refresh</button>
         <button v-if="!editing" class="btn btn-outline-primary" type="button" title="Edit dashboard layout" @click="startEditing"><svg aria-hidden="true" class="marifex-button-icon" viewBox="0 0 24 24"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4Zm10-13 4 4"/></svg>Edit layout</button>
         <template v-else><button class="btn btn-success" type="button" :disabled="saving" @click="save">{{ saving ? 'Saving...' : 'Save dashboard' }}</button><button class="btn btn-outline-secondary" type="button" @click="cancelEditing">Cancel</button></template>
@@ -295,5 +328,24 @@ onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(ref
     <div v-if="catalogOpen" class="marifex-catalog-backdrop" role="presentation" @click.self="catalogOpen = false"><aside class="marifex-catalog" role="dialog" aria-modal="true" aria-labelledby="catalog-title"><header><div><p class="marifex-command__eyebrow">Certified semantic layer</p><h2 id="catalog-title">Widget library</h2></div><button class="btn-close" type="button" aria-label="Close" @click="catalogOpen = false"></button></header><p class="text-secondary">Every widget uses an approved metric. SQL and unrestricted data access are never accepted.</p><div class="marifex-catalog__grid"><button v-for="item in catalog" :key="`${item.metric}-${item.type}`" class="card marifex-catalog-item" type="button" @click="addWidget(item)"><span class="badge bg-azure-lt">{{ item.type }}</span><strong>{{ item.title }}</strong><small>{{ item.metric.replaceAll('_', ' ') }}</small></button></div></aside></div>
 
     <div v-if="templateOpen" class="marifex-catalog-backdrop" role="presentation" @click.self="templateOpen = false"><aside class="marifex-catalog" role="dialog" aria-modal="true" aria-labelledby="template-title"><header><div><p class="marifex-command__eyebrow">Dashboard templates</p><h2 id="template-title">Create dashboard</h2></div><button class="btn-close" type="button" aria-label="Close" @click="templateOpen = false"></button></header><div class="mt-3"><label class="form-label" for="marifex-new-dashboard-name">Dashboard name</label><input id="marifex-new-dashboard-name" v-model="newDashboardName" class="form-control" maxlength="120"></div><div class="marifex-template-grid"><button v-for="template in templates" :key="template.key" class="card marifex-template-item" :class="{ 'is-selected': selectedTemplate === template.key }" type="button" @click="chooseTemplate(template)"><strong>{{ template.name }}</strong><small>{{ template.description }}</small></button></div><button class="btn btn-primary w-100 mt-3" type="button" :disabled="saving" @click="createDashboard">Create from template</button></aside></div>
+
+    <div v-if="scheduleOpen" class="marifex-catalog-backdrop" role="presentation" @click.self="scheduleOpen = false">
+      <aside class="marifex-catalog marifex-report-scheduler" role="dialog" aria-modal="true" aria-labelledby="schedule-title">
+        <header><div><p class="marifex-command__eyebrow">Governed delivery</p><h2 id="schedule-title">Schedule dashboard report</h2></div><button class="btn-close" type="button" aria-label="Close" @click="scheduleOpen = false"></button></header>
+        <div v-if="scheduleError" class="alert alert-danger mt-3">{{ scheduleError }}</div>
+        <div class="marifex-schedule-form mt-3">
+          <div><label class="form-label" for="report-name">Schedule name</label><input id="report-name" v-model.trim="scheduleForm.name" class="form-control" maxlength="120"></div>
+          <div><label class="form-label" for="report-format">Format</label><select id="report-format" v-model="scheduleForm.format" class="form-select"><option value="pdf">PDF</option><option value="csv">CSV</option></select></div>
+          <div><label class="form-label" for="report-frequency">Frequency</label><select id="report-frequency" v-model="scheduleForm.frequency" class="form-select"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div>
+          <div><label class="form-label" for="report-hour">Delivery hour</label><select id="report-hour" v-model.number="scheduleForm.send_hour" class="form-select"><option v-for="hour in 24" :key="hour - 1" :value="hour - 1">{{ String(hour - 1).padStart(2, '0') }}:00</option></select></div>
+          <div v-if="scheduleForm.frequency === 'weekly'"><label class="form-label" for="report-weekday">Weekday</label><select id="report-weekday" v-model.number="scheduleForm.weekday" class="form-select"><option :value="1">Monday</option><option :value="2">Tuesday</option><option :value="3">Wednesday</option><option :value="4">Thursday</option><option :value="5">Friday</option><option :value="6">Saturday</option><option :value="7">Sunday</option></select></div>
+          <div v-if="scheduleForm.frequency === 'monthly'"><label class="form-label" for="report-monthday">Day of month</label><select id="report-monthday" v-model.number="scheduleForm.monthday" class="form-select"><option v-for="day in 28" :key="day" :value="day">{{ day }}</option></select></div>
+          <div><label class="form-label" for="report-timezone">Timezone</label><select id="report-timezone" v-model="scheduleForm.timezone" class="form-select"><option value="UTC">UTC</option><option v-if="scheduleForm.timezone !== 'UTC'" :value="scheduleForm.timezone">{{ scheduleForm.timezone }}</option></select></div>
+          <div class="marifex-schedule-form__wide"><label class="form-label" for="report-recipients">GLPI recipient emails</label><input id="report-recipients" v-model="scheduleForm.recipients" class="form-control" placeholder="user@example.com, manager@example.com"><div class="form-hint">Recipients must be active GLPI users with dashboard access to this entity.</div></div>
+        </div>
+        <button class="btn btn-primary w-100 mt-3" type="button" @click="createSchedule">Create schedule</button>
+        <div v-if="dashboardSchedules.length" class="marifex-schedule-list mt-4"><h3>Existing schedules</h3><div v-for="item in dashboardSchedules" :key="item.id" class="card"><div><strong>{{ item.name }}</strong><small>{{ item.frequency }} at {{ String(item.send_hour).padStart(2, '0') }}:00 {{ item.timezone }} - next {{ item.next_run_at }}</small></div><button class="btn btn-sm" :class="item.is_active ? 'btn-outline-warning' : 'btn-outline-success'" type="button" @click="toggleSchedule(item)">{{ item.is_active ? 'Pause' : 'Enable' }}</button><button class="btn btn-sm btn-outline-danger" type="button" @click="deleteSchedule(item)">Delete</button></div></div>
+      </aside>
+    </div>
   </section>
 </template>

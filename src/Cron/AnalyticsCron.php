@@ -10,6 +10,7 @@ use GlpiPlugin\Marifex\Etl\IncrementalTicketEtl;
 use GlpiPlugin\Marifex\Etl\IncrementalLogEtl;
 use GlpiPlugin\Marifex\Etl\AnalyticsReconciler;
 use GlpiPlugin\Marifex\Etl\SnapshotBuilder;
+use GlpiPlugin\Marifex\Report\ScheduledReportRunner;
 use Throwable;
 
 final class AnalyticsCron extends CommonDBTM
@@ -21,6 +22,7 @@ final class AnalyticsCron extends CommonDBTM
             'dailySnapshot' => ['description' => __('Build daily ticket, asset, licence, change and problem rollups', 'marifex')],
             'incrementalLogEtl' => ['description' => __('Import verified ticket status events', 'marifex')],
             'reconcileAnalytics' => ['description' => __('Reconcile ticket analytics with GLPI', 'marifex')],
+            'scheduledReports' => ['description' => __('Generate and deliver scheduled MarifeX dashboard reports', 'marifex')],
             default => [],
         };
     }
@@ -66,6 +68,18 @@ final class AnalyticsCron extends CommonDBTM
         try {
             $differences = (new AnalyticsReconciler())->run();
             $task->addVolume($differences);
+            return 1;
+        } catch (Throwable $exception) {
+            $task->log($exception->getMessage());
+            return 0;
+        }
+    }
+
+    public static function cronScheduledReports(CronTask $task): int
+    {
+        try {
+            $processed = (new ScheduledReportRunner())->run();
+            $task->addVolume($processed);
             return 1;
         } catch (Throwable $exception) {
             $task->log($exception->getMessage());

@@ -98,3 +98,11 @@
 @container (width < 70rem) { .marifex-filterbar { grid-template-columns: 1fr 1fr; } }
 @container (width < 44rem) { .marifex-command__hero { align-items: flex-start; flex-direction: column; } .marifex-builderbar,.marifex-filterbar { grid-template-columns: 1fr; } .marifex-widget { grid-column: 1 / -1 !important; grid-row: span var(--marifex-widget-rows) !important; } .marifex-catalog__grid { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .marifex-widget,.marifex-catalog-item,.marifex-skeleton span { animation: none !important; transition: none !important; } }
+.marifex-report-scheduler { width: min(760px, calc(100vw - 2rem)); }
+.marifex-schedule-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.marifex-schedule-form__wide { grid-column: 1 / -1; }
+.marifex-schedule-list { display: grid; gap: .75rem; }
+.marifex-schedule-list h3 { font-size: 1rem; margin: 0; }
+.marifex-schedule-list .card { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .75rem; padding: .75rem; }
+.marifex-schedule-list small { display: block; color: var(--tblr-secondary); margin-top: .2rem; }
+@media (max-width: 700px) { .marifex-schedule-form { grid-template-columns: 1fr; } .marifex-schedule-form__wide { grid-column: auto; } .marifex-schedule-list .card { grid-template-columns: 1fr auto; } }

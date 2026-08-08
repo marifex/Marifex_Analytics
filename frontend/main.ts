@@ -15,6 +15,10 @@ function mountDashboard(root: HTMLElement): void {
     licenceSearchUrl: root.dataset.licenceSearchUrl ?? '/front/softwarelicense.php',
     changeSearchUrl: root.dataset.changeSearchUrl ?? '/front/change.php',
     problemSearchUrl: root.dataset.problemSearchUrl ?? '/front/problem.php',
+    reportExportUrl: root.dataset.reportExportUrl ?? '/plugins/marifex/reports/export',
+    reportScheduleEndpoint: root.dataset.reportScheduleEndpoint ?? '/plugins/marifex/api/reports/schedules',
+    canExport: root.dataset.canExport === '1',
+    canSchedule: root.dataset.canSchedule === '1',
   }).mount(root);
 }
 
