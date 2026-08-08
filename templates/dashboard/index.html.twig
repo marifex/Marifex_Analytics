@@ -9,6 +9,9 @@
     id="marifex-dashboard"
     class="marifex-dashboard"
     data-metric-endpoint="{{ metric_endpoint|e('html_attr') }}"
+    data-definition-endpoint="{{ definition_endpoint|e('html_attr') }}"
+    data-csrf-token="{{ csrf_token(true)|e('html_attr') }}"
+    data-ticket-search-url="{{ ticket_drilldown_url|e('html_attr') }}"
     dir="auto"
   >
     <div class="marifex-dashboard__loading" role="status">

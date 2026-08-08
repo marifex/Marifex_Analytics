@@ -1,134 +1,117 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import { init, use, type ECharts } from 'echarts/core';
-import { LineChart } from 'echarts/charts';
-import { GridComponent, TooltipComponent } from 'echarts/components';
-import { CanvasRenderer } from 'echarts/renderers';
+import { computed, onMounted, ref } from 'vue';
+import WidgetCard from './WidgetCard.vue';
+import type { MetricResponse, SavedDashboard, WidgetDefinition } from './types';
 
-use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
-
-type Point = { date: string; value: number };
-type DimensionPoint = Point & { dimension_id: number; dimension: string };
-type MetricResponse = {
-  metric: string;
-  label: string;
-  source: 'live' | 'data_mart';
-  value?: number;
-  series?: Array<Point | DimensionPoint>;
-};
-
-const props = defineProps<{ endpoint: string }>();
+const props = defineProps<{ metricEndpoint: string; definitionEndpoint: string; csrfToken: string; ticketSearchUrl: string }>();
+const dashboard = ref<SavedDashboard | null>(null);
+const metrics = ref<Record<string, MetricResponse>>({});
 const loading = ref(true);
+const saving = ref(false);
 const error = ref('');
-const live = ref<MetricResponse | null>(null);
-const history = ref<MetricResponse | null>(null);
-const averageAge = ref<MetricResponse | null>(null);
-const groupBacklog = ref<MetricResponse | null>(null);
-const chartElement = ref<HTMLElement | null>(null);
-let chart: ECharts | null = null;
+const editing = ref(false);
+const catalogOpen = ref(false);
+const selectedGroup = ref<number | null>(null);
+const draggedWidget = ref<string | null>(null);
 
-const openTickets = computed(() => live.value?.value?.toLocaleString() ?? 'Not available');
-const averageAgeLabel = computed(() => {
-  const seconds = averageAge.value?.series?.at(-1)?.value;
-  if (seconds === undefined) return 'Not available';
-  const days = seconds / 86400;
-  return days < 1 ? `${Math.round(seconds / 3600)} hours` : `${days.toFixed(1)} days`;
+const catalog: Array<Omit<WidgetDefinition, 'id'>> = [
+  { metric: 'current_open_tickets', type: 'kpi', title: 'Open now', w: 3, h: 2 },
+  { metric: 'average_open_ticket_age', type: 'kpi', title: 'Average ticket age', w: 3, h: 2 },
+  { metric: 'average_open_ticket_age', type: 'line', title: 'Ticket age trajectory', w: 6, h: 4 },
+  { metric: 'historical_open_backlog', type: 'line', title: 'Enterprise backlog trajectory', w: 6, h: 4 },
+  { metric: 'historical_open_backlog', type: 'bar', title: 'Backlog by day', w: 6, h: 4 },
+  { metric: 'historical_group_backlog', type: 'donut', title: 'Workload concentration', w: 5, h: 4 },
+  { metric: 'historical_group_backlog', type: 'bar', title: 'Group workload comparison', w: 6, h: 4 },
+  { metric: 'historical_group_backlog', type: 'table', title: 'Service ownership ranking', w: 7, h: 4 },
+];
+const definition = computed(() => dashboard.value?.definition);
+const groups = computed(() => {
+  const groupMetric = metrics.value[metricKey('historical_group_backlog:global')];
+  const points = (groupMetric?.series ?? []) as Array<{ dimension_id?: number; dimension?: string }>;
+  const unique = new Map<number, string>();
+  points.forEach(point => { if (point.dimension_id && point.dimension) unique.set(point.dimension_id, point.dimension); });
+  return [...unique.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 });
-const latestGroups = computed(() => {
-  const points = (groupBacklog.value?.series ?? []) as DimensionPoint[];
-  const latestDate = points.at(-1)?.date;
-  return points.filter((point) => point.date === latestDate).sort((a, b) => b.value - a.value);
-});
+const selectedGroupName = computed(() => groups.value.find(group => group.id === selectedGroup.value)?.name);
+
+function range(): { from: string; to: string } {
+  const to = new Date(); const from = new Date(); from.setDate(from.getDate() - (definition.value?.dateRangeDays ?? 30));
+  return { from: toDate(from), to: toDate(to) };
+}
+function toDate(date: Date): string { return date.toISOString().slice(0, 10); }
+function metricKey(metric: string): string { return `${metric}:${selectedGroup.value ?? 0}`; }
+function supportsGroup(metric: string): boolean { return ['current_open_tickets', 'historical_open_backlog'].includes(metric); }
+function dataFor(widget: WidgetDefinition): MetricResponse | undefined {
+  return metrics.value[metricKey(supportsGroup(widget.metric) ? widget.metric : `${widget.metric}:global`)] ?? metrics.value[widget.metric];
+}
 
 async function load(): Promise<void> {
-  loading.value = true;
-  error.value = '';
+  loading.value = true; error.value = '';
   try {
-    const [liveResponse, historyResponse, ageResponse, groupResponse] = await Promise.all([
-      fetch(`${props.endpoint}/current_open_tickets`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
-      fetch(`${props.endpoint}/historical_open_backlog`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
-      fetch(`${props.endpoint}/average_open_ticket_age`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
-      fetch(`${props.endpoint}/historical_group_backlog`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
-    ]);
-    if (!liveResponse.ok || !historyResponse.ok || !ageResponse.ok || !groupResponse.ok) throw new Error('Metric request failed');
-    live.value = await liveResponse.json();
-    history.value = await historyResponse.json();
-    averageAge.value = await ageResponse.json();
-    groupBacklog.value = await groupResponse.json();
-    await nextTick();
-    drawChart();
-  } catch {
-    error.value = 'Analytics data could not be loaded. Retry or check the GLPI automatic actions.';
-  } finally {
-    loading.value = false;
-  }
+    const response = await fetch(props.definitionEndpoint, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error('Dashboard definition request failed');
+    dashboard.value = await response.json();
+    await loadMetrics();
+  } catch { error.value = 'The executive dashboard could not be loaded. Check the plugin automatic actions and try again.'; }
+  finally { loading.value = false; }
 }
-
-function drawChart(): void {
-  if (!chartElement.value || !history.value?.series) return;
-  chart ??= init(chartElement.value);
-  const styles = getComputedStyle(document.documentElement);
-  const textColor = styles.getPropertyValue('--tblr-body-color').trim() || '#182433';
-  const borderColor = styles.getPropertyValue('--tblr-border-color').trim() || '#dce1e7';
-  chart.setOption({
-    animationDuration: 300,
-    textStyle: { color: textColor },
-    grid: { left: 42, right: 18, top: 24, bottom: 30 },
-    tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: history.value.series.map((point) => point.date), axisLine: { lineStyle: { color: borderColor } } },
-    yAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: borderColor } } },
-    series: [{ type: 'line', smooth: true, symbol: 'none', lineStyle: { width: 3 }, areaStyle: { opacity: 0.12 }, data: history.value.series.map((point) => point.value) }],
-  });
+async function loadMetrics(): Promise<void> {
+  if (!definition.value) return;
+  const { from, to } = range();
+  const requested = new Set(definition.value.widgets.map(widget => widget.metric));
+  const entries = await Promise.all([...requested].map(async metric => {
+    const params = new URLSearchParams({ from, to });
+    if (selectedGroup.value && supportsGroup(metric)) params.set('group_id', String(selectedGroup.value));
+    const response = await fetch(`${props.metricEndpoint}/${metric}?${params}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error('Metric request failed');
+    const key = supportsGroup(metric) ? metricKey(metric) : metricKey(`${metric}:global`);
+    return [key, await response.json()] as const;
+  }));
+  metrics.value = { ...metrics.value, ...Object.fromEntries(entries) };
 }
-
-function resize(): void { chart?.resize(); }
-
-onMounted(() => { void load(); window.addEventListener('resize', resize); });
-onBeforeUnmount(() => { window.removeEventListener('resize', resize); chart?.dispose(); });
+async function applyFilters(): Promise<void> { loading.value = true; try { await loadMetrics(); } finally { loading.value = false; } }
+async function save(): Promise<void> {
+  if (!dashboard.value) return;
+  saving.value = true; error.value = '';
+  try {
+    const response = await fetch(props.definitionEndpoint, { method: 'PUT', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Glpi-Csrf-Token': props.csrfToken, 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify({ name: dashboard.value.name, definition: dashboard.value.definition }) });
+    if (!response.ok) throw new Error('Save failed');
+    dashboard.value = await response.json(); editing.value = false;
+  } catch { error.value = 'The layout could not be saved. Refresh the page and try again.'; }
+  finally { saving.value = false; }
+}
+function addWidget(item: Omit<WidgetDefinition, 'id'>): void {
+  if (!definition.value || definition.value.widgets.length >= 24) return;
+  definition.value.widgets.push({ ...item, id: `widget-${Date.now().toString(36)}` }); catalogOpen.value = false; editing.value = true; void loadMetrics();
+}
+function removeWidget(id: string): void { if (definition.value && definition.value.widgets.length > 1) definition.value.widgets = definition.value.widgets.filter(widget => widget.id !== id); }
+function moveWidget(id: string, direction: -1 | 1): void { if (!definition.value) return; const index = definition.value.widgets.findIndex(widget => widget.id === id); const target = index + direction; if (index >= 0 && target >= 0 && target < definition.value.widgets.length) [definition.value.widgets[index], definition.value.widgets[target]] = [definition.value.widgets[target], definition.value.widgets[index]]; }
+function resizeWidget(id: string): void { const widget = definition.value?.widgets.find(item => item.id === id); if (widget) widget.w = widget.w >= 12 ? 3 : widget.w >= 8 ? 12 : widget.w >= 6 ? 8 : widget.w >= 4 ? 6 : 4; }
+function renameWidget(id: string, title: string): void { const widget = definition.value?.widgets.find(item => item.id === id); const clean = title.trim(); if (widget && clean) widget.title = clean; }
+function dropOn(targetId: string): void { if (!draggedWidget.value || draggedWidget.value === targetId || !definition.value) return; const from = definition.value.widgets.findIndex(w => w.id === draggedWidget.value); const to = definition.value.widgets.findIndex(w => w.id === targetId); const [widget] = definition.value.widgets.splice(from, 1); definition.value.widgets.splice(to, 0, widget); draggedWidget.value = null; }
+async function chooseGroup(id: number | null): Promise<void> { selectedGroup.value = selectedGroup.value === id ? null : id; await applyFilters(); }
+onMounted(() => void load());
 </script>
 
 <template>
-  <section aria-labelledby="marifex-title">
-    <header class="marifex-dashboard__header">
-      <div>
-        <p class="marifex-dashboard__eyebrow">MarifeX</p>
-        <h1 id="marifex-title">Advanced Analytics</h1>
-      </div>
-      <button class="btn btn-outline-secondary" type="button" :disabled="loading" @click="load">Refresh</button>
+  <section class="marifex-command" aria-labelledby="marifex-title">
+    <header class="marifex-command__hero">
+      <div><p class="marifex-command__eyebrow">MarifeX Intelligence</p><h1 id="marifex-title">{{ dashboard?.name ?? 'Executive Operations Command' }}</h1><p>Certified service intelligence for decisive operational leadership.</p></div>
+      <div class="marifex-command__actions"><button class="btn btn-outline-secondary" type="button" @click="catalogOpen = true">Add widget</button><button class="btn" :class="editing ? 'btn-primary' : 'btn-outline-primary'" type="button" @click="editing = !editing">{{ editing ? 'Editing layout' : 'Edit layout' }}</button><button v-if="editing" class="btn btn-success" type="button" :disabled="saving" @click="save">{{ saving ? 'Saving...' : 'Save dashboard' }}</button></div>
     </header>
 
-    <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
-    <div class="marifex-dashboard__grid" :aria-busy="loading">
-      <article class="card marifex-kpi">
-        <div class="card-body">
-          <span class="marifex-kpi__label">Current open tickets</span>
-          <strong class="marifex-kpi__value">{{ loading ? '...' : openTickets }}</strong>
-          <span class="badge bg-blue-lt">Live GLPI</span>
-        </div>
-      </article>
-      <article class="card marifex-kpi">
-        <div class="card-body">
-          <span class="marifex-kpi__label">Average open ticket age</span>
-          <strong class="marifex-kpi__value marifex-kpi__value--compact">{{ loading ? '...' : averageAgeLabel }}</strong>
-          <span class="badge bg-purple-lt">Data Mart</span>
-        </div>
-      </article>
-      <article class="card marifex-chart-card">
-        <div class="card-header"><h2 class="card-title">Historical open backlog</h2><span class="badge bg-purple-lt">Data Mart</span></div>
-        <div ref="chartElement" class="marifex-chart" role="img" aria-label="Historical open ticket backlog line chart"></div>
-      </article>
-      <article class="card marifex-team-card">
-        <div class="card-header"><h2 class="card-title">Backlog by assigned group</h2><span class="badge bg-purple-lt">Data Mart</span></div>
-        <div class="table-responsive">
-          <table class="table table-vcenter card-table">
-            <thead><tr><th>Group</th><th class="text-end">Open tickets</th></tr></thead>
-            <tbody>
-              <tr v-for="group in latestGroups" :key="group.dimension_id"><td>{{ group.dimension }}</td><td class="text-end">{{ group.value.toLocaleString() }}</td></tr>
-              <tr v-if="!loading && latestGroups.length === 0"><td colspan="2" class="text-secondary">No assigned group history is available yet.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </article>
+    <div v-if="definition" class="card marifex-filterbar">
+      <div><label class="form-label" for="marifex-range">Executive horizon</label><select id="marifex-range" v-model.number="definition.dateRangeDays" class="form-select" @change="applyFilters"><option :value="7">7 days</option><option :value="30">30 days</option><option :value="90">90 days</option><option :value="180">180 days</option><option :value="365">365 days</option></select></div>
+      <div><label class="form-label" for="marifex-group">Assigned group</label><select id="marifex-group" v-model="selectedGroup" class="form-select" @change="applyFilters"><option :value="null">All service groups</option><option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }}</option></select></div>
+      <div class="marifex-filterbar__status"><span class="marifex-pulse"></span><div><strong>Analytics current</strong><small>{{ selectedGroupName ? `Focused on ${selectedGroupName}` : 'Enterprise view across active entities' }}</small></div></div>
+      <button v-if="selectedGroup" class="btn btn-sm btn-ghost-secondary" type="button" @click="chooseGroup(null)">Clear group focus</button>
     </div>
+
+    <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
+    <div v-if="definition" class="marifex-widget-grid" :class="{ 'marifex-widget-grid--editing': editing }">
+      <WidgetCard v-for="widget in definition.widgets" :key="widget.id" :widget="widget" :data="dataFor(widget)" :loading="loading" :editing="editing" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" @remove="removeWidget" @move="moveWidget" @resize="resizeWidget" @rename="renameWidget" @select-group="chooseGroup" @dragstart="draggedWidget = widget.id" @dragover.prevent @drop="dropOn(widget.id)" />
+    </div>
+
+    <div v-if="catalogOpen" class="marifex-catalog-backdrop" role="presentation" @click.self="catalogOpen = false"><aside class="marifex-catalog" role="dialog" aria-modal="true" aria-labelledby="catalog-title"><header><div><p class="marifex-command__eyebrow">Curated intelligence</p><h2 id="catalog-title">Executive widget library</h2></div><button class="btn-close" type="button" aria-label="Close" @click="catalogOpen = false"></button></header><p class="text-secondary">Every widget uses a certified metric. Custom SQL and unrestricted data access are not available.</p><div class="marifex-catalog__grid"><button v-for="item in catalog" :key="`${item.metric}-${item.type}`" class="card marifex-catalog-item" type="button" @click="addWidget(item)"><span class="badge bg-azure-lt">{{ item.type }}</span><strong>{{ item.title }}</strong><small>{{ item.metric.replaceAll('_', ' ') }}</small></button></div></aside></div>
   </section>
 </template>

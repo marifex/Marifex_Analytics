@@ -6,7 +6,7 @@ use Glpi\Plugin\Hooks;
 use GlpiPlugin\Marifex\DashboardMenu;
 use GlpiPlugin\Marifex\Profile;
 
-define('PLUGIN_MARIFEX_VERSION', '0.4.0-dev');
+define('PLUGIN_MARIFEX_VERSION', '0.6.4-dev');
 define('PLUGIN_MARIFEX_MIN_GLPI_VERSION', '11.0.0');
 define('PLUGIN_MARIFEX_MAX_GLPI_VERSION', '12.0.0');
 define('PLUGIN_MARIFEX_ROOT', __DIR__);

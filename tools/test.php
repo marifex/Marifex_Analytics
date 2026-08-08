@@ -83,6 +83,34 @@ $assert(
     'Settings must extend a layout provided by GLPI 11.'
 );
 
+$dashboardDefinition = file_get_contents(dirname(__DIR__) . '/src/Dashboard/DashboardDefinitionService.php');
+$assert(str_contains($dashboardDefinition, 'count($widgets) > 24'), 'Saved dashboards must enforce a bounded widget count.');
+$assert(str_contains($dashboardDefinition, 'self::METRICS[$metric]'), 'Saved widgets must use the certified metric and type allowlist.');
+$assert(!str_contains($dashboardDefinition, 'SELECT '), 'Dashboard definitions must not accept or build SQL.');
+
+$definitionController = file_get_contents(dirname(__DIR__) . '/src/Controller/DashboardDefinitionController.php');
+$assert(str_contains($definitionController, 'Profile::canView()'), 'Dashboard definition API must enforce the plugin profile right.');
+$assert(str_contains($definitionController, 'Session::checkCSRF'), 'Dashboard definition writes must enforce GLPI CSRF protection.');
+$assert(str_contains($definitionController, "methods: ['GET', 'PUT']"), 'Dashboard definition API must expose only read and bounded update methods.');
+
+$dashboardFrontend = file_get_contents(dirname(__DIR__) . '/frontend/Dashboard.vue');
+$assert(str_contains($dashboardFrontend, "'X-Requested-With': 'XMLHttpRequest'"), 'Dashboard writes must opt into GLPI AJAX CSRF validation.');
+$assert(str_contains($dashboardFrontend, "'X-Glpi-Csrf-Token': props.csrfToken"), 'Dashboard writes must send the GLPI CSRF header.');
+$dashboardBootstrap = file_get_contents(dirname(__DIR__) . '/frontend/main.ts');
+$assert(str_contains($dashboardBootstrap, "meta[property=\"glpi:csrf_token\"]"), 'Dashboard bootstrap must fall back to GLPI core CSRF metadata.');
+
+$entityScope = file_get_contents(dirname(__DIR__) . '/src/Security/EntityScope.php');
+$assert(str_contains($entityScope, 'Session::getActiveEntities()'), 'Entity scope must use the supported GLPI Session adapter.');
+$assert(!str_contains($entityScope, "\$_SESSION["), 'Entity scope must not depend directly on GLPI session-array internals.');
+
+$drilldownController = file_get_contents(dirname(__DIR__) . '/src/Controller/TicketDrilldownController.php');
+$assert(str_contains($drilldownController, 'Profile::canView()'), 'Ticket drilldown must enforce the dashboard right.');
+$assert(str_contains($drilldownController, 'activeEntityIds()'), 'Ticket drilldown must recheck entity scope.');
+
+$dashboardTemplate = file_get_contents(dirname(__DIR__) . '/templates/dashboard/index.html.twig');
+$assert(str_contains($dashboardTemplate, 'data-definition-endpoint'), 'Dashboard shell must expose the saved definition endpoint to the scoped app.');
+$assert(str_contains($dashboardTemplate, 'data-ticket-search-url'), 'Dashboard shell must expose the GLPI-owned drilldown target.');
+
 if ($failures !== []) {
     foreach ($failures as $failure) {
         fwrite(STDERR, "FAIL: $failure" . PHP_EOL);

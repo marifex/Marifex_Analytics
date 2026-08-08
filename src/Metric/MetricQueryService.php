@@ -19,16 +19,17 @@ final class MetricQueryService
     }
 
     /** @return array<string, mixed> */
-    public function query(string $metricKey, ?DateTimeImmutable $from = null, ?DateTimeImmutable $to = null): array
+    public function query(string $metricKey, ?DateTimeImmutable $from = null, ?DateTimeImmutable $to = null, ?int $groupId = null): array
     {
         $definition = $this->registry->get($metricKey);
 
         return match ($definition->key) {
-            'current_open_tickets' => $this->currentOpenTickets($definition),
+            'current_open_tickets' => $this->currentOpenTickets($definition, $groupId),
             'historical_open_backlog' => $this->historicalOpenBacklog(
                 $definition,
                 $from ?? new DateTimeImmutable('-30 days'),
-                $to ?? new DateTimeImmutable('today')
+                $to ?? new DateTimeImmutable('today'),
+                $groupId
             ),
             'average_open_ticket_age' => $this->dailyRollupSeries(
                 $definition,
@@ -44,7 +45,7 @@ final class MetricQueryService
     }
 
     /** @return array<string, mixed> */
-    private function currentOpenTickets(MetricDefinition $definition): array
+    private function currentOpenTickets(MetricDefinition $definition, ?int $groupId): array
     {
         global $DB;
         $this->assertDatabase($DB);
@@ -54,11 +55,17 @@ final class MetricQueryService
             ['is_deleted' => 0, 'status' => [1, 2, 3, 4]]
         );
 
-        $row = $DB->request([
-            'SELECT' => [new QueryExpression('COUNT(*) AS value')],
+        $query = [
+            'SELECT' => [new QueryExpression($groupId === null ? 'COUNT(*) AS value' : 'COUNT(DISTINCT `glpi_tickets`.`id`) AS value')],
             'FROM' => 'glpi_tickets',
             'WHERE' => $criteria,
-        ])->current();
+        ];
+        if ($groupId !== null) {
+            $query['INNER JOIN'] = ['glpi_groups_tickets' => ['ON' => ['glpi_groups_tickets' => 'tickets_id', 'glpi_tickets' => 'id']]];
+            $query['WHERE']['glpi_groups_tickets.groups_id'] = $groupId;
+            $query['WHERE']['glpi_groups_tickets.type'] = 2;
+        }
+        $row = $DB->request($query)->current();
 
         return [
             'metric' => $definition->key,
@@ -66,6 +73,7 @@ final class MetricQueryService
             'source' => $definition->source,
             'value' => (int) ($row['value'] ?? 0),
             'as_of' => gmdate(DATE_ATOM),
+            'group_id' => $groupId,
         ];
     }
 
@@ -74,6 +82,7 @@ final class MetricQueryService
         MetricDefinition $definition,
         DateTimeImmutable $from,
         DateTimeImmutable $to,
+        ?int $groupId,
     ): array {
         global $DB;
         $this->assertDatabase($DB);
@@ -82,7 +91,24 @@ final class MetricQueryService
             throw new RuntimeException('Invalid metric date range.');
         }
 
-        return $this->dailyRollupSeries($definition, $from, $to);
+        if ($groupId === null) {
+            return $this->dailyRollupSeries($definition, $from, $to);
+        }
+        global $DB;
+        $iterator = $DB->request([
+            'SELECT' => ['rollup_date', new QueryExpression('SUM(`metric_value`) AS value')],
+            'FROM' => 'glpi_plugin_marifex_daily_rollups',
+            'WHERE' => array_merge($this->entityScope->criteria(), [
+                'metric_key' => 'historical_group_backlog', 'dimension_key' => 'group', 'dimension_value' => (string) $groupId,
+                ['rollup_date' => ['>=', $from->format('Y-m-d')]], ['rollup_date' => ['<=', $to->format('Y-m-d')]],
+            ]),
+            'GROUPBY' => ['rollup_date'], 'ORDER' => ['rollup_date ASC'],
+        ]);
+        $series = [];
+        foreach ($iterator as $row) {
+            $series[] = ['date' => $row['rollup_date'], 'value' => (int) $row['value']];
+        }
+        return ['metric' => $definition->key, 'label' => __($definition->label, 'marifex'), 'source' => $definition->source, 'from' => $from->format('Y-m-d'), 'to' => $to->format('Y-m-d'), 'group_id' => $groupId, 'series' => $series];
     }
 
     /** @return array<string, mixed> */

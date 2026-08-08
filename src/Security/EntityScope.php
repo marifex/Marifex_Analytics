@@ -16,7 +16,7 @@ final class EntityScope
             throw new RuntimeException('An authenticated GLPI session is required.');
         }
 
-        $ids = array_map('intval', (array) ($_SESSION['glpiactiveentities'] ?? []));
+        $ids = array_map('intval', Session::getActiveEntities());
         $ids = array_values(array_unique(array_filter($ids, static fn (int $id): bool => $id >= 0)));
 
         if ($ids === []) {
@@ -24,6 +24,20 @@ final class EntityScope
         }
 
         return $ids;
+    }
+
+    public function activeEntityId(): int
+    {
+        if (Session::getLoginUserID() === false) {
+            throw new RuntimeException('An authenticated GLPI session is required.');
+        }
+
+        return (int) Session::getActiveEntity();
+    }
+
+    public function canAccessEntity(int $entityId): bool
+    {
+        return Session::getLoginUserID() !== false && Session::haveAccessToEntity($entityId);
     }
 
     /** @return array<string, list<int>> */

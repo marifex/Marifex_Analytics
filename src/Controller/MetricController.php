@@ -28,7 +28,11 @@ final class MetricController extends AbstractController
         try {
             $from = $this->dateOrNull($request->query->get('from'));
             $to = $this->dateOrNull($request->query->get('to'));
-            $payload = (new MetricQueryService())->query($metricKey, $from, $to);
+            $groupId = $request->query->getInt('group_id');
+            if ($groupId < 0) {
+                throw new InvalidArgumentException('Invalid group filter.');
+            }
+            $payload = (new MetricQueryService())->query($metricKey, $from, $to, $groupId > 0 ? $groupId : null);
         } catch (InvalidArgumentException $exception) {
             throw new BadRequestHttpException('Unknown or invalid metric request.', $exception);
         }

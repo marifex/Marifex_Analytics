@@ -21,6 +21,8 @@ final class DashboardController extends AbstractController
 
         return $this->render('@marifex/dashboard/index.html.twig', [
             'metric_endpoint' => '/plugins/marifex/api/metrics',
+            'definition_endpoint' => '/plugins/marifex/api/dashboard',
+            'ticket_drilldown_url' => '/plugins/marifex/drilldown/tickets',
         ]);
     }
 }
