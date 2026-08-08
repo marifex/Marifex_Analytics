@@ -85,19 +85,44 @@ $assert(
 
 $dashboardDefinition = file_get_contents(dirname(__DIR__) . '/src/Dashboard/DashboardDefinitionService.php');
 $assert(str_contains($dashboardDefinition, 'count($widgets) > 24'), 'Saved dashboards must enforce a bounded widget count.');
+$assert(str_contains($dashboardDefinition, 'MAX_DASHBOARDS = 20'), 'Dashboard builder must bound personal dashboards per entity.');
 $assert(str_contains($dashboardDefinition, 'self::METRICS[$metric]'), 'Saved widgets must use the certified metric and type allowlist.');
 $assert(!str_contains($dashboardDefinition, 'SELECT '), 'Dashboard definitions must not accept or build SQL.');
+$assert(str_contains($dashboardDefinition, "'createFromTemplate'" ) || str_contains($dashboardDefinition, 'function createFromTemplate'), 'Dashboard builder must support curated templates.');
+$assert(str_contains($dashboardDefinition, 'function duplicate'), 'Dashboard builder must support dashboard duplication.');
+$assert(str_contains($dashboardDefinition, 'ownershipWhere()'), 'Dashboard mutations must be restricted by user and active entity.');
+$assert(str_contains($dashboardDefinition, "'refreshMinutes'"), 'Dashboard definitions must persist bounded auto-refresh settings.');
+$assert(str_contains($dashboardDefinition, "'filters' => ['groupId'"), 'Dashboard definitions must persist the base group filter.');
 
 $definitionController = file_get_contents(dirname(__DIR__) . '/src/Controller/DashboardDefinitionController.php');
 $assert(str_contains($definitionController, 'Profile::canView()'), 'Dashboard definition API must enforce the plugin profile right.');
 $assert(str_contains($definitionController, 'Session::checkCSRF'), 'Dashboard definition writes must enforce GLPI CSRF protection.');
-$assert(str_contains($definitionController, "methods: ['GET', 'PUT']"), 'Dashboard definition API must expose only read and bounded update methods.');
+$assert(str_contains($definitionController, "methods: ['GET', 'POST', 'PUT', 'DELETE']"), 'Dashboard definition API must expose bounded builder operations.');
+$assert(str_contains($definitionController, "'activate' =>"), 'Dashboard API must expose explicit active-dashboard selection.');
+$assert(str_contains($definitionController, "'duplicate' =>"), 'Dashboard API must expose dashboard duplication.');
 
 $dashboardFrontend = file_get_contents(dirname(__DIR__) . '/frontend/Dashboard.vue');
 $assert(str_contains($dashboardFrontend, "'X-Requested-With': 'XMLHttpRequest'"), 'Dashboard writes must opt into GLPI AJAX CSRF validation.');
 $assert(str_contains($dashboardFrontend, "'X-Glpi-Csrf-Token': props.csrfToken"), 'Dashboard writes must send the GLPI CSRF header.');
+$assert(str_contains($dashboardFrontend, 'Create from template'), 'Builder must expose dashboard templates.');
+$assert(str_contains($dashboardFrontend, 'duplicateDashboard'), 'Builder must expose dashboard duplication.');
+$assert(str_contains($dashboardFrontend, 'cancelEditing'), 'Builder must preserve draft/cancel behavior.');
+$assert(str_contains($dashboardFrontend, "dimension: 'w' | 'h'"), 'Builder must resize widget width and height independently.');
 $dashboardBootstrap = file_get_contents(dirname(__DIR__) . '/frontend/main.ts');
 $assert(str_contains($dashboardBootstrap, "meta[property=\"glpi:csrf_token\"]"), 'Dashboard bootstrap must fall back to GLPI core CSRF metadata.');
+$assert(str_contains($dashboardBootstrap, 'MutationObserver'), 'Dashboard app must mount when GLPI loads the Home tab asynchronously.');
+
+$homeDashboard = file_get_contents(dirname(__DIR__) . '/src/HomeDashboardTab.php');
+$assert(str_contains($homeDashboard, 'instanceof Central'), 'Analytics must be registered as an additional GLPI Home tab.');
+$assert(str_contains($homeDashboard, "@marifex/dashboard/embed.html.twig"), 'Home tab must render the scoped dashboard application.');
+$setup = file_get_contents(dirname(__DIR__) . '/setup.php');
+$assert(str_contains($setup, "['addtabon' => \\Central::class]"), 'Plugin must register its Analytics tab on GLPI Home.');
+$dashboardController = file_get_contents(dirname(__DIR__) . '/src/Controller/DashboardController.php');
+$assert(str_contains($dashboardController, '/front/central.php?forcetab='), 'Legacy dashboard route must redirect to the Home Analytics tab.');
+
+$widgetCard = file_get_contents(dirname(__DIR__) . '/frontend/WidgetCard.vue');
+$assert(!str_contains($widgetCard, "type: 'scroll'"), 'Dashboard legends must never use paginated scrolling.');
+$assert(str_contains($widgetCard, 'marifex-donut-layout'), 'Donut widgets must use a fixed chart-left and legend-right layout.');
 
 $entityScope = file_get_contents(dirname(__DIR__) . '/src/Security/EntityScope.php');
 $assert(str_contains($entityScope, 'Session::getActiveEntities()'), 'Entity scope must use the supported GLPI Session adapter.');
@@ -107,9 +132,9 @@ $drilldownController = file_get_contents(dirname(__DIR__) . '/src/Controller/Tic
 $assert(str_contains($drilldownController, 'Profile::canView()'), 'Ticket drilldown must enforce the dashboard right.');
 $assert(str_contains($drilldownController, 'activeEntityIds()'), 'Ticket drilldown must recheck entity scope.');
 
-$dashboardTemplate = file_get_contents(dirname(__DIR__) . '/templates/dashboard/index.html.twig');
-$assert(str_contains($dashboardTemplate, 'data-definition-endpoint'), 'Dashboard shell must expose the saved definition endpoint to the scoped app.');
-$assert(str_contains($dashboardTemplate, 'data-ticket-search-url'), 'Dashboard shell must expose the GLPI-owned drilldown target.');
+$dashboardEmbed = file_get_contents(dirname(__DIR__) . '/templates/dashboard/embed.html.twig');
+$assert(str_contains($dashboardEmbed, 'data-definition-endpoint'), 'Dashboard shell must expose the saved definition endpoint to the scoped app.');
+$assert(str_contains($dashboardEmbed, 'data-ticket-search-url'), 'Dashboard shell must expose the GLPI-owned drilldown target.');
 
 if ($failures !== []) {
     foreach ($failures as $failure) {

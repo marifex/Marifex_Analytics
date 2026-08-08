@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 use Glpi\Plugin\Hooks;
 use GlpiPlugin\Marifex\DashboardMenu;
+use GlpiPlugin\Marifex\HomeDashboardTab;
 use GlpiPlugin\Marifex\Profile;
 
-define('PLUGIN_MARIFEX_VERSION', '0.6.4-dev');
+define('PLUGIN_MARIFEX_VERSION', '0.7.0-dev');
 define('PLUGIN_MARIFEX_MIN_GLPI_VERSION', '11.0.0');
 define('PLUGIN_MARIFEX_MAX_GLPI_VERSION', '12.0.0');
 define('PLUGIN_MARIFEX_ROOT', __DIR__);
@@ -24,13 +25,18 @@ function plugin_init_marifex(): void
     }
 
     Plugin::registerClass(Profile::class, ['addtabon' => \Profile::class]);
+    Plugin::registerClass(HomeDashboardTab::class, ['addtabon' => \Central::class]);
 
     $PLUGIN_HOOKS[Hooks::MENU_TOADD]['marifex'] = [
         'tools' => DashboardMenu::class,
     ];
     $PLUGIN_HOOKS[Hooks::CONFIG_PAGE]['marifex'] = 'Settings';
     $requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
-    if (is_string($requestPath) && str_ends_with($requestPath, '/plugins/marifex/Dashboard')) {
+    if (is_string($requestPath) && (
+        str_ends_with($requestPath, '/plugins/marifex/Dashboard')
+        || str_ends_with($requestPath, '/front/central.php')
+        || str_ends_with($requestPath, '/Central')
+    )) {
         $PLUGIN_HOOKS[Hooks::ADD_CSS]['marifex'][] = 'css/marifex.css';
         $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['marifex'][] = 'js/dashboard.js';
     }

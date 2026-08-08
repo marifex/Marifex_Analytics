@@ -1,6 +1,6 @@
 # MarifeX Advanced Analytics for GLPI
 
-MarifeX is a native analytics plugin for GLPI 11. It stores historical analytics in its own MariaDB or MySQL tables and does not change GLPI core files or tables. The current development version is `0.6.4-dev`.
+MarifeX is a native analytics plugin for GLPI 11. It stores historical analytics in its own MariaDB or MySQL tables and does not change GLPI core files or tables. The current development version is `0.7.0-dev`.
 
 ## What Phase 0 includes
 
@@ -37,7 +37,8 @@ Name the deployable directory `marifex` and place it in GLPI's `plugins/` direct
 
 ## Routes
 
-- Dashboard: `/plugins/marifex/Dashboard`
+- Home Analytics tab: `/front/central.php?forcetab=GlpiPlugin%5CMarifex%5CHomeDashboardTab%241`
+- Legacy dashboard route (redirects to Home): `/plugins/marifex/Dashboard`
 - Metric API: `/plugins/marifex/api/metrics/{metricKey}`
 
 GLPI authenticates every API request through the current session. The API checks the `plugin_marifex_dashboard` right, uses entity IDs from the active session, validates dates, disables shared caching, and accepts only registered metric keys. Users cannot pass custom SQL.
@@ -48,14 +49,13 @@ GLPI authenticates every API request through the current session. The API checks
 
 ## Current limits
 
-- Status history is supported. Assignment and priority history still need their own verified mappings before historical dimensions can be enabled.
+- Status and assignment history are supported; priority history remains excluded until its GLPI runtime mapping is verified.
 - Initial backfill advances by ticket ID; subsequent updates advance by a composite `date_mod + id` watermark.
-- Daily snapshots store historical open status and age. Reserved assignment fields are not populated yet, and priority is zero until priority history is verified.
+- Phase 4 asset/change/problem analytics and Phase 5 scheduled reporting/exports are not implemented.
 - Full integration testing requires a GLPI 11.0.7+ test installation and MariaDB/MySQL.
 
 See [docs/PHASE_0.md](docs/PHASE_0.md) for architecture and verification details.
 See [docs/PHASE_1.md](docs/PHASE_1.md) for verified ticket-history ingestion and reconciliation.
 See [docs/PHASE_2.md](docs/PHASE_2.md) for deterministic intervals, logical snapshots and certified rollups.
-See [docs/PHASE_3.md](docs/PHASE_3.md) for verified assignment history and group workload analytics.
-See [docs/PHASE_4.md](docs/PHASE_4.md) for the executive widget framework and saved personal dashboards.
-See [docs/PHASE_5.md](docs/PHASE_5.md) for filters, cross-filtering, layout interaction and GLPI drilldowns.
+See [docs/PHASE_3.md](docs/PHASE_3.md) for the complete Home-integrated dashboard builder.
+See [docs/PHASE_4.md](docs/PHASE_4.md) and [docs/PHASE_5.md](docs/PHASE_5.md) for the remaining roadmap phases.

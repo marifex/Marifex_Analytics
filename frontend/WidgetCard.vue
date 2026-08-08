@@ -2,16 +2,17 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { init, use, type ECharts } from 'echarts/core';
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
-import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
+import { GridComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { DimensionPoint, MetricResponse, Point, WidgetDefinition } from './types';
 
-use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
+use([BarChart, LineChart, PieChart, GridComponent, TooltipComponent, CanvasRenderer]);
 
 const props = defineProps<{ widget: WidgetDefinition; data?: MetricResponse; loading: boolean; editing: boolean; selectedGroup: number | null; ticketSearchUrl: string }>();
-const emit = defineEmits<{ remove: [id: string]; move: [id: string, direction: -1 | 1]; resize: [id: string]; rename: [id: string, title: string]; selectGroup: [id: number | null] }>();
+const emit = defineEmits<{ remove: [id: string]; move: [id: string, direction: -1 | 1]; resize: [id: string, dimension: 'w' | 'h']; rename: [id: string, title: string]; selectGroup: [id: number | null] }>();
 const chartElement = ref<HTMLElement | null>(null);
 let chart: ECharts | null = null;
+const donutColors = ['#5470c6', '#b5db27', '#525a7d', '#ff6685', '#8a63c7', '#50b52d', '#ffd000', '#00a5c8', '#ff8746', '#59607e', '#9a60b4', '#ea7ccc'];
 
 const points = computed(() => (props.data?.series ?? []) as Point[]);
 const groupPoints = computed(() => (props.data?.series ?? []) as DimensionPoint[]);
@@ -54,7 +55,17 @@ function draw(): void {
   } else {
     const groups = latestGroups.value.slice(0, 12);
     if (props.widget.type === 'donut') {
-      chart.setOption({ tooltip: { trigger: 'item' }, legend: { type: 'scroll', bottom: 0, textStyle: { color: text } }, series: [{ type: 'pie', radius: ['48%', '72%'], center: ['50%', '43%'], label: { show: false }, data: groups.map(g => ({ name: g.dimension, value: g.value, groupId: g.dimension_id })) }] }, true);
+      chart.setOption({
+        color: donutColors,
+        tooltip: { trigger: 'item' },
+        series: [{
+          type: 'pie',
+          radius: ['46%', '72%'],
+          center: ['50%', '50%'],
+          label: { show: false },
+          data: groups.map(g => ({ name: g.dimension, value: g.value, groupId: g.dimension_id })),
+        }],
+      }, true);
       chart.off('click'); chart.on('click', (event: any) => emit('selectGroup', Number(event.data?.groupId) || null));
     } else {
       chart.setOption({ grid: { left: 150, right: 24, top: 12, bottom: 28 }, tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } }, xAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: border } } }, yAxis: { type: 'category', inverse: true, data: groups.map(g => g.dimension), axisLabel: { color: text, width: 135, overflow: 'truncate' } }, series: [{ type: 'bar', data: groups.map(g => ({ value: g.value, groupId: g.dimension_id })), barMaxWidth: 24, itemStyle: { color: accent, borderRadius: [0, 5, 5, 0] } }] }, true);
@@ -62,7 +73,7 @@ function draw(): void {
     }
   }
 }
-function resize(): void { chart?.resize(); }
+function resize(): void { chart?.resize(); draw(); }
 watch(() => [props.data, props.widget.type, props.selectedGroup, props.loading], async () => { await nextTick(); draw(); }, { deep: true });
 onMounted(() => { draw(); window.addEventListener('resize', resize); });
 onBeforeUnmount(() => { window.removeEventListener('resize', resize); chart?.dispose(); });
@@ -75,7 +86,8 @@ onBeforeUnmount(() => { window.removeEventListener('resize', resize); chart?.dis
       <div v-if="editing" class="marifex-widget__actions">
         <button class="btn btn-sm btn-ghost-secondary" type="button" title="Move left" @click="emit('move', widget.id, -1)">&#8592;</button>
         <button class="btn btn-sm btn-ghost-secondary" type="button" title="Move right" @click="emit('move', widget.id, 1)">&#8594;</button>
-        <button class="btn btn-sm btn-ghost-secondary" type="button" title="Resize" @click="emit('resize', widget.id)">Resize</button>
+        <button class="btn btn-sm btn-ghost-secondary" type="button" title="Cycle widget width" @click="emit('resize', widget.id, 'w')">W {{ widget.w }}</button>
+        <button class="btn btn-sm btn-ghost-secondary" type="button" title="Cycle widget height" @click="emit('resize', widget.id, 'h')">H {{ widget.h }}</button>
         <button class="btn btn-sm btn-ghost-danger" type="button" title="Remove" @click="emit('remove', widget.id)">Remove</button>
       </div>
     </div>
@@ -90,6 +102,15 @@ onBeforeUnmount(() => { window.removeEventListener('resize', resize); chart?.dis
       <template v-else-if="widget.type === 'table'">
         <div class="table-responsive"><table class="table table-vcenter"><thead><tr><th>Service group</th><th class="text-end">Open</th><th></th></tr></thead><tbody><tr v-for="group in latestGroups" :key="group.dimension_id" :class="{ 'table-active': selectedGroup === group.dimension_id }"><td><button class="marifex-link-button" type="button" @click="emit('selectGroup', group.dimension_id)">{{ group.dimension }}</button></td><td class="text-end fw-bold">{{ group.value.toLocaleString() }}</td><td class="text-end"><a :href="drilldown(group.dimension_id)" aria-label="Open filtered GLPI tickets">Open</a></td></tr></tbody></table></div>
       </template>
+      <div v-else-if="widget.type === 'donut'" class="marifex-donut-layout">
+        <div ref="chartElement" class="marifex-widget__chart marifex-donut-layout__chart" role="img" :aria-label="widget.title"></div>
+        <div class="marifex-donut-legend" aria-label="Service group legend">
+          <button v-for="(group, index) in latestGroups.slice(0, 12)" :key="group.dimension_id" class="marifex-donut-legend__item" :class="{ 'is-selected': selectedGroup === group.dimension_id }" type="button" :title="`${group.dimension}: ${group.value.toLocaleString()}`" @click="emit('selectGroup', group.dimension_id)">
+            <span class="marifex-donut-legend__swatch" :style="{ backgroundColor: donutColors[index % donutColors.length] }"></span>
+            <span>{{ group.dimension }}</span>
+          </button>
+        </div>
+      </div>
       <div v-else ref="chartElement" class="marifex-widget__chart" role="img" :aria-label="widget.title"></div>
     </div>
   </article>

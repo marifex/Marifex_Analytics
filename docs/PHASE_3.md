@@ -1,31 +1,45 @@
-# Phase 3: assignment history and team workload
+# Phase 3: dashboard builder
 
-Phase 3 adds verified technician and group assignment history. It uses the same GLPI runtime metadata checks as status history and does not assume that search option numbers stay fixed between releases.
+Phase 3 delivers the low-code analytics dashboard builder defined by the product roadmap. MarifeX appears as an additional **Analytics** tab on GLPI Home; users do not need to leave the Home workspace for normal dashboard use.
 
-## Runtime verification
+## Dashboard workspace
 
-MarifeX identifies assignment search options by their target table, link field and GLPI role discriminator. The role must be technician type `2`. This prevents requester and observer relationships from being mistaken for assignments.
+- Multiple personal dashboards per user and active entity
+- Executive, Service Desk Operations and Team Workload templates
+- Create from template, duplicate, switch, rename and delete
+- One active dashboard per user/entity context
+- Local draft editing with explicit Save and Cancel
+- Persisted dashboard horizon, assigned-group focus and auto-refresh interval
 
-The mapping is saved for the exact GLPI version and shown on the plugin settings page. The ETL stops if any required mapping is missing or ambiguous.
+## Grid and widget editing
 
-## Data minimization
+- Responsive 12-column CSS grid
+- Drag-and-drop card ordering
+- Independent width and height resizing
+- Add, remove and rename widgets
+- KPI, line, bar, donut and table visualizations
+- Fixed chart-left/legend-right donut layout without paginated legends
 
-GLPI assignment logs contain display labels followed by a numeric reference. MarifeX extracts the numeric user or group ID and does not copy the display label into the Data Mart. The raw source remains in GLPI for administrators who already have permission to view it.
+## Certified semantic boundary
 
-## Membership intervals
+Every catalog item maps to a pre-approved metric and compatible visualization. Dashboard definitions cannot contain SQL, tables, columns, formulas, JavaScript or arbitrary query operators. The server validates names, identifiers, widget counts, dimensions, filters and refresh intervals on every write.
 
-A ticket can have more than one assigned technician or group. Assignment history is therefore modeled as membership intervals rather than a single replacement state. The interval identity includes ticket, membership type, reference ID and start time.
+## Security and persistence
 
-Add, remove and replacement records are replayed in event order. A removal without an earlier imported add is treated as membership from ticket creation until the removal. This supports older GLPI histories where the first available record is already a removal.
+- Native GLPI authentication and profile rights
+- Native GLPI CSRF validation on POST, PUT and DELETE
+- Dashboard ownership restricted by user and active entity
+- Maximum 20 dashboards per user/entity and 24 widgets per dashboard
+- Entity-scoped metric queries and controlled native ticket drilldowns
+- Private, non-cacheable JSON responses
 
-## Team workload
+## Acceptance checks
 
-Completed-day snapshots count open tickets for every assigned group active at the day boundary. The secure metric API exposes `historical_group_backlog`, and the dashboard shows the latest completed-day backlog by group.
-
-The workload count is assignment membership, not ticket ownership. A ticket assigned to two groups contributes to both groups and is counted once in the overall backlog.
-
-## Performance
-
-Status and assignment events share one compound-cursor log scan, but each projector receives only tickets affected by its own event type. This keeps normal incremental batches small while preserving complete per-ticket rebuilding for late-event safety.
-
-The verifier checks status overlap per ticket and assignment overlap per ticket, membership type and reference ID. Different groups or technicians may overlap because concurrent assignment is valid.
+1. Analytics is available as an additional tab on GLPI Home.
+2. The legacy plugin dashboard URL redirects to the Home Analytics tab.
+3. A user can create each template, duplicate it, switch dashboards and persist edits.
+4. Drag ordering, width, height, titles, filters and refresh settings survive reload.
+5. Donut charts keep the chart left and all legends right without scrolling.
+6. Cross-filtering redraws widgets without a full-page reload.
+7. Another user or entity cannot activate, update or delete the dashboard.
+8. Requests without a valid CSRF token are rejected.

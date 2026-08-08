@@ -21,10 +21,10 @@ final class DashboardMenu extends CommonGLPI
 
         return [
             'title' => self::getMenuName(),
-            'page' => '/plugins/marifex/Dashboard',
+            'page' => '/front/central.php?forcetab=GlpiPlugin%5CMarifex%5CHomeDashboardTab%241',
             'icon' => 'ti ti-chart-histogram',
             'links' => [
-                'search' => '/plugins/marifex/Dashboard',
+                'search' => '/front/central.php?forcetab=GlpiPlugin%5CMarifex%5CHomeDashboardTab%241',
             ],
         ];
     }

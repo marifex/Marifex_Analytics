@@ -5,18 +5,6 @@
 {% block content_title %}{{ title }}{% endblock %}
 
 {% block content_body %}
-  <div
-    id="marifex-dashboard"
-    class="marifex-dashboard"
-    data-metric-endpoint="{{ metric_endpoint|e('html_attr') }}"
-    data-definition-endpoint="{{ definition_endpoint|e('html_attr') }}"
-    data-csrf-token="{{ csrf_token(true)|e('html_attr') }}"
-    data-ticket-search-url="{{ ticket_drilldown_url|e('html_attr') }}"
-    dir="auto"
-  >
-    <div class="marifex-dashboard__loading" role="status">
-      {{ __('Loading analytics...', 'marifex') }}
-    </div>
-  </div>
+  {% include '@marifex/dashboard/embed.html.twig' %}
 {% endblock %}
 
