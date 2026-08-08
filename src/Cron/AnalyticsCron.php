@@ -18,7 +18,7 @@ final class AnalyticsCron extends CommonDBTM
     {
         return match ($name) {
             'incrementalEtl' => ['description' => __('Incremental ticket analytics ETL', 'marifex')],
-            'dailySnapshot' => ['description' => __('Build daily ticket snapshot and backlog rollup', 'marifex')],
+            'dailySnapshot' => ['description' => __('Build daily ticket, asset, licence, change and problem rollups', 'marifex')],
             'incrementalLogEtl' => ['description' => __('Import verified ticket status events', 'marifex')],
             'reconcileAnalytics' => ['description' => __('Reconcile ticket analytics with GLPI', 'marifex')],
             default => [],

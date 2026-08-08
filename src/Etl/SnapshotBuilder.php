@@ -100,6 +100,8 @@ final class SnapshotBuilder
             }
         }
 
+        (new DomainSnapshotBuilder())->run($localDay, $timezone);
+
         return $processed;
     }
 

@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import WidgetCard from './WidgetCard.vue';
 import type { DashboardTemplate, DashboardWorkspace, MetricResponse, SavedDashboard, WidgetDefinition } from './types';
 
-const props = defineProps<{ metricEndpoint: string; definitionEndpoint: string; csrfToken: string; ticketSearchUrl: string }>();
+const props = defineProps<{ metricEndpoint: string; definitionEndpoint: string; csrfToken: string; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string }>();
 const dashboard = ref<SavedDashboard | null>(null);
 const dashboards = ref<DashboardWorkspace['dashboards']>([]);
 const templates = ref<DashboardTemplate[]>([]);
@@ -34,8 +34,24 @@ const catalog: Array<Omit<WidgetDefinition, 'id'>> = [
   { metric: 'historical_group_backlog', type: 'donut', title: 'Workload concentration', w: 5, h: 4 },
   { metric: 'historical_group_backlog', type: 'bar', title: 'Group workload comparison', w: 6, h: 4 },
   { metric: 'historical_group_backlog', type: 'table', title: 'Service ownership ranking', w: 7, h: 4 },
+  { metric: 'asset_inventory_total', type: 'kpi', title: 'Managed computers', w: 3, h: 2 },
+  { metric: 'asset_inventory_by_state', type: 'donut', title: 'Computer lifecycle distribution', w: 5, h: 4 },
+  { metric: 'stale_computer_inventory', type: 'kpi', title: 'Inventory stale over 30 days', w: 3, h: 2 },
+  { metric: 'software_license_entitlements', type: 'kpi', title: 'Licence entitlements', w: 3, h: 2 },
+  { metric: 'software_license_allocations', type: 'kpi', title: 'Allocated licence seats', w: 3, h: 2 },
+  { metric: 'software_license_overallocated_seats', type: 'kpi', title: 'Overallocated seats', w: 3, h: 2 },
+  { metric: 'software_license_compliance_rate', type: 'kpi', title: 'Licence compliance', w: 3, h: 2 },
+  { metric: 'open_changes', type: 'kpi', title: 'Open changes', w: 4, h: 2 },
+  { metric: 'daily_change_volume', type: 'line', title: 'Change demand trajectory', w: 7, h: 4 },
+  { metric: 'daily_change_resolutions', type: 'line', title: 'Change resolution trajectory', w: 7, h: 4 },
+  { metric: 'open_change_status_distribution', type: 'donut', title: 'Open changes by status', w: 5, h: 4 },
+  { metric: 'open_problems', type: 'kpi', title: 'Open problems', w: 4, h: 2 },
+  { metric: 'daily_problem_volume', type: 'line', title: 'Problem demand trajectory', w: 7, h: 4 },
+  { metric: 'daily_problem_resolutions', type: 'line', title: 'Problem resolution trajectory', w: 7, h: 4 },
+  { metric: 'open_problem_status_distribution', type: 'donut', title: 'Open problems by status', w: 5, h: 4 },
 ];
 const definition = computed(() => dashboard.value?.definition);
+const hasGroupFilter = computed(() => definition.value?.widgets.some(widget => supportsGroup(widget.metric)) ?? false);
 const layoutPositions = computed(() => {
   const positions: Record<string, { x: number; y: number }> = {};
   let x = 1; let y = 1; let rowHeight = 0;
@@ -102,7 +118,7 @@ async function loadMetrics(): Promise<void> {
     const groupId = supportsGroup(widget.metric) ? selectedGroup.value : null;
     requests.set(metricKey(widget.metric, groupId), { metric: widget.metric, groupId });
   });
-  requests.set(metricKey('historical_group_backlog', null), { metric: 'historical_group_backlog', groupId: null });
+  if (hasGroupFilter.value) requests.set(metricKey('historical_group_backlog', null), { metric: 'historical_group_backlog', groupId: null });
   const entries = await Promise.all([...requests.entries()].map(async ([key, request]) => {
     const params = new URLSearchParams({ from, to });
     if (request.groupId) params.set('group_id', String(request.groupId));
@@ -255,15 +271,15 @@ onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(ref
 
     <div v-if="definition" class="card marifex-filterbar">
       <div><label class="form-label" for="marifex-range">Dashboard horizon</label><select id="marifex-range" v-model.number="definition.dateRangeDays" class="form-select" @change="applyFilters"><option :value="7">7 days</option><option :value="30">30 days</option><option :value="90">90 days</option><option :value="180">180 days</option><option :value="365">365 days</option></select></div>
-      <div><label class="form-label" for="marifex-group">Assigned group</label><select id="marifex-group" v-model="selectedGroup" class="form-select" @change="applyFilters"><option :value="null">All service groups</option><option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }}</option></select></div>
+      <div v-if="hasGroupFilter"><label class="form-label" for="marifex-group">Assigned group</label><select id="marifex-group" v-model="selectedGroup" class="form-select" @change="applyFilters"><option :value="null">All service groups</option><option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }}</option></select></div>
       <div><label class="form-label" for="marifex-refresh">Auto-refresh</label><select id="marifex-refresh" v-model.number="definition.refreshMinutes" class="form-select" @change="scheduleRefresh"><option :value="0">Manual</option><option :value="5">Every 5 minutes</option><option :value="15">Every 15 minutes</option><option :value="30">Every 30 minutes</option><option :value="60">Every hour</option></select></div>
       <div class="marifex-filterbar__status"><span class="marifex-pulse"></span><div><strong>Analytics current</strong><small>{{ selectedGroupName ? `Focused on ${selectedGroupName}` : 'Active GLPI entity scope' }}</small></div></div>
-      <button v-if="selectedGroup" class="btn btn-sm btn-ghost-secondary" type="button" @click="chooseGroup(null)">Clear group focus</button>
+      <button v-if="hasGroupFilter && selectedGroup" class="btn btn-sm btn-ghost-secondary" type="button" @click="chooseGroup(null)">Clear group focus</button>
     </div>
 
     <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
     <div v-if="definition" ref="gridElement" class="marifex-widget-grid" :class="{ 'marifex-widget-grid--editing': editing }">
-      <WidgetCard v-for="widget in definition.widgets" :key="widget.id" :widget="widget" :grid-x="layoutPositions[widget.id]?.x ?? 1" :grid-y="layoutPositions[widget.id]?.y ?? 1" :data="dataFor(widget)" :loading="loading" :editing="editing" :interacting="interactingWidget === widget.id" :interaction-mode="interactingWidget === widget.id ? interactionMode : null" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" @remove="removeWidget" @rename="renameWidget" @select-group="chooseGroup" @interaction-start="beginInteraction" />
+      <WidgetCard v-for="widget in definition.widgets" :key="widget.id" :widget="widget" :grid-x="layoutPositions[widget.id]?.x ?? 1" :grid-y="layoutPositions[widget.id]?.y ?? 1" :data="dataFor(widget)" :loading="loading" :editing="editing" :interacting="interactingWidget === widget.id" :interaction-mode="interactingWidget === widget.id ? interactionMode : null" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" :asset-search-url="assetSearchUrl" :licence-search-url="licenceSearchUrl" :change-search-url="changeSearchUrl" :problem-search-url="problemSearchUrl" @remove="removeWidget" @rename="renameWidget" @select-group="chooseGroup" @interaction-start="beginInteraction" />
     </div>
 
     <div v-if="catalogOpen" class="marifex-catalog-backdrop" role="presentation" @click.self="catalogOpen = false"><aside class="marifex-catalog" role="dialog" aria-modal="true" aria-labelledby="catalog-title"><header><div><p class="marifex-command__eyebrow">Certified semantic layer</p><h2 id="catalog-title">Widget library</h2></div><button class="btn-close" type="button" aria-label="Close" @click="catalogOpen = false"></button></header><p class="text-secondary">Every widget uses an approved metric. SQL and unrestricted data access are never accepted.</p><div class="marifex-catalog__grid"><button v-for="item in catalog" :key="`${item.metric}-${item.type}`" class="card marifex-catalog-item" type="button" @click="addWidget(item)"><span class="badge bg-azure-lt">{{ item.type }}</span><strong>{{ item.title }}</strong><small>{{ item.metric.replaceAll('_', ' ') }}</small></button></div></aside></div>

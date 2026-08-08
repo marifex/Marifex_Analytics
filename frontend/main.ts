@@ -11,6 +11,10 @@ function mountDashboard(root: HTMLElement): void {
     definitionEndpoint: root.dataset.definitionEndpoint ?? '/plugins/marifex/api/dashboard',
     csrfToken: root.dataset.csrfToken ?? pageCsrfToken,
     ticketSearchUrl: root.dataset.ticketSearchUrl ?? '/plugins/marifex/drilldown/tickets',
+    assetSearchUrl: root.dataset.assetSearchUrl ?? '/front/computer.php',
+    licenceSearchUrl: root.dataset.licenceSearchUrl ?? '/front/softwarelicense.php',
+    changeSearchUrl: root.dataset.changeSearchUrl ?? '/front/change.php',
+    problemSearchUrl: root.dataset.problemSearchUrl ?? '/front/problem.php',
   }).mount(root);
 }
 

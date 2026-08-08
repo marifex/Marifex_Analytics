@@ -1,6 +1,6 @@
 # MarifeX Advanced Analytics for GLPI
 
-MarifeX is a native analytics plugin for GLPI 11. It stores historical analytics in its own MariaDB or MySQL tables and does not change GLPI core files or tables. The current development version is `0.7.0-dev`.
+MarifeX is a native analytics plugin for GLPI 11. It stores historical analytics in its own MariaDB or MySQL tables and does not change GLPI core files or tables. The current development version is `0.8.0-dev`.
 
 ## What Phase 0 includes
 
@@ -16,7 +16,7 @@ MarifeX is a native analytics plugin for GLPI 11. It stores historical analytics
 - Retain-by-default uninstall behavior for analytics data
 - Native plugin configuration page for ETL, timezone, retention and pipeline health
 
-Phase 1 added a runtime-verified GLPI status mapping and incremental log ingestion. Phase 2 rebuilds deterministic status intervals and derives logical daily backlog and ticket-age rollups from them.
+Phase 1 added a runtime-verified GLPI status mapping and incremental log ingestion. Phase 2 rebuilds deterministic status intervals and derives logical daily backlog and ticket-age rollups from them. Phase 3 delivers the Home-integrated dashboard builder. Phase 4 adds governed asset, software licence, change and problem analytics.
 
 ## Development
 
@@ -51,11 +51,14 @@ GLPI authenticates every API request through the current session. The API checks
 
 - Status and assignment history are supported; priority history remains excluded until its GLPI runtime mapping is verified.
 - Initial backfill advances by ticket ID; subsequent updates advance by a composite `date_mod + id` watermark.
-- Phase 4 asset/change/problem analytics and Phase 5 scheduled reporting/exports are not implemented.
+- Asset lifecycle and licence metrics are daily observations from Phase 4 activation onward; GLPI does not provide enough native history for an accurate retroactive lifecycle backfill.
+- Licence compliance measures GLPI licence entitlements against items explicitly allocated to those licence records; it does not infer installations that GLPI has not linked to a licence.
+- Phase 5 scheduled reporting/exports is not implemented.
 - Full integration testing requires a GLPI 11.0.7+ test installation and MariaDB/MySQL.
 
 See [docs/PHASE_0.md](docs/PHASE_0.md) for architecture and verification details.
 See [docs/PHASE_1.md](docs/PHASE_1.md) for verified ticket-history ingestion and reconciliation.
 See [docs/PHASE_2.md](docs/PHASE_2.md) for deterministic intervals, logical snapshots and certified rollups.
 See [docs/PHASE_3.md](docs/PHASE_3.md) for the complete Home-integrated dashboard builder.
-See [docs/PHASE_4.md](docs/PHASE_4.md) and [docs/PHASE_5.md](docs/PHASE_5.md) for the remaining roadmap phases.
+See [docs/PHASE_4.md](docs/PHASE_4.md) for asset, licence, change and problem analytics.
+See [docs/PHASE_5.md](docs/PHASE_5.md) for the remaining scheduled reporting and export roadmap.

@@ -41,6 +41,29 @@ final class MetricQueryService
                 $from ?? new DateTimeImmutable('-30 days'),
                 $to ?? new DateTimeImmutable('today')
             ),
+            'asset_inventory_by_state',
+            'open_change_status_distribution',
+            'open_problem_status_distribution' => $this->dimensionSeries(
+                $definition,
+                $from ?? new DateTimeImmutable('-30 days'),
+                $to ?? new DateTimeImmutable('today')
+            ),
+            'asset_inventory_total',
+            'stale_computer_inventory',
+            'software_license_entitlements',
+            'software_license_allocations',
+            'software_license_overallocated_seats',
+            'software_license_compliance_rate',
+            'open_changes',
+            'daily_change_volume',
+            'daily_change_resolutions',
+            'open_problems',
+            'daily_problem_volume',
+            'daily_problem_resolutions' => $this->dailyRollupSeries(
+                $definition,
+                $from ?? new DateTimeImmutable('-30 days'),
+                $to ?? new DateTimeImmutable('today')
+            ),
         };
     }
 
@@ -121,7 +144,7 @@ final class MetricQueryService
             throw new RuntimeException('Invalid metric date range.');
         }
 
-        $valueExpression = $definition->format === 'duration_series'
+        $valueExpression = in_array($definition->format, ['duration_series', 'percentage_series'], true)
             ? 'SUM(`metric_value` * `sample_count`) / NULLIF(SUM(`sample_count`), 0) AS value'
             : 'SUM(`metric_value`) AS value';
         $iterator = $DB->request([
@@ -138,7 +161,10 @@ final class MetricQueryService
 
         $series = [];
         foreach ($iterator as $row) {
-            $series[] = ['date' => $row['rollup_date'], 'value' => (int) $row['value']];
+            $series[] = [
+                'date' => $row['rollup_date'],
+                'value' => $definition->format === 'percentage_series' ? round((float) $row['value'], 1) : (int) $row['value'],
+            ];
         }
 
         return [
@@ -216,5 +242,92 @@ final class MetricQueryService
         }, $rows);
 
         return ['metric' => $definition->key, 'label' => __($definition->label, 'marifex'), 'source' => $definition->source, 'from' => $from->format('Y-m-d'), 'to' => $to->format('Y-m-d'), 'series' => $series];
+    }
+
+    /** @return array<string, mixed> */
+    private function dimensionSeries(MetricDefinition $definition, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        global $DB;
+        $this->assertDatabase($DB);
+        if ($from > $to || $from->diff($to)->days > 3660) {
+            throw new RuntimeException('Invalid metric date range.');
+        }
+        $rows = iterator_to_array($DB->request([
+            'SELECT' => ['rollup_date', 'dimension_value', new QueryExpression('SUM(`metric_value`) AS value')],
+            'FROM' => 'glpi_plugin_marifex_daily_rollups',
+            'WHERE' => array_merge($this->entityScope->criteria(), [
+                'metric_key' => $definition->key,
+                ['rollup_date' => ['>=', $from->format('Y-m-d')]],
+                ['rollup_date' => ['<=', $to->format('Y-m-d')]],
+            ]),
+            'GROUPBY' => ['rollup_date', 'dimension_value'],
+            'ORDER' => ['rollup_date ASC', 'dimension_value ASC'],
+        ]));
+        $dimensionIds = array_values(array_unique(array_map(static fn (array $row): int => (int) $row['dimension_value'], $rows)));
+        $labels = match ($definition->key) {
+            'asset_inventory_by_state' => $this->stateLabels($dimensionIds),
+            'open_change_status_distribution' => $this->statusLabels('Change', $dimensionIds),
+            'open_problem_status_distribution' => $this->statusLabels('Problem', $dimensionIds),
+            default => [],
+        };
+        $series = array_map(static function (array $row) use ($labels): array {
+            $dimensionId = (int) $row['dimension_value'];
+            return [
+                'date' => $row['rollup_date'],
+                'dimension_id' => $dimensionId,
+                'dimension' => $labels[$dimensionId] ?? ('Value #' . $dimensionId),
+                'value' => (int) $row['value'],
+            ];
+        }, $rows);
+        return [
+            'metric' => $definition->key,
+            'label' => __($definition->label, 'marifex'),
+            'source' => $definition->source,
+            'from' => $from->format('Y-m-d'),
+            'to' => $to->format('Y-m-d'),
+            'series' => $series,
+        ];
+    }
+
+    /** @param list<int> $stateIds
+     *  @return array<int, string>
+     */
+    private function stateLabels(array $stateIds): array
+    {
+        global $DB;
+        $labels = [0 => __('Unspecified', 'marifex')];
+        if ($stateIds === []) {
+            return $labels;
+        }
+        foreach ($DB->request(['SELECT' => ['id', 'completename'], 'FROM' => 'glpi_states', 'WHERE' => ['id' => $stateIds]]) as $state) {
+            $labels[(int) $state['id']] = (string) $state['completename'];
+        }
+        $counts = array_count_values($labels);
+        foreach ($labels as $id => $label) {
+            if (($counts[$label] ?? 0) > 1) {
+                $labels[$id] = sprintf('%s · State #%d', $label, $id);
+            }
+        }
+        return $labels;
+    }
+
+    /** @param list<int> $statusIds
+     *  @return array<int, string>
+     */
+    private function statusLabels(string $domain, array $statusIds): array
+    {
+        $known = [
+            1 => __('New', 'marifex'),
+            2 => __('Assigned', 'marifex'),
+            3 => __('Planned', 'marifex'),
+            4 => __('Pending', 'marifex'),
+            5 => __('Solved', 'marifex'),
+            6 => __('Closed', 'marifex'),
+        ];
+        $labels = [];
+        foreach ($statusIds as $id) {
+            $labels[$id] = $known[$id] ?? sprintf('%s status #%d', $domain, $id);
+        }
+        return $labels;
     }
 }
