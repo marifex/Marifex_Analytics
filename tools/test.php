@@ -115,6 +115,10 @@ $assert(str_contains($dashboardDefinition, "'asset-governance'"), 'Dashboard bui
 $assert(str_contains($dashboardDefinition, "'change-control'"), 'Dashboard builder must provide the Phase 4 change template.');
 $assert(str_contains($dashboardDefinition, "'problem-control'"), 'Dashboard builder must provide the Phase 4 problem template.');
 $assert(str_contains($dashboardDefinition, 'provisionPhase4Dashboards()'), 'Phase 4 dashboards must be provisioned into Home once per user and entity.');
+$assert(str_contains($dashboardDefinition, 'provisionPhase4Executive()'), 'The existing Executive dashboard must receive a cross-domain Phase 4 summary once per user and entity.');
+$assert(str_contains($dashboardDefinition, "'executive-change-open'"), 'The Executive dashboard must include Change analytics.');
+$assert(str_contains($dashboardDefinition, "'executive-problem-open'"), 'The Executive dashboard must include Problem analytics.');
+$assert(str_contains($dashboardDefinition, "'executive-asset-total'"), 'The Executive dashboard must include Asset analytics.');
 $assert(str_contains($dashboardDefinition, "['is_active'] = 0"), 'Phase 4 provisioning must preserve the currently active dashboard.');
 $assert(str_contains($dashboardDefinition, "'software_license_compliance_rate' => ['kpi', 'line']"), 'Phase 4 widgets must remain behind the certified metric/type allowlist.');
 
@@ -139,6 +143,7 @@ $assert(str_contains($dashboardFrontend, "metric: 'asset_inventory_total'"), 'Wi
 $assert(str_contains($dashboardFrontend, "metric: 'open_changes'"), 'Widget catalog must expose certified Phase 4 change metrics.');
 $assert(str_contains($dashboardFrontend, "metric: 'open_problems'"), 'Widget catalog must expose certified Phase 4 problem metrics.');
 $assert(str_contains($dashboardFrontend, 'v-if="hasGroupFilter"'), 'Ticket group filters must not appear on unrelated Phase 4 dashboards.');
+$assert(str_contains($dashboardFrontend, '@change="persistFilters"'), 'Dashboard horizon and global filters must persist to the active saved dashboard.');
 $assert(!str_contains($widgetFrontend, '>W {{ widget.w }}</button>') && !str_contains($widgetFrontend, '>H {{ widget.h }}</button>'), 'Builder must not expose developer-style W/H resize buttons.');
 $assert(str_contains($widgetFrontend, 'ResizeObserver'), 'Charts must observe and adapt to widget size changes.');
 $assert(str_contains($dashboardCss, 'grid-auto-flow: row'), 'Dashboard rows must remain aligned instead of backfilling widgets into uneven masonry gaps.');

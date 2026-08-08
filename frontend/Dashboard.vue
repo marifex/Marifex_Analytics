@@ -134,6 +134,16 @@ async function applyFilters(): Promise<void> {
   try { await loadMetrics(); } catch { error.value = 'The selected dashboard filters could not be applied.'; }
   finally { loading.value = false; }
 }
+async function persistFilters(): Promise<void> {
+  if (!dashboard.value?.id || editing.value) { await applyFilters(); return; }
+  if (definition.value) definition.value.filters.groupId = selectedGroup.value;
+  await write('PUT', { id: dashboard.value.id, name: dashboard.value.name, definition: dashboard.value.definition });
+}
+async function persistRefresh(): Promise<void> {
+  scheduleRefresh();
+  if (!dashboard.value?.id || editing.value) return;
+  await write('PUT', { id: dashboard.value.id, name: dashboard.value.name, definition: dashboard.value.definition });
+}
 async function write(method: 'POST' | 'PUT' | 'DELETE', payload: Record<string, unknown>): Promise<void> {
   saving.value = true; error.value = '';
   try {
@@ -243,7 +253,7 @@ function endInteraction(event?: PointerEvent): void {
   interaction = null; interactingWidget.value = null; interactionMode.value = null;
   document.body.classList.remove('marifex-layout-interacting');
 }
-async function chooseGroup(id: number | null): Promise<void> { selectedGroup.value = selectedGroup.value === id ? null : id; await applyFilters(); }
+async function chooseGroup(id: number | null): Promise<void> { selectedGroup.value = selectedGroup.value === id ? null : id; await persistFilters(); }
 onMounted(() => { void load(); window.addEventListener('pointermove', moveInteraction, { passive: false }); window.addEventListener('pointerup', endInteraction); window.addEventListener('pointercancel', endInteraction); });
 onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(refreshTimer); window.removeEventListener('pointermove', moveInteraction); window.removeEventListener('pointerup', endInteraction); window.removeEventListener('pointercancel', endInteraction); dragGhost?.remove(); document.body.classList.remove('marifex-layout-interacting'); });
 </script>
@@ -270,9 +280,9 @@ onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(ref
     </div>
 
     <div v-if="definition" class="card marifex-filterbar">
-      <div><label class="form-label" for="marifex-range">Dashboard horizon</label><select id="marifex-range" v-model.number="definition.dateRangeDays" class="form-select" @change="applyFilters"><option :value="7">7 days</option><option :value="30">30 days</option><option :value="90">90 days</option><option :value="180">180 days</option><option :value="365">365 days</option></select></div>
-      <div v-if="hasGroupFilter"><label class="form-label" for="marifex-group">Assigned group</label><select id="marifex-group" v-model="selectedGroup" class="form-select" @change="applyFilters"><option :value="null">All service groups</option><option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }}</option></select></div>
-      <div><label class="form-label" for="marifex-refresh">Auto-refresh</label><select id="marifex-refresh" v-model.number="definition.refreshMinutes" class="form-select" @change="scheduleRefresh"><option :value="0">Manual</option><option :value="5">Every 5 minutes</option><option :value="15">Every 15 minutes</option><option :value="30">Every 30 minutes</option><option :value="60">Every hour</option></select></div>
+      <div><label class="form-label" for="marifex-range">Dashboard horizon</label><select id="marifex-range" v-model.number="definition.dateRangeDays" class="form-select" @change="persistFilters"><option :value="7">7 days</option><option :value="30">30 days</option><option :value="90">90 days</option><option :value="180">180 days</option><option :value="365">365 days</option></select></div>
+      <div v-if="hasGroupFilter"><label class="form-label" for="marifex-group">Assigned group</label><select id="marifex-group" v-model="selectedGroup" class="form-select" @change="persistFilters"><option :value="null">All service groups</option><option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }}</option></select></div>
+      <div><label class="form-label" for="marifex-refresh">Auto-refresh</label><select id="marifex-refresh" v-model.number="definition.refreshMinutes" class="form-select" @change="persistRefresh"><option :value="0">Manual</option><option :value="5">Every 5 minutes</option><option :value="15">Every 15 minutes</option><option :value="30">Every 30 minutes</option><option :value="60">Every hour</option></select></div>
       <div class="marifex-filterbar__status"><span class="marifex-pulse"></span><div><strong>Analytics current</strong><small>{{ selectedGroupName ? `Focused on ${selectedGroupName}` : 'Active GLPI entity scope' }}</small></div></div>
       <button v-if="hasGroupFilter && selectedGroup" class="btn btn-sm btn-ghost-secondary" type="button" @click="chooseGroup(null)">Clear group focus</button>
     </div>

@@ -12,6 +12,7 @@ final class DashboardDefinitionService
 {
     private const MAX_DASHBOARDS = 20;
     private const PHASE4_PROVISION = 'phase4-domain-dashboards-v1';
+    private const PHASE4_EXECUTIVE_PROVISION = 'phase4-executive-dashboard-v1';
     private const PHASE4_TEMPLATES = ['asset-governance', 'change-control', 'problem-control'];
     private const METRICS = [
         'current_open_tickets' => ['kpi'],
@@ -42,6 +43,7 @@ final class DashboardDefinitionService
     /** @return array<string, mixed> */
     public function workspace(): array
     {
+        $this->provisionPhase4Executive();
         $this->provisionPhase4Dashboards();
         $rows = $this->rows();
         $active = null;
@@ -252,6 +254,49 @@ final class DashboardDefinitionService
         }
     }
 
+    private function provisionPhase4Executive(): void
+    {
+        global $DB;
+        if (!$DB->tableExists('glpi_plugin_marifex_dashboard_provisions')) {
+            return;
+        }
+        $marker = $this->ownershipWhere() + ['release_key' => self::PHASE4_EXECUTIVE_PROVISION];
+        if ($DB->request([
+            'SELECT' => ['id'],
+            'FROM' => 'glpi_plugin_marifex_dashboard_provisions',
+            'WHERE' => $marker,
+            'LIMIT' => 1,
+        ])->current()) {
+            return;
+        }
+
+        $row = $DB->request([
+            'SELECT' => ['id', 'definition'],
+            'FROM' => 'glpi_plugin_marifex_dashboard_definitions',
+            'WHERE' => $this->ownershipWhere() + ['name' => 'Executive Operations Command'],
+            'LIMIT' => 1,
+        ])->current();
+        if ($row) {
+            $definition = $this->validate(json_decode((string) $row['definition'], true, 64, JSON_THROW_ON_ERROR));
+            $ids = array_fill_keys(array_column($definition['widgets'], 'id'), true);
+            foreach ($this->templates()['executive']['definition']['widgets'] as $widget) {
+                if (count($definition['widgets']) >= 24) {
+                    break;
+                }
+                if (!isset($ids[$widget['id']])) {
+                    $definition['widgets'][] = $widget;
+                }
+            }
+            $definition = $this->validate($definition);
+            $DB->update('glpi_plugin_marifex_dashboard_definitions', [
+                'definition' => json_encode($definition, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
+            ], $this->ownershipWhere() + ['id' => (int) $row['id']]);
+        }
+        $DB->insert('glpi_plugin_marifex_dashboard_provisions', $marker + [
+            'date_creation' => gmdate('Y-m-d H:i:s'),
+        ]);
+    }
+
     /** @param array<string, mixed> $definition
      *  @return array<string, mixed>
      */
@@ -371,6 +416,15 @@ final class DashboardDefinitionService
                     ['id' => 'backlog-trend', 'metric' => 'historical_open_backlog', 'type' => 'line', 'title' => 'Enterprise backlog trajectory', 'w' => 6, 'h' => 4],
                     ['id' => 'group-share', 'metric' => 'historical_group_backlog', 'type' => 'donut', 'title' => 'Workload concentration', 'w' => 5, 'h' => 4],
                     ['id' => 'group-ranking', 'metric' => 'historical_group_backlog', 'type' => 'table', 'title' => 'Service ownership ranking', 'w' => 7, 'h' => 4],
+                    ['id' => 'executive-asset-total', 'metric' => 'asset_inventory_total', 'type' => 'kpi', 'title' => 'Managed computers', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-asset-stale', 'metric' => 'stale_computer_inventory', 'type' => 'kpi', 'title' => 'Stale computer inventory', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-licence-compliance', 'metric' => 'software_license_compliance_rate', 'type' => 'kpi', 'title' => 'Licence compliance', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-licence-risk', 'metric' => 'software_license_overallocated_seats', 'type' => 'kpi', 'title' => 'Overallocated seats', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-asset-states', 'metric' => 'asset_inventory_by_state', 'type' => 'donut', 'title' => 'Asset lifecycle distribution', 'w' => 5, 'h' => 4],
+                    ['id' => 'executive-change-open', 'metric' => 'open_changes', 'type' => 'kpi', 'title' => 'Open changes', 'w' => 3, 'h' => 2],
+                    ['id' => 'executive-problem-open', 'metric' => 'open_problems', 'type' => 'kpi', 'title' => 'Open problems', 'w' => 4, 'h' => 2],
+                    ['id' => 'executive-change-trend', 'metric' => 'daily_change_volume', 'type' => 'line', 'title' => 'Change demand trajectory', 'w' => 6, 'h' => 4],
+                    ['id' => 'executive-problem-trend', 'metric' => 'daily_problem_volume', 'type' => 'line', 'title' => 'Problem demand trajectory', 'w' => 6, 'h' => 4],
                 ]],
             ],
             'service-desk' => [

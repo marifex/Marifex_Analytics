@@ -32,7 +32,7 @@ Every rollup includes `rollup_date` and `entities_id`. API queries intersect tho
 
 All Phase 4 widgets are available in the certified widget library. KPI, line, bar, donut and table presentations remain subject to the server-side metric/type allowlist. Native drill-downs route to GLPI Computers, Software Licences, Changes or Problems.
 
-The three Phase 4 dashboards are provisioned automatically, once per user and active entity, into the Home > Analytics dashboard selector. Provisioning keeps the user's current dashboard active and never recreates a dashboard after that user deliberately deletes it. The plugin Settings page lists all 15 certified metrics with their latest snapshot, stored grain count and current/stale/missing status for the active entity scope.
+The Executive Operations Command dashboard is upgraded once per user and active entity with a cross-domain summary covering service desk, assets, licences, changes and problems. Asset and Licence Governance, Change Control and Problem Control remain provisioned as optional persona-focused deep dives; Phase 4 does not force users to leave the Executive view. Provisioning keeps the user's current dashboard active and never recreates a deep-dive dashboard after that user deliberately deletes it. The plugin Settings page lists all 15 certified metrics with their latest snapshot, stored grain count and current/stale/missing status for the active entity scope.
 
 ## ETL behavior
 
