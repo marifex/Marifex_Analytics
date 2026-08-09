@@ -215,15 +215,18 @@ final class MetricQueryService
             if ($a['state'] !== $b['state']) return $a['state'] === 'Breached' ? -1 : 1;
             return $a['state'] === 'Breached' ? $a['seconds'] <=> $b['seconds'] : $a['seconds'] <=> $b['seconds'];
         });
-        return $this->recordList($definition, $rows);
+        $result = $this->recordList($definition, $rows);
+        $result['breached_count'] = count(array_filter($rows, static fn(array $row): bool => $row['state'] === 'Breached'));
+        $result['approaching_count'] = count($rows) - $result['breached_count'];
+        return $result;
     }
 
     /** @return array<string, mixed> */
     private function operationalAttention(MetricDefinition $definition): array
     {
         $sla = $this->activeSlaExceptions(new MetricDefinition('active_sla_exceptions', 'Active SLA exceptions', 'live', 'record_list'));
-        $breached = count(array_filter($sla['rows'], static fn(array $row): bool => $row['state'] === 'Breached'));
-        $approaching = count($sla['rows']) - $breached;
+        $breached = (int) $sla['breached_count'];
+        $approaching = (int) $sla['approaching_count'];
         $items = [
             ['finding' => 'Open SLA breaches', 'count' => $breached, 'severity' => 'critical', 'target' => 'tickets'],
             ['finding' => 'Tickets approaching SLA breach', 'count' => $approaching, 'severity' => 'warning', 'target' => 'tickets'],

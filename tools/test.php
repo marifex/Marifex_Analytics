@@ -19,6 +19,8 @@ $definitions = (new MetricRegistry())->all();
 $assert(count($definitions) === 43, 'The semantic layer must expose every controlled dashboard metric.');
 $assert(count(array_filter($definitions, static fn ($definition): bool => $definition->source === 'live')) === 4, 'Only the four approved current-state products may query the operational source live.');
 $assert(count(array_filter($definitions, static fn ($definition): bool => $definition->source === 'data_mart')) === 39, 'Historical and governed dimensional metrics must use Data Mart rollups.');
+$metricQuery = file_get_contents(dirname(__DIR__) . '/src/Metric/MetricQueryService.php');
+$assert(str_contains($metricQuery, "['breached_count']") && str_contains($metricQuery, "['approaching_count']"), 'Operational attention must use complete SLA counts rather than the truncated detail rows.');
 
 $tables = Schema::tables();
 $assert(count($tables) === 12, 'Analytics schema must contain twelve plugin-owned tables.');

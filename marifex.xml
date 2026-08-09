@@ -2,7 +2,7 @@
 <root>
   <name>MarifeX Advanced Analytics</name>
   <key>marifex</key>
-  <version>0.10.6-dev</version>
+  <version>0.10.7-dev</version>
   <description>Enterprise analytics and dashboards for GLPI 11.</description>
   <homepage>https://marifex.com</homepage>
   <license>Proprietary</license>

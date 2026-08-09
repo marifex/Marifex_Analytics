@@ -8,6 +8,7 @@ Phase 5 implements the roadmap boundary for governed CSV/PDF dashboard exports, 
 - CSV output contains certified widget data for the saved dashboard horizon and entity scope. Cells beginning with spreadsheet formula operators are escaped.
 - PDF output is rendered from a static, self-contained HTML dashboard through a locally installed headless Chrome or Edge executable. It contains KPI, line, bar, donut and table presentations without requiring an authenticated browser session.
 - Static exports preserve every approved dashboard presentation: KPI, line, bar, donut, ranking table, insight, attention list, record-detail table and priority/category matrix.
+- Summary counts are computed before bounded detail-list truncation so exported operational attention totals remain consistent with certified KPIs.
 - In Linux containers, the renderer adds Chromium's `--no-sandbox` compatibility flag because Docker blocks the browser namespace sandbox; non-container hosts retain the browser sandbox.
 - Every generated artifact is stored below GLPI's protected plugin document directory, hashed with SHA-256 and recorded in immutable run history.
 
