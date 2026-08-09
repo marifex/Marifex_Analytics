@@ -165,7 +165,7 @@ onBeforeUnmount(() => { if (resizeTimer) window.clearTimeout(resizeTimer); resiz
     </div>
     <div v-if="editing && settingsOpen" class="marifex-widget__settings">
       <button class="btn-close marifex-widget__settings-close" type="button" aria-label="Close widget settings" @click="settingsOpen = false"></button>
-      <div><label class="form-label" :for="`title-${widget.id}`">Widget title</label><input :id="`title-${widget.id}`" class="form-control form-control-sm" :value="widget.title" maxlength="100" @change="emit('rename', widget.id, ($event.target as HTMLInputElement).value)"></div>
+      <div><label class="form-label" :for="`title-${widget.id}`">Widget title</label><input :id="`title-${widget.id}`" class="form-control form-control-sm" :value="widget.title" maxlength="100" @input="emit('rename', widget.id, ($event.target as HTMLInputElement).value)"></div>
       <div><label class="form-label" :for="`palette-${widget.id}`">Color palette</label><select :id="`palette-${widget.id}`" class="form-select form-select-sm" :value="activePalette.key" @change="emit('palette', widget.id, ($event.target as HTMLSelectElement).value as WidgetPaletteKey)"><option v-for="palette in widgetPalettes" :key="palette.key" :value="palette.key">{{ palette.label }} · {{ palette.type }}</option></select></div>
     </div>
     <div class="card-body marifex-widget__body" :aria-busy="loading">

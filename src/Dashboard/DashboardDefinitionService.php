@@ -16,6 +16,7 @@ final class DashboardDefinitionService
     private const PHASE4_EXECUTIVE_PROVISION = 'phase4-executive-dashboard-v1';
     private const ALIGNED_METRICS_PROVISION = 'aligned-certified-metrics-v1';
     private const PREMIUM_COMMAND_PROVISION = 'premium-command-layout-v1';
+    private const PREMIUM_SECTION_ORDER_PROVISION = 'premium-section-order-v1';
     private const PHASE4_TEMPLATES = ['asset-governance', 'change-control', 'problem-control'];
     private const WIDGET_PALETTES = ['cream_gold', 'ocean', 'mint', 'lavender', 'charcoal_gold', 'neutral', 'classic_blue', 'teal_green', 'deep_purple', 'warm_amber', 'coral_red', 'sky_blue', 'bright_orange', 'rose_pink', 'forest_green', 'slate_gray'];
     private const METRICS = [
@@ -72,6 +73,7 @@ final class DashboardDefinitionService
     public function workspace(): array
     {
         $this->provisionPremiumCommand();
+        $this->provisionPremiumSectionOrder();
         $this->provisionAlignedMetrics();
         $this->provisionPhase4Executive();
         $this->provisionPhase4Dashboards();
@@ -115,6 +117,47 @@ final class DashboardDefinitionService
             foreach ($premium['widgets'] as &$widget) if (isset($palettes[$widget['id']])) $widget['palette'] = $palettes[$widget['id']];
             unset($widget);
             $DB->update('glpi_plugin_marifex_dashboard_definitions', ['definition' => json_encode($this->validate($premium), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)], $this->ownershipWhere() + ['id' => (int) $row['id']]);
+        }
+        $DB->insert('glpi_plugin_marifex_dashboard_provisions', $marker + ['date_creation' => gmdate('Y-m-d H:i:s')]);
+    }
+
+    private function provisionPremiumSectionOrder(): void
+    {
+        global $DB;
+        if (!$DB->tableExists('glpi_plugin_marifex_dashboard_provisions')) return;
+        $marker = $this->ownershipWhere() + ['release_key' => self::PREMIUM_SECTION_ORDER_PROVISION];
+        if ($DB->request(['SELECT' => ['id'], 'FROM' => 'glpi_plugin_marifex_dashboard_provisions', 'WHERE' => $marker, 'LIMIT' => 1])->current()) return;
+
+        $row = $DB->request([
+            'SELECT' => ['id', 'definition'],
+            'FROM' => 'glpi_plugin_marifex_dashboard_definitions',
+            'WHERE' => $this->ownershipWhere() + ['name' => 'Executive Operations Command'],
+            'LIMIT' => 1,
+        ])->current();
+        if ($row) {
+            $current = $this->validate(json_decode((string) $row['definition'], true, 64, JSON_THROW_ON_ERROR));
+            $hasExplicitCanvasPosition = array_filter(
+                $current['widgets'],
+                static fn(array $widget): bool => isset($widget['x'], $widget['y']),
+            ) !== [];
+            if (!$hasExplicitCanvasPosition) {
+                $currentById = [];
+                foreach ($current['widgets'] as $widget) $currentById[$widget['id']] = $widget;
+                $ordered = [];
+                foreach ($this->premiumExecutiveWidgets() as $premiumWidget) {
+                    $id = $premiumWidget['id'];
+                    if (!isset($currentById[$id])) continue;
+                    $ordered[] = $currentById[$id];
+                    unset($currentById[$id]);
+                }
+                foreach ($current['widgets'] as $widget) {
+                    if (isset($currentById[$widget['id']])) $ordered[] = $widget;
+                }
+                $current['widgets'] = $ordered;
+                $DB->update('glpi_plugin_marifex_dashboard_definitions', [
+                    'definition' => json_encode($this->validate($current), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
+                ], $this->ownershipWhere() + ['id' => (int) $row['id']]);
+            }
         }
         $DB->insert('glpi_plugin_marifex_dashboard_provisions', $marker + ['date_creation' => gmdate('Y-m-d H:i:s')]);
     }
