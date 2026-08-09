@@ -1,6 +1,6 @@
 {
   "name": "marifex/glpi-analytics",
-  "version": "0.10.4-dev",
+  "version": "0.10.5-dev",
   "description": "MarifeX Advanced Analytics and Dashboard for GLPI 11",
   "type": "glpi-plugin",
   "license": "proprietary",

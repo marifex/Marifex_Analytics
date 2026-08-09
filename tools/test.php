@@ -248,6 +248,7 @@ $assert(str_contains($reportSchedule, 'Session::checkCSRF') || str_contains(file
 $assert(str_contains($reportRunner, 'validateRecipients'), 'Every scheduled delivery must revalidate recipients.');
 $assert(str_contains($csvRenderer, "preg_match('/^[=+\\-@\\t\\r]/'"), 'CSV exports must neutralize spreadsheet formula injection.');
 $assert(str_contains($pdfRenderer, '--headless=new') && str_contains($pdfRenderer, '--print-to-pdf='), 'PDF export must use the scoped headless-browser architecture.');
+$assert(str_contains($pdfRenderer, "is_file('/.dockerenv')") && str_contains($pdfRenderer, "['--no-sandbox']"), 'Containerized PDF export must use the explicit Chromium sandbox compatibility flag.');
 $assert(str_contains($pdfRenderer, '--no-pdf-header-footer'), 'Generated PDFs must not expose temporary renderer paths in browser headers or footers.');
 $assert(str_contains($htmlRenderer, 'palette-cream_gold') && str_contains($htmlRenderer, 'PALETTES'), 'Static PDF reports must preserve per-widget palettes.');
 $assert(str_contains($htmlRenderer, 'palette-classic_blue') && str_contains($htmlRenderer, 'palette-slate_gray'), 'Static PDF reports must render the approved gradient collection.');

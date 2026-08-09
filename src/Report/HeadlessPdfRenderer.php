@@ -29,11 +29,15 @@ final class HeadlessPdfRenderer
                 '--disable-gpu',
                 '--disable-extensions',
                 '--disable-background-networking',
+                '--disable-dev-shm-usage',
                 '--no-pdf-header-footer',
                 '--print-to-pdf-no-header',
                 '--print-to-pdf=' . $pdfPath,
                 $uri,
             ];
+            if ($this->isContainerized()) {
+                array_splice($command, 2, 0, ['--no-sandbox']);
+            }
             $this->run($command);
             if (!is_file($pdfPath) || filesize($pdfPath) < 1000) {
                 throw new RuntimeException('The headless browser did not produce a valid PDF report.');
@@ -109,5 +113,18 @@ final class HeadlessPdfRenderer
             }
         }
         return null;
+    }
+
+    private function isContainerized(): bool
+    {
+        if (DIRECTORY_SEPARATOR !== '/') {
+            return false;
+        }
+        if (is_file('/.dockerenv') || getenv('container') !== false) {
+            return true;
+        }
+        $cgroup = @file_get_contents('/proc/1/cgroup');
+        return is_string($cgroup)
+            && preg_match('/(?:docker|containerd|kubepods|lxc)/i', $cgroup) === 1;
     }
 }
