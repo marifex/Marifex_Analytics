@@ -147,6 +147,9 @@
 .marifex-filterbar .form-select { font-size: 11px; min-block-size: 30px; padding-block: 4px; }
 .marifex-widget-grid { gap: 16px; grid-auto-rows: 32px; }
 .marifex-widget { border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: none; }
+.marifex-widget__section-label { align-items: center; background: color-mix(in srgb, var(--mx-widget-accent) 9%, #fff); border-block-end: 1px solid color-mix(in srgb, var(--mx-widget-border) 72%, transparent); color: var(--mx-widget-accent); display: flex; flex: 0 0 22px; font-size: 9px; font-weight: 700; letter-spacing: .08em; min-block-size: 22px; padding-inline: 12px; text-transform: uppercase; }
+.marifex-widget--section-start .marifex-widget__header { min-block-size: 34px; padding-block: 5px; }
+.marifex-widget--section-start:not(.marifex-widget--editing) .marifex-widget__header { block-size: 34px; }
 .marifex-widget:not(.marifex-widget--kpi) { background: linear-gradient(135deg, color-mix(in srgb, var(--mx-widget-bg) 35%, #fff), #fff 72%); }
 .marifex-widget:hover { box-shadow: none; transform: none; }
 .marifex-widget__header { gap: 8px; min-block-size: 40px; padding: 8px 12px; }

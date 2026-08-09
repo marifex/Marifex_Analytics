@@ -91,6 +91,14 @@ const groups = computed(() => {
   return [...unique.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 });
 const selectedGroupName = computed(() => groups.value.find(group => group.id === selectedGroup.value)?.name);
+const sectionLabels: Record<string, string> = {
+  'executive-sla-list': 'Service health',
+  'executive-group-incidents': 'Workload and ownership',
+  'executive-unsatisfied': 'Customer experience',
+  'executive-asset-stale': 'Asset attention',
+  'executive-prohibited-software': 'Software and licence risk',
+  'executive-change-open': 'Change and problem control',
+};
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
 function range(): { from: string; to: string } {
@@ -351,7 +359,7 @@ onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(ref
 
     <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
     <div v-if="definition" ref="gridElement" class="marifex-widget-grid" :class="{ 'marifex-widget-grid--editing': editing }">
-      <WidgetCard v-for="widget in definition.widgets" :key="widget.id" :widget="widget" :data="dataFor(widget)" :loading="loading" :editing="editing" :interacting="interactingWidget === widget.id" :interaction-mode="interactingWidget === widget.id ? interactionMode : null" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" :asset-search-url="assetSearchUrl" :licence-search-url="licenceSearchUrl" :change-search-url="changeSearchUrl" :problem-search-url="problemSearchUrl" @remove="removeWidget" @rename="renameWidget" @palette="recolorWidget" @select-group="chooseGroup" @interaction-start="beginInteraction" />
+      <WidgetCard v-for="widget in definition.widgets" :key="widget.id" :widget="widget" :section-label="sectionLabels[widget.id]" :data="dataFor(widget)" :loading="loading" :editing="editing" :interacting="interactingWidget === widget.id" :interaction-mode="interactingWidget === widget.id ? interactionMode : null" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" :asset-search-url="assetSearchUrl" :licence-search-url="licenceSearchUrl" :change-search-url="changeSearchUrl" :problem-search-url="problemSearchUrl" @remove="removeWidget" @rename="renameWidget" @palette="recolorWidget" @select-group="chooseGroup" @interaction-start="beginInteraction" />
     </div>
 
     <div v-if="catalogOpen" class="marifex-catalog-backdrop" role="presentation" @click.self="catalogOpen = false"><aside class="marifex-catalog" role="dialog" aria-modal="true" aria-labelledby="catalog-title"><header><div><p class="marifex-command__eyebrow">Certified semantic layer</p><h2 id="catalog-title">Widget library</h2></div><button class="btn-close" type="button" aria-label="Close" @click="catalogOpen = false"></button></header><p class="text-secondary">Every widget uses an approved metric. SQL and unrestricted data access are never accepted.</p><div class="marifex-catalog__grid"><button v-for="item in catalog" :key="`${item.metric}-${item.type}`" class="card marifex-catalog-item" type="button" @click="addWidget(item)"><span class="badge bg-azure-lt">{{ item.type }}</span><strong>{{ item.title }}</strong><small>{{ item.metric.replaceAll('_', ' ') }}</small></button></div></aside></div>

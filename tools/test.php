@@ -147,6 +147,15 @@ $assert(str_contains($dashboardDefinition, "'software_license_compliance_rate' =
 $assert(str_contains($dashboardDefinition, 'premiumExecutiveWidgets()'), 'The Executive dashboard must use the controlled premium first-screen composition.');
 $assert(str_contains($dashboardDefinition, "'operational_attention' => ['attention']"), 'The composite attention list must remain a certified presentation type.');
 $assert(str_contains($dashboardDefinition, "'w' => 2, 'h' => 2"), 'The default Executive KPI strip must fit six compact KPIs in one desktop row.');
+$premiumDefinition = substr($dashboardDefinition, (int) strpos($dashboardDefinition, 'private function premiumExecutiveWidgets'));
+$assert(
+    strpos($premiumDefinition, "'executive-sla-list'") < strpos($premiumDefinition, "'executive-group-incidents'")
+    && strpos($premiumDefinition, "'executive-group-incidents'") < strpos($premiumDefinition, "'executive-unsatisfied'")
+    && strpos($premiumDefinition, "'executive-unsatisfied'") < strpos($premiumDefinition, "'executive-asset-stale'")
+    && strpos($premiumDefinition, "'executive-asset-stale'") < strpos($premiumDefinition, "'executive-prohibited-software'")
+    && strpos($premiumDefinition, "'executive-prohibited-software'") < strpos($premiumDefinition, "'executive-change-open'"),
+    'New Executive dashboards must preserve the approved below-fold section order.'
+);
 
 $definitionController = file_get_contents(dirname(__DIR__) . '/src/Controller/DashboardDefinitionController.php');
 $assert(str_contains($definitionController, 'Profile::canView()'), 'Dashboard definition API must enforce the plugin profile right.');
@@ -169,6 +178,8 @@ $assert(str_contains($dashboardFrontend, 'widget.x = x') && str_contains($dashbo
 $assert(str_contains($dashboardDefinition, "\$validatedWidget['x']") && str_contains($dashboardDefinition, "\$validatedWidget['y']"), 'Saved dashboard validation must preserve bounded widget canvas coordinates.');
 $assert(str_contains($widgetFrontend, 'widget.x === undefined') && str_contains($widgetFrontend, 'widget.y === undefined'), 'Widgets must render saved X/Y positions while retaining automatic placement for legacy definitions.');
 $assert(str_contains($widgetFrontend, 'settingsOpen') && str_contains($widgetFrontend, 'marifex-widget--settings-open'), 'Widget settings must open as a non-sizing edit overlay.');
+$assert(str_contains($dashboardFrontend, "'executive-sla-list': 'Service health'") && str_contains($dashboardFrontend, "'executive-change-open': 'Change and problem control'"), 'Executive widgets must expose all controlled below-fold section labels.');
+$assert(str_contains($widgetFrontend, 'marifex-widget__section-label') && str_contains($dashboardCss, '.marifex-widget__section-label'), 'Section labels must render inside widget geometry so saved free-canvas positions remain stable.');
 $assert(str_contains($dashboardFrontend, "metric: 'asset_inventory_total'"), 'Widget catalog must expose certified Phase 4 asset metrics.');
 $assert(str_contains($dashboardFrontend, "metric: 'open_changes'"), 'Widget catalog must expose certified Phase 4 change metrics.');
 $assert(str_contains($dashboardFrontend, "metric: 'open_problems'"), 'Widget catalog must expose certified Phase 4 problem metrics.');
