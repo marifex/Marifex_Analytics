@@ -15,24 +15,25 @@ final class DashboardDefinitionService
     private const PHASE4_PROVISION = 'phase4-domain-dashboards-v1';
     private const PHASE4_EXECUTIVE_PROVISION = 'phase4-executive-dashboard-v1';
     private const ALIGNED_METRICS_PROVISION = 'aligned-certified-metrics-v1';
+    private const PREMIUM_COMMAND_PROVISION = 'premium-command-layout-v1';
     private const PHASE4_TEMPLATES = ['asset-governance', 'change-control', 'problem-control'];
     private const WIDGET_PALETTES = ['cream_gold', 'ocean', 'mint', 'lavender', 'charcoal_gold', 'neutral', 'classic_blue', 'teal_green', 'deep_purple', 'warm_amber', 'coral_red', 'sky_blue', 'bright_orange', 'rose_pink', 'forest_green', 'slate_gray'];
     private const METRICS = [
         'current_open_tickets' => ['kpi'],
         'average_open_ticket_age' => ['kpi', 'line'],
         'historical_open_backlog' => ['kpi', 'line', 'bar'],
-        'historical_group_backlog' => ['bar', 'donut', 'table'],
-        'open_tickets_by_priority' => ['bar', 'donut', 'table'],
+        'historical_group_backlog' => ['bar', 'donut', 'table', 'insight'],
+        'open_tickets_by_priority' => ['bar', 'donut', 'table', 'insight'],
         'unassigned_open_tickets' => ['kpi', 'line'],
         'average_unassigned_time' => ['kpi', 'line'],
         'tickets_approaching_sla_breach' => ['kpi', 'line'],
         'sla_breach_count' => ['kpi', 'line'],
         'sla_breach_rate' => ['kpi', 'line'],
-        'sla_breaches_by_technician' => ['bar', 'donut', 'table'],
-        'tickets_by_request_source' => ['bar', 'donut', 'table'],
+        'sla_breaches_by_technician' => ['bar', 'donut', 'table', 'insight'],
+        'tickets_by_request_source' => ['bar', 'donut', 'table', 'insight'],
         'created_vs_resolved_tickets' => ['line', 'bar', 'table'],
         'assignment_changes_per_ticket' => ['kpi', 'line'],
-        'technician_workload_distribution' => ['bar', 'donut', 'table'],
+        'technician_workload_distribution' => ['bar', 'donut', 'table', 'insight'],
         'unsatisfied_survey_responses' => ['kpi', 'line'],
         'resolution_time_age_bands' => ['bar', 'donut', 'table'],
         'asset_inventory_total' => ['kpi', 'line'],
@@ -56,6 +57,11 @@ final class DashboardDefinitionService
         'daily_problem_volume' => ['kpi', 'line', 'bar'],
         'daily_problem_resolutions' => ['kpi', 'line', 'bar'],
         'open_problem_status_distribution' => ['bar', 'donut', 'table'],
+        'latest_solution_refused_tickets' => ['kpi', 'detail_table'],
+        'open_incidents_by_assignment_group' => ['bar', 'table', 'insight'],
+        'open_tickets_priority_category_matrix' => ['matrix'],
+        'active_sla_exceptions' => ['kpi', 'detail_table'],
+        'operational_attention' => ['attention'],
     ];
 
     public function __construct(private readonly EntityScope $entityScope = new EntityScope())
@@ -65,6 +71,7 @@ final class DashboardDefinitionService
     /** @return array<string, mixed> */
     public function workspace(): array
     {
+        $this->provisionPremiumCommand();
         $this->provisionAlignedMetrics();
         $this->provisionPhase4Executive();
         $this->provisionPhase4Dashboards();
@@ -91,6 +98,25 @@ final class DashboardDefinitionService
                 'description' => $template['description'],
             ], array_values($this->templates())),
         ];
+    }
+
+    private function provisionPremiumCommand(): void
+    {
+        global $DB;
+        if (!$DB->tableExists('glpi_plugin_marifex_dashboard_provisions')) return;
+        $marker = $this->ownershipWhere() + ['release_key' => self::PREMIUM_COMMAND_PROVISION];
+        if ($DB->request(['SELECT' => ['id'], 'FROM' => 'glpi_plugin_marifex_dashboard_provisions', 'WHERE' => $marker, 'LIMIT' => 1])->current()) return;
+        $row = $DB->request(['SELECT' => ['id', 'definition'], 'FROM' => 'glpi_plugin_marifex_dashboard_definitions', 'WHERE' => $this->ownershipWhere() + ['name' => 'Executive Operations Command'], 'LIMIT' => 1])->current();
+        if ($row) {
+            $current = $this->validate(json_decode((string) $row['definition'], true, 64, JSON_THROW_ON_ERROR));
+            $palettes = [];
+            foreach ($current['widgets'] as $widget) $palettes[$widget['id']] = $widget['palette'];
+            $premium = $this->templates()['executive']['definition'];
+            foreach ($premium['widgets'] as &$widget) if (isset($palettes[$widget['id']])) $widget['palette'] = $palettes[$widget['id']];
+            unset($widget);
+            $DB->update('glpi_plugin_marifex_dashboard_definitions', ['definition' => json_encode($this->validate($premium), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)], $this->ownershipWhere() + ['id' => (int) $row['id']]);
+        }
+        $DB->insert('glpi_plugin_marifex_dashboard_provisions', $marker + ['date_creation' => gmdate('Y-m-d H:i:s')]);
     }
 
     /** @return array<string, mixed> */
@@ -445,14 +471,25 @@ final class DashboardDefinitionService
             if (!in_array($palette, self::WIDGET_PALETTES, true)) {
                 throw new InvalidArgumentException('Unsupported widget color palette.');
             }
+            [$minW, $maxW, $allowedHeights] = match ($type) {
+                'kpi' => [2, 4, [2, 3]],
+                'insight' => [3, 5, [2, 3]],
+                'line', 'bar', 'donut' => [4, 8, [6, 7]],
+                'table' => [5, 8, [6, 7]],
+                'detail_table', 'matrix' => [6, 12, [7, 8]],
+                'attention' => [6, 8, [6, 7]],
+                default => [3, 12, [3]],
+            };
+            $height = (int) ($widget['h'] ?? $allowedHeights[0]);
+            usort($allowedHeights, static fn(int $a, int $b): int => abs($height - $a) <=> abs($height - $b));
             $validated[] = [
                 'id' => $id,
                 'metric' => $metric,
                 'type' => $type,
                 'title' => $title,
                 'palette' => $palette,
-                'w' => max(3, min(12, (int) ($widget['w'] ?? 4))),
-                'h' => max(2, min(8, (int) ($widget['h'] ?? 3))),
+                'w' => max($minW, min($maxW, (int) ($widget['w'] ?? $minW))),
+                'h' => $allowedHeights[0],
             ];
             $ids[$id] = true;
         }
@@ -490,7 +527,7 @@ final class DashboardDefinitionService
     private function templates(): array
     {
         $base = ['version' => 2, 'dateRangeDays' => 30, 'refreshMinutes' => 0, 'filters' => ['groupId' => null]];
-        return [
+        $templates = [
             'executive' => [
                 'key' => 'executive',
                 'name' => 'Executive Operations Command',
@@ -620,6 +657,45 @@ final class DashboardDefinitionService
                     ['id' => 'problem-status-table', 'metric' => 'open_problem_status_distribution', 'type' => 'table', 'title' => 'Active problem queue', 'w' => 6, 'h' => 4],
                 ]],
             ],
+        ];
+        $templates['executive']['definition'] = $base + ['widgets' => $this->premiumExecutiveWidgets()];
+        return $templates;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function premiumExecutiveWidgets(): array
+    {
+        return [
+            ['id' => 'open-now', 'metric' => 'current_open_tickets', 'type' => 'kpi', 'title' => 'Current open tickets', 'w' => 2, 'h' => 2],
+            ['id' => 'executive-unassigned', 'metric' => 'unassigned_open_tickets', 'type' => 'kpi', 'title' => 'Unassigned', 'w' => 2, 'h' => 2],
+            ['id' => 'executive-sla-breaches', 'metric' => 'sla_breach_count', 'type' => 'kpi', 'title' => 'Open SLA breaches', 'w' => 2, 'h' => 2],
+            ['id' => 'executive-sla-approaching', 'metric' => 'tickets_approaching_sla_breach', 'type' => 'kpi', 'title' => 'Approaching SLA', 'w' => 2, 'h' => 2],
+            ['id' => 'average-age', 'metric' => 'average_open_ticket_age', 'type' => 'kpi', 'title' => 'Average open age', 'w' => 2, 'h' => 2],
+            ['id' => 'executive-low-disk', 'metric' => 'low_disk_capacity_computers', 'type' => 'kpi', 'title' => 'Low-disk computers', 'w' => 2, 'h' => 2],
+            ['id' => 'executive-ticket-flow', 'metric' => 'created_vs_resolved_tickets', 'type' => 'line', 'title' => 'Created versus resolved', 'w' => 7, 'h' => 6],
+            ['id' => 'executive-technician-workload', 'metric' => 'technician_workload_distribution', 'type' => 'bar', 'title' => 'Technician workload', 'w' => 5, 'h' => 6],
+            ['id' => 'executive-attention', 'metric' => 'operational_attention', 'type' => 'attention', 'title' => 'Operational attention', 'w' => 7, 'h' => 6],
+            ['id' => 'executive-priority', 'metric' => 'open_tickets_by_priority', 'type' => 'donut', 'title' => 'Open tickets by priority', 'w' => 5, 'h' => 6],
+            ['id' => 'executive-sla-list', 'metric' => 'active_sla_exceptions', 'type' => 'detail_table', 'title' => 'Active SLA exceptions', 'w' => 8, 'h' => 7],
+            ['id' => 'executive-sla-insight', 'metric' => 'sla_breaches_by_technician', 'type' => 'insight', 'title' => 'Top SLA pressure', 'w' => 4, 'h' => 3],
+            ['id' => 'executive-group-incidents', 'metric' => 'open_incidents_by_assignment_group', 'type' => 'bar', 'title' => 'Open incidents by assignment group', 'w' => 7, 'h' => 6],
+            ['id' => 'executive-group-insight', 'metric' => 'historical_group_backlog', 'type' => 'insight', 'title' => 'Largest backlog group', 'w' => 5, 'h' => 3],
+            ['id' => 'executive-unsatisfied', 'metric' => 'unsatisfied_survey_responses', 'type' => 'kpi', 'title' => 'Unsatisfied responses', 'w' => 3, 'h' => 2],
+            ['id' => 'executive-refused', 'metric' => 'latest_solution_refused_tickets', 'type' => 'kpi', 'title' => 'Latest solutions refused', 'w' => 3, 'h' => 2],
+            ['id' => 'executive-request-source', 'metric' => 'tickets_by_request_source', 'type' => 'insight', 'title' => 'Leading request source', 'w' => 3, 'h' => 2],
+            ['id' => 'executive-assignment-changes', 'metric' => 'assignment_changes_per_ticket', 'type' => 'kpi', 'title' => 'Assignment changes per ticket', 'w' => 3, 'h' => 2],
+            ['id' => 'executive-resolution-bands', 'metric' => 'resolution_time_age_bands', 'type' => 'bar', 'title' => 'Resolution-time age bands', 'w' => 6, 'h' => 6],
+            ['id' => 'executive-priority-category', 'metric' => 'open_tickets_priority_category_matrix', 'type' => 'matrix', 'title' => 'Priority by ITIL category', 'w' => 6, 'h' => 7],
+            ['id' => 'executive-asset-stale', 'metric' => 'stale_computer_inventory', 'type' => 'kpi', 'title' => 'Stale computer inventory', 'w' => 3, 'h' => 2],
+            ['id' => 'executive-stock-age', 'metric' => 'computers_in_stock_over_30_days', 'type' => 'kpi', 'title' => 'In stock over 30 days', 'w' => 3, 'h' => 2],
+            ['id' => 'executive-prohibited-software', 'metric' => 'prohibited_software_installations', 'type' => 'table', 'title' => 'Software marked invalid', 'w' => 6, 'h' => 6],
+            ['id' => 'executive-unlicensed-software', 'metric' => 'unlicensed_software_installations', 'type' => 'table', 'title' => 'Installations above entitlement', 'w' => 6, 'h' => 6],
+            ['id' => 'executive-incidents-os', 'metric' => 'incidents_by_operating_system', 'type' => 'bar', 'title' => 'Incidents by operating system', 'w' => 6, 'h' => 6],
+            ['id' => 'executive-repeat-assets', 'metric' => 'repeat_incident_computers', 'type' => 'table', 'title' => 'Computers with repeated incidents', 'w' => 6, 'h' => 6],
+            ['id' => 'executive-change-open', 'metric' => 'open_changes', 'type' => 'kpi', 'title' => 'Open changes', 'w' => 3, 'h' => 2],
+            ['id' => 'executive-problem-open', 'metric' => 'open_problems', 'type' => 'kpi', 'title' => 'Open problems', 'w' => 3, 'h' => 2],
+            ['id' => 'executive-change-status', 'metric' => 'open_change_status_distribution', 'type' => 'donut', 'title' => 'Open changes by status', 'w' => 6, 'h' => 6],
+            ['id' => 'executive-problem-status', 'metric' => 'open_problem_status_distribution', 'type' => 'donut', 'title' => 'Open problems by status', 'w' => 6, 'h' => 6],
         ];
     }
 }

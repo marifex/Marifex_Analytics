@@ -15,12 +15,13 @@ $assert = static function (bool $condition, string $message) use (&$failures): v
 };
 
 $definitions = (new MetricRegistry())->all();
-$assert(count($definitions) === 38, 'The semantic layer must expose all certified ticket, service-desk and Phase 4 metrics.');
-$assert(count(array_filter($definitions, static fn ($definition): bool => $definition->source === 'live')) === 1, 'Only current open tickets may query the operational source live.');
-$assert(count(array_filter($definitions, static fn ($definition): bool => $definition->source === 'data_mart')) === 37, 'Historical, service-desk and Phase 4 metrics must use governed Data Mart rollups.');
+$assert(count($definitions) === 43, 'The semantic layer must expose every controlled dashboard metric.');
+$assert(count(array_filter($definitions, static fn ($definition): bool => $definition->source === 'live')) === 4, 'Only the four approved current-state products may query the operational source live.');
+$assert(count(array_filter($definitions, static fn ($definition): bool => $definition->source === 'data_mart')) === 39, 'Historical and governed dimensional metrics must use Data Mart rollups.');
 
 $tables = Schema::tables();
-$assert(count($tables) === 11, 'Analytics schema must contain eleven plugin-owned tables.');
+$assert(count($tables) === 12, 'Analytics schema must contain twelve plugin-owned tables.');
+$assert(isset($tables['glpi_plugin_marifex_daily_matrix_rollups']), 'The approved priority and category matrix must use a bounded plugin-owned rollup.');
 $assert(isset($tables['glpi_plugin_marifex_dashboard_provisions']), 'Dashboard release provisioning must be tracked per user and entity.');
 $assert(isset($tables['glpi_plugin_marifex_report_schedules']), 'Phase 5 must persist governed report schedules.');
 $assert(isset($tables['glpi_plugin_marifex_report_runs']), 'Phase 5 must retain immutable report execution history.');
@@ -94,6 +95,8 @@ $assert(str_contains($ticketOperations, "'average_unassigned_time'"), 'Service-d
 $assert(str_contains($ticketOperations, "'created_vs_resolved_tickets'"), 'Service-desk ETL must snapshot created versus resolved flow.');
 $assert(str_contains($ticketOperations, "'assignment_changes_per_ticket'"), 'Service-desk ETL must use verified assignment events for reassignment frequency.');
 $assert(str_contains($ticketOperations, "'resolution_time_age_bands'"), 'Service-desk ETL must snapshot resolution-time age bands.');
+$assert(str_contains($ticketOperations, "'open_incidents_by_assignment_group'"), 'Service-desk ETL must snapshot current incident ownership.');
+$assert(str_contains($ticketOperations, "'open_tickets_priority_category_matrix'"), 'Service-desk ETL must write the approved priority and category matrix.');
 
 $domainSnapshot = file_get_contents(dirname(__DIR__) . '/src/Etl/DomainSnapshotBuilder.php');
 $assert(str_contains($domainSnapshot, "'FROM' => 'glpi_computers'"), 'Phase 4 ETL must snapshot GLPI computers.');
@@ -113,7 +116,7 @@ $assert(str_contains($metricQueries, "sprintf('%s — %s'"), 'Duplicate group la
 $assert(str_contains($metricQueries, "sprintf('%s · Group #%d'"), 'Same-name groups in the same entity must include their GLPI group ID.');
 
 $settingsTemplate = file_get_contents(dirname(__DIR__) . '/templates/settings/index.html.twig');
-$assert(str_contains($settingsTemplate, 'Phase 4 domain analytics'), 'Settings must display certified Phase 4 metric health.');
+$assert(str_contains($settingsTemplate, 'Certified analytics health'), 'Settings must display all certified metric health.');
 $assert(
     str_contains($settingsTemplate, 'layout/page_without_tabs.html.twig'),
     'Settings must extend a layout provided by GLPI 11.'
@@ -141,6 +144,9 @@ $assert(str_contains($dashboardDefinition, 'provisionAlignedMetrics()'), 'Existi
 $assert(str_contains($dashboardDefinition, "'executive-priority'") && str_contains($dashboardDefinition, "'executive-low-disk'"), 'The Executive dashboard must include the newly approved service-desk and asset metrics.');
 $assert(str_contains($dashboardDefinition, "['is_active'] = 0"), 'Phase 4 provisioning must preserve the currently active dashboard.');
 $assert(str_contains($dashboardDefinition, "'software_license_compliance_rate' => ['kpi', 'line']"), 'Phase 4 widgets must remain behind the certified metric/type allowlist.');
+$assert(str_contains($dashboardDefinition, 'premiumExecutiveWidgets()'), 'The Executive dashboard must use the controlled premium first-screen composition.');
+$assert(str_contains($dashboardDefinition, "'operational_attention' => ['attention']"), 'The composite attention list must remain a certified presentation type.');
+$assert(str_contains($dashboardDefinition, "'w' => 2, 'h' => 2"), 'The default Executive KPI strip must fit six compact KPIs in one desktop row.');
 
 $definitionController = file_get_contents(dirname(__DIR__) . '/src/Controller/DashboardDefinitionController.php');
 $assert(str_contains($definitionController, 'Profile::canView()'), 'Dashboard definition API must enforce the plugin profile right.');
@@ -169,6 +175,9 @@ $assert(str_contains($dashboardFrontend, "exportUrl('csv')"), 'Home dashboards m
 $assert(str_contains($dashboardFrontend, 'Schedule dashboard report'), 'Home dashboards must expose scheduled delivery configuration.');
 $assert(!str_contains($widgetFrontend, '>W {{ widget.w }}</button>') && !str_contains($widgetFrontend, '>H {{ widget.h }}</button>'), 'Builder must not expose developer-style W/H resize buttons.');
 $assert(str_contains($widgetFrontend, 'ResizeObserver'), 'Charts must observe and adapt to widget size changes.');
+$assert(str_contains($widgetFrontend, 'resizeTimer') && str_contains($widgetFrontend, '150'), 'Chart reflow must be debounced during pointer resizing.');
+$assert(str_contains($widgetFrontend, 'donutGroups') && str_contains($widgetFrontend, "dimension: 'Other'"), 'Donuts must cap categories and aggregate the remainder as Other.');
+$assert(str_contains($widgetFrontend, "widget.type === 'attention'") && str_contains($widgetFrontend, "widget.type === 'matrix'"), 'Controlled attention and matrix presentations must be rendered.');
 $assert(str_contains($widgetFrontend, 'Color palette') && str_contains($widgetFrontend, "emit('palette'"), 'Every widget must expose a palette selector in edit mode.');
 $assert(str_contains($dashboardFrontend, '@palette="recolorWidget"'), 'Per-widget palette changes must update the saved dashboard definition.');
 $paletteFrontend = file_get_contents(dirname(__DIR__) . '/frontend/palettes.ts');
@@ -178,6 +187,7 @@ $assert(str_contains($dashboardCss, 'grid-auto-flow: row'), 'Dashboard rows must
 $assert(str_contains($dashboardCss, '.marifex-widget--palette-cream_gold') && str_contains($dashboardCss, '--mx-widget-bg-end'), 'Widget palettes must control non-white card backgrounds.');
 $assert(str_contains($dashboardCss, 'container-type: size'), 'Widget content must scale against its own width and height.');
 $assert(str_contains($dashboardCss, 'min(12cqw, 28cqh)'), 'KPI typography must respond to both widget width and height.');
+$assert(str_contains($dashboardCss, 'box-shadow: none') && str_contains($dashboardCss, 'grid-auto-rows: 32px'), 'The premium canvas must remove normal shadows and use compact row units.');
 $dashboardBootstrap = file_get_contents(dirname(__DIR__) . '/frontend/main.ts');
 $assert(str_contains($dashboardBootstrap, "meta[property=\"glpi:csrf_token\"]"), 'Dashboard bootstrap must fall back to GLPI core CSRF metadata.');
 $assert(str_contains($dashboardBootstrap, 'MutationObserver'), 'Dashboard app must mount when GLPI loads the Home tab asynchronously.');

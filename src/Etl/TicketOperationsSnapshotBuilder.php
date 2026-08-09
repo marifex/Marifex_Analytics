@@ -23,7 +23,10 @@ final class TicketOperationsSnapshotBuilder
         'technician_workload_distribution',
         'unsatisfied_survey_responses',
         'resolution_time_age_bands',
+        'open_incidents_by_assignment_group',
     ];
+
+    private const MATRIX_METRICS = ['open_tickets_priority_category_matrix'];
 
     public function run(DateTimeImmutable $localDay, DateTimeZone $timezone): int
     {
@@ -39,6 +42,10 @@ final class TicketOperationsSnapshotBuilder
             'rollup_date' => $date,
             'metric_key' => self::METRICS,
         ]);
+        $DB->delete('glpi_plugin_marifex_daily_matrix_rollups', [
+            'rollup_date' => $date,
+            'metric_key' => self::MATRIX_METRICS,
+        ]);
 
         $assignments = [];
         foreach ($DB->request([
@@ -49,10 +56,19 @@ final class TicketOperationsSnapshotBuilder
             $assignments[(int) $assignment['tickets_id']][(int) $assignment['users_id']] = true;
         }
 
+        $groupAssignments = [];
+        foreach ($DB->request([
+            'SELECT' => ['tickets_id', 'groups_id'],
+            'FROM' => 'glpi_groups_tickets',
+            'WHERE' => ['type' => 2],
+        ]) as $assignment) {
+            $groupAssignments[(int) $assignment['tickets_id']][(int) $assignment['groups_id']] = true;
+        }
+
         $values = [];
         $ticketEntities = [];
         foreach ($DB->request([
-            'SELECT' => ['id', 'entities_id', 'date', 'date_creation', 'date_mod', 'solvedate', 'status', 'priority', 'requesttypes_id', 'slas_id_ttr', 'time_to_resolve'],
+            'SELECT' => ['id', 'entities_id', 'date', 'date_creation', 'date_mod', 'solvedate', 'status', 'priority', 'requesttypes_id', 'slas_id_ttr', 'time_to_resolve', 'type', 'itilcategories_id'],
             'FROM' => 'glpi_tickets',
             'WHERE' => ['is_deleted' => 0, ['date_creation' => ['<', $cutoff]]],
         ]) as $ticket) {
@@ -82,8 +98,21 @@ final class TicketOperationsSnapshotBuilder
             }
             $priority = max(1, min(6, (int) $ticket['priority']));
             ++$values[$entityId]['priorities'][$priority];
+            $category = max(0, (int) $ticket['itilcategories_id']);
+            ++$values[$entityId]['priority_category'][$priority][$category];
             $source = max(0, (int) $ticket['requesttypes_id']);
             ++$values[$entityId]['sources'][$source];
+
+            if ((int) $ticket['type'] === 1) {
+                $groups = array_keys($groupAssignments[$ticketId] ?? []);
+                if ($groups === []) {
+                    ++$values[$entityId]['incident_groups'][0];
+                } else {
+                    foreach ($groups as $groupId) {
+                        ++$values[$entityId]['incident_groups'][$groupId];
+                    }
+                }
+            }
 
             $technicians = array_keys($assignments[$ticketId] ?? []);
             if ($technicians === []) {
@@ -150,6 +179,19 @@ final class TicketOperationsSnapshotBuilder
             $written += $this->writeDimensions($date, $entityId, 'sla_breaches_by_technician', 'technician', $entity['sla_by_technician']);
             $written += $this->writeDimensions($date, $entityId, 'technician_workload_distribution', 'technician', $entity['technician_workload']);
             $written += $this->writeDimensions($date, $entityId, 'resolution_time_age_bands', 'age_band', $entity['resolution_bands']);
+            $written += $this->writeDimensions($date, $entityId, 'open_incidents_by_assignment_group', 'group', $entity['incident_groups']);
+            foreach ($entity['priority_category'] as $priority => $categories) {
+                foreach ($categories as $category => $value) {
+                    $DB->insert('glpi_plugin_marifex_daily_matrix_rollups', [
+                        'rollup_date' => $date, 'entities_id' => $entityId,
+                        'metric_key' => 'open_tickets_priority_category_matrix',
+                        'row_key' => 'priority', 'row_value' => (string) $priority,
+                        'column_key' => 'itil_category', 'column_value' => (string) $category,
+                        'metric_value' => $value,
+                    ]);
+                    ++$written;
+                }
+            }
             $this->writeRollup($date, $entityId, 'unassigned_open_tickets', $entity['unassigned'], max(1, $entity['unassigned']));
             $this->writeRollup($date, $entityId, 'average_unassigned_time', $entity['unassigned'] > 0 ? $entity['unassigned_seconds'] / $entity['unassigned'] : 0, max(1, $entity['unassigned']));
             $this->writeRollup($date, $entityId, 'tickets_approaching_sla_breach', $entity['approaching_sla'], max(1, $entity['approaching_sla']));
@@ -171,6 +213,7 @@ final class TicketOperationsSnapshotBuilder
             'unassigned' => 0, 'unassigned_seconds' => 0, 'approaching_sla' => 0,
             'sla_population' => 0, 'sla_breaches' => 0, 'assignment_changes' => 0,
             'active_tickets' => 0, 'unsatisfied' => 0,
+            'incident_groups' => [], 'priority_category' => [],
         ];
     }
 

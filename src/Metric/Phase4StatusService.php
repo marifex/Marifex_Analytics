@@ -12,12 +12,13 @@ use QueryExpression;
 final class Phase4StatusService
 {
     private const DOMAINS = [
-        'Service desk' => ['open_tickets_by_priority', 'unassigned_open_tickets', 'average_unassigned_time', 'tickets_approaching_sla_breach', 'sla_breach_count', 'sla_breach_rate', 'sla_breaches_by_technician', 'tickets_by_request_source', 'created_vs_resolved_tickets', 'assignment_changes_per_ticket', 'technician_workload_distribution', 'unsatisfied_survey_responses', 'resolution_time_age_bands'],
+        'Service desk' => ['open_tickets_by_priority', 'unassigned_open_tickets', 'average_unassigned_time', 'tickets_approaching_sla_breach', 'sla_breach_count', 'sla_breach_rate', 'sla_breaches_by_technician', 'tickets_by_request_source', 'created_vs_resolved_tickets', 'assignment_changes_per_ticket', 'technician_workload_distribution', 'unsatisfied_survey_responses', 'resolution_time_age_bands', 'open_incidents_by_assignment_group'],
         'Assets' => ['asset_inventory_total', 'asset_inventory_by_state', 'stale_computer_inventory', 'low_disk_capacity_computers', 'computers_in_stock_over_30_days', 'incidents_by_operating_system', 'repeat_incident_computers'],
         'Licences' => ['software_license_entitlements', 'software_license_allocations', 'software_license_overallocated_seats', 'software_license_compliance_rate', 'prohibited_software_installations', 'unlicensed_software_installations'],
         'Changes' => ['open_changes', 'daily_change_volume', 'daily_change_resolutions', 'open_change_status_distribution'],
         'Problems' => ['open_problems', 'daily_problem_volume', 'daily_problem_resolutions', 'open_problem_status_distribution'],
     ];
+    private const CURRENT_PRODUCTS = ['latest_solution_refused_tickets', 'active_sla_exceptions', 'operational_attention'];
 
     public function __construct(
         private readonly EntityScope $entityScope = new EntityScope(),
@@ -64,6 +65,24 @@ final class Phase4StatusService
                     'status' => $latest === null ? 'missing' : ($latest >= $expectedDate ? 'current' : 'stale'),
                 ];
             }
+        }
+        $matrixRow = $DB->request([
+            'SELECT' => [new QueryExpression('MAX(`rollup_date`) AS latest_date'), new QueryExpression('COUNT(*) AS grain_count')],
+            'FROM' => 'glpi_plugin_marifex_daily_matrix_rollups',
+            'WHERE' => $this->entityScope->criteria() + ['metric_key' => 'open_tickets_priority_category_matrix'],
+        ])->current();
+        $matrixLatest = $matrixRow && $matrixRow['latest_date'] ? (string) $matrixRow['latest_date'] : null;
+        $statuses[] = [
+            'domain' => 'Service desk', 'metric' => 'open_tickets_priority_category_matrix',
+            'label' => $this->registry->get('open_tickets_priority_category_matrix')->label,
+            'latest_date' => $matrixLatest, 'grain_count' => (int) ($matrixRow['grain_count'] ?? 0),
+            'status' => $matrixLatest === null ? 'missing' : ($matrixLatest >= $expectedDate ? 'current' : 'stale'),
+        ];
+        foreach (self::CURRENT_PRODUCTS as $key) {
+            $statuses[] = [
+                'domain' => 'Current governed data', 'metric' => $key, 'label' => $this->registry->get($key)->label,
+                'latest_date' => gmdate('Y-m-d'), 'grain_count' => 0, 'status' => 'live',
+            ];
         }
         return $statuses;
     }

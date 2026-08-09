@@ -34,9 +34,11 @@ Each daily snapshot produces the original backlog and age rollups plus the appro
 
 The metric API accepts only keys registered in the semantic metric catalog. Average age is weighted by ticket count when a user can see more than one entity.
 
+The controlled dashboard redesign additionally approves `latest_solution_refused_tickets`, `open_incidents_by_assignment_group`, `open_tickets_priority_category_matrix` and the current governed `active_sla_exceptions` dataset. Their exact meanings, fields and architectural limits are defined in [DASHBOARD_DESIGN_SCOPE.md](DASHBOARD_DESIGN_SCOPE.md); similarly named competitor examples are not substitutes.
+
 ## Dashboard
 
-The dashboard shows the certified operational metrics from the Data Mart and current open tickets from live GLPI. Default KPI cards align four per desktop row, standard charts align in equal two-column rows, and the layout reflows responsively while preserving mouse drag and resize behavior.
+The dashboard shows the certified operational metrics from the Data Mart and current open tickets from live GLPI. The premium default hierarchy, first-screen composition and compact size classes are controlled by [DASHBOARD_DESIGN_SCOPE.md](DASHBOARD_DESIGN_SCOPE.md), which supersedes the earlier uniform four-KPI/equal-chart default while preserving mouse drag and resize behavior.
 
 For a new installation, an administrator can run `tools/backfill_analytics.php` from the command line to finish the bounded ETL backlog and build up to 366 completed daily snapshots. Normal operation remains scheduled through GLPI automatic actions.
 

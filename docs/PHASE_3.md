@@ -1,5 +1,7 @@
 # Phase 3: dashboard builder
 
+The presentation redesign is governed by [DASHBOARD_DESIGN_SCOPE.md](DASHBOARD_DESIGN_SCOPE.md). That document is the controlling contract when an earlier Phase 3 layout default conflicts with the approved premium first-screen hierarchy.
+
 Phase 3 delivers the low-code analytics dashboard builder defined by the product roadmap. MarifeX appears as an additional **Analytics** tab on GLPI Home; users do not need to leave the Home workspace for normal dashboard use.
 
 ## Dashboard workspace
@@ -14,14 +16,14 @@ Phase 3 delivers the low-code analytics dashboard builder defined by the product
 ## Grid and widget editing
 
 - Responsive 12-column CSS grid with a 16-pixel gap and aligned row boundaries
-- Default `3 x 2` KPI cards aligned four per desktop row
-- Default `6-column` charts and tables aligned in equal-height pairs
-- Responsive four-to-two-to-one KPI and two-to-one chart reflow
+- Compact KPI, text-insight, attention-list, chart and table size classes defined by the controlled design scope
+- Default six-KPI first-screen strip and asymmetric `7 + 5` analytical rows at 1440-pixel desktop width
+- Responsive three-, two- and one-column reflow governed by widget type and minimum content width
 - Drag-and-drop card ordering
 - Direct mouse/touch resizing from each widget's corner grip, with live chart reflow
 - Add, remove and rename widgets
 - Per-widget curated solid, monochrome and gradient palettes, including the default Cream Gold treatment and the approved Blue, Green, Purple, Amber, Red, Orange, Pink and Slate gradient collection
-- KPI, line, bar, donut and table visualizations
+- Compact KPI with comparison/sparkline, text insight, attention list, line/area, bar, donut and table visualizations
 - Fixed chart-left/legend-right donut layout without paginated legends
 
 ## Certified semantic boundary
@@ -48,3 +50,4 @@ Every catalog item maps to a pre-approved metric and compatible visualization. D
 7. Another user or entity cannot activate, update or delete the dashboard.
 8. Requests without a valid CSRF token are rejected.
 9. Default rows remain aligned after content changes, browser resizing and direct mouse resizing.
+10. The 1440 x 900 Executive first screen and all explicit exclusions pass the acceptance criteria in `DASHBOARD_DESIGN_SCOPE.md`.

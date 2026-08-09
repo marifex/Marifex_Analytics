@@ -96,7 +96,7 @@
   <div class="card mt-3">
     <div class="card-header">
       <div>
-        <h2 class="card-title">{{ __('Phase 4 domain analytics', 'marifex') }}</h2>
+        <h2 class="card-title">{{ __('Certified analytics health', 'marifex') }}</h2>
         <div class="text-secondary mt-1">{{ __('Certified asset, licence, change and problem metrics available to Home dashboards in the active entity scope.', 'marifex') }}</div>
       </div>
     </div>
@@ -110,7 +110,7 @@
               <td><div>{{ metric.label }}</div><code>{{ metric.metric }}</code></td>
               <td>{{ metric.latest_date|default(__('Not available', 'marifex')) }}</td>
               <td>{{ metric.grain_count }}</td>
-              <td><span class="badge {{ metric.status == 'current' ? 'bg-green-lt' : (metric.status == 'stale' ? 'bg-yellow-lt' : 'bg-red-lt') }}">{{ metric.status }}</span></td>
+              <td><span class="badge {{ metric.status == 'current' ? 'bg-green-lt' : (metric.status == 'live' ? 'bg-blue-lt' : (metric.status == 'stale' ? 'bg-yellow-lt' : 'bg-red-lt')) }}">{{ metric.status }}</span></td>
             </tr>
           {% else %}
             <tr><td colspan="5" class="text-secondary">{{ __('Phase 4 analytics schema is not available.', 'marifex') }}</td></tr>

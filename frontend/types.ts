@@ -6,8 +6,11 @@ export type MetricResponse = {
   source: 'live' | 'data_mart';
   value?: number;
   series?: Array<Point | DimensionPoint>;
+  rows?: Array<Record<string, string | number>>;
+  matrix?: Array<{ row_id: number; row: string; column_id: number; column: string; value: number }>;
+  as_of?: string;
 };
-export type WidgetType = 'kpi' | 'line' | 'bar' | 'donut' | 'table';
+export type WidgetType = 'kpi' | 'line' | 'bar' | 'donut' | 'table' | 'detail_table' | 'matrix' | 'attention' | 'insight';
 export type WidgetDefinition = { id: string; metric: string; type: WidgetType; title: string; palette: import('./palettes').WidgetPaletteKey; w: number; h: number };
 export type DashboardDefinition = { version: number; dateRangeDays: number; refreshMinutes: number; filters: { groupId: number | null }; widgets: WidgetDefinition[] };
 export type SavedDashboard = { id: number | null; name: string; definition: DashboardDefinition; date_mod: string | null };

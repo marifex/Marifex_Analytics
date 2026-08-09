@@ -38,6 +38,8 @@ Every rollup includes `rollup_date` and `entities_id`. API queries intersect tho
 
 All Phase 4 widgets are available in the certified widget library. KPI, line, bar, donut and table presentations remain subject to the server-side metric/type allowlist. Native drill-downs route to GLPI Computers, Software Licences, Changes or Problems.
 
+The Executive presentation of these metrics follows [DASHBOARD_DESIGN_SCOPE.md](DASHBOARD_DESIGN_SCOPE.md). In particular, asset-risk counts may appear in the composite attention list, and the leading operating system may appear as a text insight derived from `incidents_by_operating_system`; neither presentation changes the certified metric definition.
+
 The Executive Operations Command dashboard is upgraded once per user and active entity with a cross-domain summary covering service desk, assets, licences, changes and problems. Asset and Licence Governance, Change Control and Problem Control remain provisioned as optional persona-focused deep dives; Phase 4 does not force users to leave the Executive view. Provisioning keeps the user's current dashboard active and never recreates a deep-dive dashboard after that user deliberately deletes it. The plugin Settings page lists all certified metrics with their latest snapshot, stored grain count and current/stale/missing status for the active entity scope.
 
 ## ETL behavior

@@ -24,6 +24,16 @@ const latestGroups = computed(() => {
   const latestDate = groupPoints.value.at(-1)?.date;
   return groupPoints.value.filter((point) => point.date === latestDate && (!props.selectedGroup || point.dimension_id === props.selectedGroup)).sort((a, b) => b.value - a.value);
 });
+const donutGroups = computed(() => {
+  const groups = latestGroups.value;
+  if (groups.length <= 5) return groups;
+  return [...groups.slice(0, 4), { date: groups[0]?.date ?? '', dimension_id: -1, dimension: 'Other', value: groups.slice(4).reduce((sum, group) => sum + group.value, 0) }];
+});
+const recordRows = computed(() => (props.data?.rows ?? []).slice(0, props.widget.type === 'detail_table' ? 8 : 10));
+const insightTop = computed(() => latestGroups.value[0]);
+const matrixColumns = computed(() => [...new Map((props.data?.matrix ?? []).map(cell => [cell.column_id, cell.column])).entries()].slice(0, 6));
+const matrixRows = computed(() => [...new Map((props.data?.matrix ?? []).map(cell => [cell.row_id, cell.row])).entries()]);
+function matrixValue(rowId: number, columnId: number): number { return props.data?.matrix?.find(cell => cell.row_id === rowId && cell.column_id === columnId)?.value ?? 0; }
 const kpiValue = computed(() => {
   const value = props.data?.value ?? points.value.at(-1)?.value;
   if (value === undefined) return 'Not available';
@@ -86,7 +96,6 @@ function draw(): void {
     chart = null;
   }
   chart ??= init(chartElement.value);
-  const styles = getComputedStyle(document.documentElement);
   const text = activePalette.value.text;
   const border = activePalette.value.border;
   const accent = activePalette.value.colors[0];
@@ -106,10 +115,10 @@ function draw(): void {
         series: dimensions.map(([id, name]) => ({ type: 'line', name, smooth: true, symbol: 'none', lineStyle: { width: 3 }, data: dates.map(date => groupPoints.value.find(point => point.date === date && point.dimension_id === id)?.value ?? 0) })),
       }, true);
     } else {
-      chart.setOption({ animationDuration: 350, textStyle: { color: text }, grid: { left: 46, right: 20, top: 24, bottom: 32 }, tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: points.value.map(p => p.date), axisLabel: { color: text }, axisLine: { lineStyle: { color: border } } }, yAxis: { type: 'value', minInterval: 1, axisLabel: { color: text }, splitLine: { lineStyle: { color: border } } }, series: [{ type: 'line', smooth: true, symbol: 'none', lineStyle: { width: 3, color: accent }, itemStyle: { color: accent }, areaStyle: { color: accent, opacity: .12 }, data: points.value.map(p => p.value) }] }, true);
+      chart.setOption({ animationDuration: 350, textStyle: { color: text, fontSize: 10 }, grid: { left: 40, right: 12, top: 12, bottom: 28 }, tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: points.value.map(p => p.date), axisLabel: { color: text, fontSize: 10, hideOverlap: true }, axisLine: { lineStyle: { color: border } } }, yAxis: { type: 'value', minInterval: 1, axisLabel: { color: text, fontSize: 10 }, splitLine: { lineStyle: { color: border } } }, series: [{ type: 'line', smooth: true, symbol: 'none', lineStyle: { width: 2, color: accent }, itemStyle: { color: accent }, areaStyle: { color: accent, opacity: .1 }, data: points.value.map(p => p.value) }] }, true);
     }
   } else {
-    const groups = latestGroups.value.slice(0, 12);
+    const groups = props.widget.type === 'donut' ? donutGroups.value : latestGroups.value.slice(0, 8);
     if (props.widget.type === 'donut') {
       chart.setOption({
         color: donutColors.value,
@@ -124,15 +133,16 @@ function draw(): void {
       }, true);
       chart.off('click'); chart.on('click', (event: any) => selectDimension(Number(event.data?.groupId) || 0));
     } else {
-      chart.setOption({ grid: { left: 150, right: 24, top: 12, bottom: 28 }, tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } }, xAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: border } } }, yAxis: { type: 'category', inverse: true, data: groups.map(g => g.dimension), axisLabel: { color: text, width: 135, overflow: 'truncate' } }, series: [{ type: 'bar', data: groups.map(g => ({ value: g.value, groupId: g.dimension_id })), barMaxWidth: 24, itemStyle: { color: accent, borderRadius: [0, 5, 5, 0] } }] }, true);
+      chart.setOption({ grid: { left: '34%', right: 18, top: 8, bottom: 24 }, tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } }, xAxis: { type: 'value', minInterval: 1, axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { color: border } } }, yAxis: { type: 'category', inverse: true, data: groups.map(g => g.dimension), axisLabel: { color: text, fontSize: 10, lineHeight: 12, formatter: (value: string) => value.replace(/(.{18})\s+/g, '$1\n') } }, series: [{ type: 'bar', data: groups.map(g => ({ value: g.value, groupId: g.dimension_id })), barMaxWidth: 18, itemStyle: { color: accent, borderRadius: [0, 3, 3, 0] } }] }, true);
       chart.off('click'); chart.on('click', (event: any) => selectDimension(Number(event.data?.groupId) || 0));
     }
   }
 }
-function resize(): void { chart?.resize({ animation: { duration: 0 } }); }
+let resizeTimer: number | undefined;
+function resize(): void { if (resizeTimer) window.clearTimeout(resizeTimer); resizeTimer = window.setTimeout(() => chart?.resize({ animation: { duration: 0 } }), 150); }
 watch(() => [props.data, props.widget.type, props.widget.palette, props.selectedGroup, props.loading], async () => { await nextTick(); draw(); }, { deep: true });
 onMounted(() => { draw(); resizeObserver = new ResizeObserver(() => resize()); if (widgetElement.value) resizeObserver.observe(widgetElement.value); });
-onBeforeUnmount(() => { resizeObserver?.disconnect(); chart?.dispose(); });
+onBeforeUnmount(() => { if (resizeTimer) window.clearTimeout(resizeTimer); resizeObserver?.disconnect(); chart?.dispose(); });
 </script>
 
 <template>
@@ -152,16 +162,28 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); chart?.dispose(); });
       <div v-if="loading" class="marifex-skeleton"><span></span><span></span><span></span></div>
       <template v-else-if="widget.type === 'kpi'">
         <strong class="marifex-executive-kpi">{{ kpiValue }}</strong>
-        <div class="marifex-kpi-context"><span v-if="trend !== null" :class="trend > 0 ? 'text-red' : 'text-green'">{{ trend > 0 ? '+' : '' }}{{ trend.toFixed(1) }}% day over day</span><span v-else>Current certified value</span></div>
-        <a class="btn btn-sm btn-outline-primary mt-3" :href="drilldown(selectedGroup ?? undefined)">Open in GLPI</a>
+        <div class="marifex-kpi-context"><span v-if="trend !== null" :class="trend > 0 ? 'marifex-semantic--risk' : 'marifex-semantic--healthy'">{{ trend > 0 ? '↑' : '↓' }} {{ Math.abs(trend).toFixed(1) }}% vs previous period</span><span v-else>No historical comparison available</span></div>
+      </template>
+      <template v-else-if="widget.type === 'insight'">
+        <div v-if="insightTop" class="marifex-insight"><span>Leading finding</span><strong>{{ insightTop.dimension }}</strong><p>{{ insightTop.value.toLocaleString() }} current records</p><a :href="drilldown(insightTop.dimension_id)">Open detail</a></div>
+        <p v-else class="text-secondary">No finding is available for this period.</p>
+      </template>
+      <template v-else-if="widget.type === 'attention'">
+        <div class="marifex-attention-list"><a v-for="row in recordRows" :key="String(row.finding)" class="marifex-attention-row" :class="`marifex-attention-row--${row.severity}`" :href="row.target === 'assets' ? assetSearchUrl : row.target === 'licences' ? licenceSearchUrl : ticketSearchUrl"><span class="marifex-attention-dot"></span><span>{{ row.finding }}</span><strong>{{ Number(row.count).toLocaleString() }}</strong></a></div>
+      </template>
+      <template v-else-if="widget.type === 'detail_table'">
+        <div class="table-responsive marifex-detail-table"><table class="table table-vcenter"><thead><tr><th>Record</th><th>Priority / state</th><th>Owner</th><th>Timing</th></tr></thead><tbody><tr v-for="row in recordRows" :key="Number(row.id)"><td><a :href="String(row.link)">#{{ row.id }} {{ row.title }}</a></td><td>{{ row.state ?? `Priority ${row.priority}` }}</td><td>{{ row.group }}</td><td>{{ row.timing ?? row.latest_solution_date }}</td></tr></tbody></table></div>
+      </template>
+      <template v-else-if="widget.type === 'matrix'">
+        <div class="table-responsive marifex-matrix"><table class="table"><thead><tr><th>Priority</th><th v-for="column in matrixColumns" :key="column[0]">{{ column[1] }}</th></tr></thead><tbody><tr v-for="row in matrixRows" :key="row[0]"><th>{{ row[1] }}</th><td v-for="column in matrixColumns" :key="column[0]"><span :style="{ '--mx-heat': String(Math.min(1, matrixValue(row[0], column[0]) / 20)) }">{{ matrixValue(row[0], column[0]) }}</span></td></tr></tbody></table></div>
       </template>
       <template v-else-if="widget.type === 'table'">
-        <div class="table-responsive"><table class="table table-vcenter"><thead><tr><th>{{ dimensionHeader }}</th><th class="text-end">{{ valueHeader }}</th><th></th></tr></thead><tbody><tr v-for="group in latestGroups" :key="group.dimension_id" :class="{ 'table-active': isGroupMetric && selectedGroup === group.dimension_id }"><td><button v-if="isGroupMetric" class="marifex-link-button" type="button" @click="emit('selectGroup', group.dimension_id)">{{ group.dimension }}</button><a v-else :href="drilldown(group.dimension_id)">{{ group.dimension }}</a></td><td class="text-end fw-bold">{{ group.value.toLocaleString() }}</td><td class="text-end"><a :href="drilldown(group.dimension_id)" aria-label="Open matching GLPI records">Open</a></td></tr></tbody></table></div>
+        <div class="table-responsive"><table class="table table-vcenter"><thead><tr><th>{{ dimensionHeader }}</th><th class="text-end">{{ valueHeader }}</th><th></th></tr></thead><tbody><tr v-for="group in latestGroups.slice(0, 8)" :key="group.dimension_id" :class="{ 'table-active': isGroupMetric && selectedGroup === group.dimension_id }"><td><button v-if="isGroupMetric" class="marifex-link-button" type="button" @click="emit('selectGroup', group.dimension_id)">{{ group.dimension }}</button><a v-else :href="drilldown(group.dimension_id)">{{ group.dimension }}</a></td><td class="text-end fw-bold">{{ group.value.toLocaleString() }}</td><td class="text-end"><a :href="drilldown(group.dimension_id)" aria-label="Open matching GLPI records">Open</a></td></tr></tbody></table></div>
       </template>
       <div v-else-if="widget.type === 'donut'" class="marifex-donut-layout">
         <div ref="chartElement" class="marifex-widget__chart marifex-donut-layout__chart" role="img" :aria-label="widget.title"></div>
         <div class="marifex-donut-legend" :aria-label="`${dimensionHeader} legend`">
-          <button v-for="(group, index) in latestGroups.slice(0, 12)" :key="group.dimension_id" class="marifex-donut-legend__item" :class="{ 'is-selected': isGroupMetric && selectedGroup === group.dimension_id }" type="button" :title="`${group.dimension}: ${group.value.toLocaleString()}`" @click="selectDimension(group.dimension_id)">
+          <button v-for="(group, index) in donutGroups" :key="group.dimension_id" class="marifex-donut-legend__item" :class="{ 'is-selected': isGroupMetric && selectedGroup === group.dimension_id }" type="button" :title="`${group.dimension}: ${group.value.toLocaleString()}`" @click="group.dimension_id >= 0 && selectDimension(group.dimension_id)">
             <span class="marifex-donut-legend__swatch" :style="{ backgroundColor: donutColors[index % donutColors.length] }"></span>
             <span>{{ group.dimension }}</span>
           </button>

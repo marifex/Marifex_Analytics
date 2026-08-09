@@ -90,6 +90,21 @@ final class Schema
                 `date_mod` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (`id`), KEY `entity_active` (`entities_id`,`is_active`)
             ) $suffix",
+            'glpi_plugin_marifex_daily_matrix_rollups' => "CREATE TABLE `glpi_plugin_marifex_daily_matrix_rollups` (
+                `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+                `rollup_date` date NOT NULL,
+                `entities_id` int unsigned NOT NULL,
+                `metric_key` varchar(80) NOT NULL,
+                `row_key` varchar(80) NOT NULL,
+                `row_value` varchar(255) NOT NULL,
+                `column_key` varchar(80) NOT NULL,
+                `column_value` varchar(255) NOT NULL,
+                `metric_value` decimal(20,4) NOT NULL DEFAULT 0,
+                `date_mod` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `matrix_grain` (`rollup_date`,`entities_id`,`metric_key`,`row_key`,`row_value`,`column_key`,`column_value`),
+                KEY `matrix_metric_entity_date` (`metric_key`,`entities_id`,`rollup_date`)
+            ) $suffix",
             'glpi_plugin_marifex_dashboard_provisions' => "CREATE TABLE `glpi_plugin_marifex_dashboard_provisions` (
                 `id` int unsigned NOT NULL AUTO_INCREMENT,
                 `users_id` int unsigned NOT NULL,

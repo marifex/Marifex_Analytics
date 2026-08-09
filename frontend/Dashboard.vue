@@ -73,6 +73,12 @@ const catalog: Array<Omit<WidgetDefinition, 'id' | 'palette'>> = [
   { metric: 'daily_problem_volume', type: 'line', title: 'Problem demand trajectory', w: 6, h: 4 },
   { metric: 'daily_problem_resolutions', type: 'line', title: 'Problem resolution trajectory', w: 6, h: 4 },
   { metric: 'open_problem_status_distribution', type: 'donut', title: 'Open problems by status', w: 6, h: 4 },
+  { metric: 'latest_solution_refused_tickets', type: 'detail_table', title: 'Latest solutions refused', w: 8, h: 7 },
+  { metric: 'open_incidents_by_assignment_group', type: 'bar', title: 'Open incidents by assignment group', w: 7, h: 6 },
+  { metric: 'open_tickets_priority_category_matrix', type: 'matrix', title: 'Priority by ITIL category', w: 8, h: 7 },
+  { metric: 'active_sla_exceptions', type: 'detail_table', title: 'Active SLA exceptions', w: 8, h: 7 },
+  { metric: 'operational_attention', type: 'attention', title: 'Operational attention', w: 7, h: 6 },
+  { metric: 'sla_breaches_by_technician', type: 'insight', title: 'Top SLA pressure', w: 4, h: 3 },
 ];
 const definition = computed(() => dashboard.value?.definition);
 const hasGroupFilter = computed(() => definition.value?.widgets.some(widget => supportsGroup(widget.metric)) ?? false);
@@ -241,7 +247,7 @@ function cancelEditing(): void {
   editSnapshot = null; editing.value = false; scheduleRefresh(); void loadMetrics();
 }
 function addWidget(item: Omit<WidgetDefinition, 'id' | 'palette'>): void {
-  if (!definition.value || definition.value.widgets.length >= 24) return;
+  if (!definition.value || definition.value.widgets.length >= 40) return;
   definition.value.widgets.push({ ...item, palette: defaultWidgetPalette, id: `widget-${Date.now().toString(36)}` }); catalogOpen.value = false; if (!editing.value) startEditing(); void loadMetrics();
 }
 function removeWidget(id: string): void { if (definition.value && definition.value.widgets.length > 1) definition.value.widgets = definition.value.widgets.filter(widget => widget.id !== id); }
@@ -276,8 +282,15 @@ function moveInteraction(event: PointerEvent): void {
     const gap = Number.parseFloat(styles.columnGap) || 16;
     const columnWidth = (gridElement.value.clientWidth - gap * 11) / 12;
     const rowHeight = Number.parseFloat(styles.gridAutoRows) || 84;
-    widget.w = Math.max(3, Math.min(12, interaction.startW + Math.round((event.clientX - interaction.startX) / (columnWidth + gap))));
-    widget.h = Math.max(2, Math.min(8, interaction.startH + Math.round((event.clientY - interaction.startY) / (rowHeight + gap))));
+    const constraints = widget.type === 'kpi' ? { minW: 2, maxW: 4, heights: [2, 3] }
+      : widget.type === 'insight' ? { minW: 3, maxW: 5, heights: [2, 3] }
+      : ['line', 'bar', 'donut'].includes(widget.type) ? { minW: 4, maxW: 8, heights: [6, 7] }
+      : widget.type === 'table' ? { minW: 5, maxW: 8, heights: [6, 7] }
+      : ['detail_table', 'matrix'].includes(widget.type) ? { minW: 6, maxW: 12, heights: [7, 8] }
+      : { minW: 6, maxW: 8, heights: [6, 7] };
+    widget.w = Math.max(constraints.minW, Math.min(constraints.maxW, interaction.startW + Math.round((event.clientX - interaction.startX) / (columnWidth + gap))));
+    const rawH = interaction.startH + Math.round((event.clientY - interaction.startY) / (rowHeight + gap));
+    widget.h = constraints.heights.reduce((nearest, value) => Math.abs(value - rawH) < Math.abs(nearest - rawH) ? value : nearest);
     return;
   }
   if (dragGhost) dragGhost.style.transform = `translate3d(${event.clientX - interaction.startX}px, ${event.clientY - interaction.startY}px, 0)`;
