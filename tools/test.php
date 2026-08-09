@@ -6,6 +6,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 
 use GlpiPlugin\Marifex\Install\Schema;
 use GlpiPlugin\Marifex\Metric\MetricRegistry;
+use GlpiPlugin\Marifex\Report\HtmlReportRenderer;
 
 $failures = [];
 $assert = static function (bool $condition, string $message) use (&$failures): void {
@@ -252,6 +253,21 @@ $assert(str_contains($pdfRenderer, "is_file('/.dockerenv')") && str_contains($pd
 $assert(str_contains($pdfRenderer, '--no-pdf-header-footer'), 'Generated PDFs must not expose temporary renderer paths in browser headers or footers.');
 $assert(str_contains($htmlRenderer, 'palette-cream_gold') && str_contains($htmlRenderer, 'PALETTES'), 'Static PDF reports must preserve per-widget palettes.');
 $assert(str_contains($htmlRenderer, 'palette-classic_blue') && str_contains($htmlRenderer, 'palette-slate_gray'), 'Static PDF reports must render the approved gradient collection.');
+$reportFixture = [
+    'dashboard' => ['name' => 'PDF fixture'], 'from' => '2026-01-01', 'to' => '2026-01-31',
+    'generated_at' => '2026-01-31T00:00:00+00:00', 'entities_id' => 0,
+    'widgets' => [
+        ['definition' => ['title' => 'Insight', 'type' => 'insight', 'metric' => 'historical_group_backlog'], 'data' => ['series' => [['date' => '2026-01-31', 'dimension' => 'Service Desk', 'value' => 12]]]],
+        ['definition' => ['title' => 'Attention', 'type' => 'attention', 'metric' => 'operational_attention'], 'data' => ['rows' => [['finding' => 'Open SLA breaches', 'count' => 3, 'severity' => 'critical']]]],
+        ['definition' => ['title' => 'Details', 'type' => 'detail_table', 'metric' => 'active_sla_exceptions'], 'data' => ['rows' => [['id' => 7, 'title' => 'Ticket', 'state' => 'Breached', 'group' => 'L1', 'timing' => '2h overdue']]]],
+        ['definition' => ['title' => 'Matrix', 'type' => 'matrix', 'metric' => 'open_tickets_priority_category_matrix'], 'data' => ['matrix' => [['row_id' => 3, 'row' => 'Medium', 'column_id' => 2, 'column' => 'Hardware', 'value' => 5]]]],
+    ],
+];
+$renderedFixture = (new HtmlReportRenderer())->render($reportFixture);
+$assert(str_contains($renderedFixture, 'Service Desk') && str_contains($renderedFixture, '12 current records'), 'Static PDF insight widgets must include their leading value.');
+$assert(str_contains($renderedFixture, 'Open SLA breaches') && str_contains($renderedFixture, 'severity-critical'), 'Static PDF attention widgets must include severity and counts.');
+$assert(str_contains($renderedFixture, '#7 Ticket') && str_contains($renderedFixture, '2h overdue'), 'Static PDF detail tables must include record values.');
+$assert(str_contains($renderedFixture, 'Medium') && str_contains($renderedFixture, 'Hardware'), 'Static PDF matrices must include row and column values.');
 $assert(str_contains($reportSchedule, 'new DateTimeZone($timezone)') && !str_contains($reportSchedule, '!in_array($timezone, DateTimeZone::listIdentifiers(), true)'), 'Schedules must accept valid IANA aliases reported by browsers.');
 $assert(str_contains(file_get_contents(dirname(__DIR__) . '/hook.php'), "'scheduledReports'"), 'Phase 5 must register the scheduled report GLPI automatic action.');
 
