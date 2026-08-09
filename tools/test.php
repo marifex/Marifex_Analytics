@@ -167,6 +167,9 @@ $assert(str_contains($definitionController, "'duplicate' =>"), 'Dashboard API mu
 $dashboardFrontend = file_get_contents(dirname(__DIR__) . '/frontend/Dashboard.vue');
 $widgetFrontend = file_get_contents(dirname(__DIR__) . '/frontend/WidgetCard.vue');
 $dashboardCss = file_get_contents(dirname(__DIR__) . '/frontend/dashboard.css');
+$releasePackager = file_get_contents(dirname(__DIR__) . '/tools/package_release.ps1');
+$assert(str_contains($releasePackager, ".Replace('\\', '/')"), 'Release archives must normalize Windows paths to POSIX ZIP entry separators.');
+$assert(str_contains($releasePackager, "\$_ -match '\\\\'"), 'Release packaging must reject any backslash entry before publishing the ZIP.');
 $assert(str_contains($dashboardFrontend, "'X-Requested-With': 'XMLHttpRequest'"), 'Dashboard writes must opt into GLPI AJAX CSRF validation.');
 $assert(str_contains($dashboardFrontend, "'X-Glpi-Csrf-Token': props.csrfToken"), 'Dashboard writes must send the GLPI CSRF header.');
 $assert(str_contains($dashboardFrontend, 'Create from template'), 'Builder must expose dashboard templates.');

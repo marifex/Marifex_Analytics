@@ -35,6 +35,8 @@ npm run build
 
 Before installing or upgrading a build, save its deployable package under `versions/<version>/marifex`. Git ignores the `versions/` directory, so tested local builds remain available without adding release copies to the repository.
 
+Create the ZIP with `powershell -ExecutionPolicy Bypass -File tools/package_release.ps1`. The packager writes POSIX `/` entry paths and rejects backslashes so Linux and PHP `ZipArchive` extract the `marifex/` directory correctly.
+
 Name the deployable directory `marifex` and place it in GLPI's `plugins/` directory. Install and activate it from **Setup > Plugins**. Configure GLPI's external automatic actions so `incrementalEtl` and `dailySnapshot` run without depending on web traffic.
 
 ## Routes
