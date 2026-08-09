@@ -244,6 +244,7 @@ Phase 5A must help a user answer:
 
 - Comparisons follow the dashboard's selected 7, 30, 90, 180 or 365-day horizon. The comparison is always the immediately previous equal-length period; Phase 5A does not introduce a separate fixed weekly comparison.
 - A comparison requires `2 x horizon` consecutive completed daily snapshots within the active entity scope. A 30-day comparison therefore requires 60 completed daily snapshots. Missing required days keep the comparison unavailable.
+- An endpoint-change measure also requires the certified boundary snapshot immediately before each compared period. Boundary snapshots do not alter the `2 x horizon` daily-bucket progress count, but a missing boundary suppresses only the affected endpoint measure as `INSUFFICIENT_HISTORY`.
 - Comparison readiness is calculated independently for the active entity scope, group filter, metric, horizon and cutoff. It is not a global dashboard flag.
 - Switching from a comparison-ready horizon to an unready horizon immediately removes the previous comparison and shows progress for the newly selected horizon. Switching back restores only the comparison valid for that horizon. Cached calculations must be keyed by entity scope, filter, metric, horizon and cutoff.
 - During cold start, current certified absolute values remain visible, while comparison, sustained-direction and contributor-movement claims are suppressed. The insight strip must not say `No material changes` when comparison history is incomplete.
@@ -284,6 +285,117 @@ All numerators and denominators are filtered to the active GLPI entity scope bef
 - `latest_solution_refused_tickets` remains a live current count and evidence list. It must not show previous-period movement until a historical refused-solution rollup is separately certified, and it must not show a refusal rate until the proposed-solution denominator is certified.
 - Existing `software_license_compliance_rate` and `software_license_overallocated_seats` may show governed movement in the Asset and Licence dashboard. Phase 5A does not create an aggregate licence-utilization or coverage-gap ratio that could conceal title-level overallocation, and licence ratios do not enter the Executive brief.
 - Created-ticket demand by request source is analytically distinct from the approved open-ticket request-source metric and is deferred for separate certification.
+
+### Phase 5A technical formula appendix
+
+This appendix is normative. Implementation, structural tests, browser tests and exports must use these definitions exactly. Developers must not reconstruct formulas from UI wording or conversation history. The initial formula-set identifier is `phase5a-1` and must be retained with exported or scheduled insight evidence. A formula change requires a new identifier and a written scope amendment.
+
+#### Period boundaries
+
+For a completed snapshot cutoff date `C` and selected horizon `H` days:
+
+- current period daily buckets are `C-H+1` through `C`, inclusive;
+- previous period daily buckets are `C-2H+1` through `C-H`, inclusive;
+- each period must contain exactly `H` consecutive completed buckets;
+- point-in-time measures compare the completed snapshot at `C` with the completed snapshot at `C-H`;
+- endpoint-change measures use `C-H` as the current-period start boundary and `C-2H` as the previous-period start boundary; these boundary snapshots are evidence requirements, not additional daily buckets;
+- a group-filtered insight uses the same boundaries after applying that certified group filter; and
+- no partial period is scaled, annualized or compared with a complete period.
+
+#### Formula input map
+
+| Derived measure | Certified input keys | Exact calculation |
+|---|---|---|
+| Net ticket flow | `created_vs_resolved_tickets` | `sum(Created_current) - sum(Resolved_current)` |
+| Resolution coverage | `created_vs_resolved_tickets` | `sum(Resolved_current) / sum(Created_current) * 100` |
+| Backlog growth rate | `historical_open_backlog` | `(Backlog_C - Backlog_C-H) / Backlog_C-H * 100` |
+| Unassigned rate | `unassigned_open_tickets`, `historical_open_backlog` | `Unassigned_C / Backlog_C * 100` |
+| High-priority backlog share | `open_tickets_by_priority` | `sum(value_C where GLPI priority in [4,5,6]) / sum(all priority values_C) * 100` |
+| Top-group workload share | `historical_group_backlog` | `max(assigned group value_C) / sum(all assigned group values_C) * 100`; exclude the certified `Unassigned` dimension from numerator and denominator |
+| Open request-source concentration | `tickets_by_request_source` | `max(source value_C) / sum(all source values_C) * 100` |
+| Stale-inventory exposure | `stale_computer_inventory`, `asset_inventory_total` | `StaleComputers_C / ManagedNonTemplateComputers_C * 100` |
+| Change net flow | `daily_change_volume`, `daily_change_resolutions` | `sum(ChangeCreated_current) - sum(ChangeResolved_current)` |
+| Change resolution coverage | `daily_change_volume`, `daily_change_resolutions` | `sum(ChangeResolved_current) / sum(ChangeCreated_current) * 100` |
+| Problem net flow | `daily_problem_volume`, `daily_problem_resolutions` | `sum(ProblemCreated_current) - sum(ProblemResolved_current)` |
+| Problem resolution coverage | `daily_problem_volume`, `daily_problem_resolutions` | `sum(ProblemResolved_current) / sum(ProblemCreated_current) * 100` |
+
+The immediately previous value of a period calculation is produced by applying the identical formula to the previous-period buckets. The previous backlog growth rate is therefore `(Backlog_C-H - Backlog_C-2H) / Backlog_C-2H * 100`. The immediately previous value of a point-in-time calculation is produced from the `C-H` cutoff. Input dimensions are matched by their certified semantic identifiers, never by translated display labels.
+
+#### Changes, units and rounding
+
+- Count and net-flow values are integers.
+- Ratios, rates, composition shares and coverage values are percentages rounded to one decimal place for display. Calculations and materiality evaluation use unrounded values.
+- `absolute_change = current_value - previous_value` in the measure's native unit.
+- For percentage-valued measures, `percentage_point_change = current_percentage - previous_percentage`, rounded to one decimal place for display.
+- For a non-zero previous value, `relative_change_percent = (current_value - previous_value) / abs(previous_value) * 100`, rounded to one decimal place for display.
+- Relative change is not calculated when the previous value is zero. The approved `New from zero` handling applies instead.
+- A direction arrow reflects the sign of the absolute change. Semantic improving/worsening classification separately follows the direction defined in the approved-measures table; context-neutral measures receive no healthy/risk classification.
+- A displayed value of `0.0%` must be a computed zero, not a missing, suppressed or below-denominator result.
+
+#### Denominator suppression
+
+- Every operational ratio, rate, coverage or share requires a denominator of at least 5 unless a stricter metric-specific floor is approved below.
+- The future refused-solution rate requires at least 10 proposed solutions and remains deferred until its denominator and historical numerator are certified.
+- The future dissatisfaction rate requires at least 30 survey responses and remains deferred until its denominator is certified. Any future configurable floor must never be lower than 20.
+- A measure below its floor is not zero. It returns suppression reason `DENOMINATOR_BELOW_MINIMUM`, displays `Insufficient data: N of M required`, and is excluded from materiality, ranking, contributor analysis and the Executive brief.
+- Coverage calculations with a zero arrival denominator use the approved `No new tickets`, `No new changes` or `No new problems` text and do not return a numeric percentage.
+
+#### Previous-period movement and materiality
+
+- Count and net-flow materiality use the absolute change in their native integer unit and the relative change percentage.
+- Rate and composition materiality use the absolute percentage-point change and the relative change percentage of the prior rate/share.
+- The two normal gates are inclusive: a movement passes when the absolute change is greater than or equal to its absolute floor and the absolute relative change is greater than or equal to 10%.
+- `materiality_score = min(abs(absolute_change) / absolute_floor, abs(relative_change_percent) / 10)` for a normal comparable movement.
+- For an approved zero-baseline transition, `materiality_score = abs(absolute_change) / absolute_floor`.
+- `New from zero` requires the current absolute value to meet the applicable absolute floor.
+- `Cleared to zero` requires the previous absolute value to meet the applicable absolute floor.
+- A suppressed, missing, stale, unauthorized or comparison-unready measure has no materiality score.
+
+#### Largest contributing dimension change
+
+For an approved dimension metric with the same certified grain in both periods:
+
+1. Apply entity, profile and dashboard filters before aggregation.
+2. Build the union of authorized dimension identifiers present in either period.
+3. Treat an absent authorized dimension value as zero for that period.
+4. Calculate `dimension_delta = current_dimension_value - previous_dimension_value` for every authorized identifier.
+5. Select the identifier with the largest absolute `dimension_delta`.
+6. Break an exact tie by the stable certified dimension identifier, ascending.
+7. Display the dimension delta in its native unit, for example `Service Desk L1 +6 tickets`.
+
+Phase 5A does not convert the dimension delta into a causal percentage contribution. When the aggregate movement is zero, contributor text is suppressed even if dimensions moved in offsetting directions. When the selected dimension is not authorized or no comparable dimension exists, contributor text is omitted without suppressing the parent insight.
+
+#### Fixed deterministic insight template
+
+Every expanded insight is assembled from these fields in this order:
+
+1. certified metric label;
+2. direction and current value;
+3. absolute movement and relative or percentage-point movement;
+4. `versus previous H days` comparison text;
+5. largest contributing dimension change when valid;
+6. source classification: `Snapshot as of timestamp` or `Live GLPI at timestamp`;
+7. governed evidence action; and
+8. calculation-inspection action exposing formula identifier `phase5a-1` and its inputs.
+
+The template engine uses allowlisted phrases. Free-generated narrative and causal connectors are prohibited.
+
+#### Standard suppression reasons
+
+Phase 5A uses these stable reasons across screen, PDF, CSV and scheduled output:
+
+| Code | Meaning |
+|---|---|
+| `INSUFFICIENT_HISTORY` | Two complete selected horizons or required cutoff snapshots are unavailable |
+| `DENOMINATOR_BELOW_MINIMUM` | A ratio denominator is below its approved floor |
+| `MISSING_SOURCE` | A required source has never completed or has no certified data |
+| `UNAVAILABLE_SOURCE` | A required governed pipeline is disabled or unavailable |
+| `STALE_SOURCE` | A required source exceeded its cadence-based freshness deadline |
+| `UNAUTHORIZED_DIMENSION` | Contributor evidence is outside the active entity/profile scope |
+| `NO_MATERIAL_CHANGE` | Valid movement failed one or both materiality gates |
+| `NO_ACTIVITY` | Both sides of an approved flow calculation are zero |
+
+Exports may include the stable suppression code and safe explanatory text, but must not include unauthorized dimension labels, record identifiers or recipient addresses.
 
 ### Materiality, zero transitions and ranking
 
