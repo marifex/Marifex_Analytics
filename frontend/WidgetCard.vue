@@ -153,7 +153,7 @@ onBeforeUnmount(() => { if (resizeTimer) window.clearTimeout(resizeTimer); resiz
 </script>
 
 <template>
-  <article ref="widgetElement" class="card marifex-widget" :class="[`marifex-widget--${widget.type}`, `marifex-widget--palette-${activePalette.key}`, { 'marifex-widget--editing': editing, 'marifex-widget--settings-open': settingsOpen, 'marifex-widget--dragging': interacting && interactionMode === 'drag', 'marifex-widget--resizing': interacting && interactionMode === 'resize' }]" :style="{ '--marifex-widget-rows': String(widget.h), gridColumn: `span ${widget.w}`, gridRow: `span ${widget.h}` }" :data-widget-id="widget.id" :data-widget-width="widget.w">
+  <article ref="widgetElement" class="card marifex-widget" :class="[`marifex-widget--${widget.type}`, `marifex-widget--palette-${activePalette.key}`, { 'marifex-widget--editing': editing, 'marifex-widget--settings-open': settingsOpen, 'marifex-widget--dragging': interacting && interactionMode === 'drag', 'marifex-widget--resizing': interacting && interactionMode === 'resize' }]" :style="{ '--marifex-widget-rows': String(widget.h), gridColumn: widget.x === undefined ? `span ${widget.w}` : `${widget.x + 1} / span ${widget.w}`, gridRow: widget.y === undefined ? `span ${widget.h}` : `${widget.y + 1} / span ${widget.h}` }" :data-widget-id="widget.id" :data-widget-width="widget.w">
     <div class="card-header marifex-widget__header" :class="{ 'marifex-widget__drag-handle': editing }" @pointerdown="editing && emit('interactionStart', widget.id, 'drag', $event)">
       <div><span v-if="data?.source === 'live'" class="marifex-widget__kicker">Live GLPI</span><h2 class="card-title">{{ widget.title }}</h2></div>
       <div v-if="editing" class="marifex-widget__actions">

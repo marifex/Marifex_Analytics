@@ -205,14 +205,16 @@ Titles use sentence case, wrap to at most two lines and never use ellipsis as th
 ## Size, drag and resize rules
 
 - Mouse/touch drag and corner-grip resize remain mandatory; developer-facing W/H buttons remain prohibited.
+- In edit mode the full widget header is the drag surface; the six-dot icon is only a visual affordance. Settings, remove and resize controls must stop pointer propagation so they never start a move.
 - Default compact KPI rendered height is 96 px. Allowed compact/standard KPI size classes are 80, 96 and 120 px.
 - Above-fold analytical widgets target 244 px; standard detail charts target 280 px; expanded charts target 320 px.
 - Compact tables target 244 or 280 px; detailed tables may use 320 px or a full-width deep-dive view.
 - Resizing snaps to the approved type-specific size classes. Users cannot create arbitrary one-pixel heights.
 - Width constraints: KPI 2 to 4 columns; standard chart 4 to 8 columns; detailed chart 6 to 12 columns; compact table 5 to 8 columns; detailed table 8 to 12 columns.
 - `ResizeObserver` remains widget-local and must be debounced approximately 100 to 200 milliseconds during resize.
-- User-selected ordering and placement remain stable. Automatic packing must not override deliberate placement.
+- User-selected ordering and placement remain stable. A drop records explicit 12-column canvas X/Y coordinates, including intentional vertical gaps; automatic packing or array-only reordering must not override deliberate placement.
 - Empty internal space must be minimized by reflowing chart plot area, axes, legend, labels and table rows for the selected size.
+- Widget settings open in a fixed, viewport-contained drawer above the dashboard canvas. Title and palette controls align from the top in one column, remain fully visible below GLPI's sticky header and never change widget geometry.
 
 ## Responsive rules
 
@@ -251,8 +253,9 @@ The following remain outside approved scope:
 7. Donuts show at most five slices plus Other, with chart left and complete legend right.
 8. Rankings use horizontal bars and cap visible categories, with governed access to the complete result.
 9. Compact tables show 6 to 8 useful rows without internal horizontal scrolling at their approved width.
-10. Drag, resize, save, cancel, reload, responsive reflow and chart resizing pass browser integration tests.
-11. New data products enforce active GLPI entity scope, profile rights and fixed semantic fields.
-12. No excluded metric, widget, field or feature appears in code, configuration or dashboard templates.
-13. Structural tests verify the certified allowlists and the first-screen default layout.
-14. Any future deviation requires a written scope amendment before implementation.
+10. Header drag can place a widget at any unoccupied 12-column canvas coordinate; X/Y placement and size survive save/reload, while cancel restores the previous geometry.
+11. Resize, responsive reflow and chart resizing pass browser integration tests, and the settings drawer remains fully visible and top-aligned at supported desktop widths.
+12. New data products enforce active GLPI entity scope, profile rights and fixed semantic fields.
+13. No excluded metric, widget, field or feature appears in code, configuration or dashboard templates.
+14. Structural tests verify the certified allowlists and the first-screen default layout.
+15. Any future deviation requires a written scope amendment before implementation.

@@ -284,22 +284,27 @@ function moveInteraction(event: PointerEvent): void {
     return;
   }
   if (dragGhost) dragGhost.style.transform = `translate3d(${event.clientX - interaction.startX}px, ${event.clientY - interaction.startY}px, 0)`;
-  const cards = Array.from(gridElement.value.querySelectorAll<HTMLElement>('.marifex-widget:not(.marifex-widget--dragging)'));
-  if (!cards.length) return;
-  const target = cards.reduce<{ element: HTMLElement; distance: number } | null>((closest, element) => {
-    const box = element.getBoundingClientRect();
-    const distance = Math.hypot(event.clientX - (box.left + box.width / 2), event.clientY - (box.top + box.height / 2));
-    return !closest || distance < closest.distance ? { element, distance } : closest;
-  }, null)?.element;
-  const targetId = target?.dataset.widgetId; if (!targetId || targetId === interaction.id) return;
-  const from = definition.value.widgets.findIndex(item => item.id === interaction!.id);
-  let to = definition.value.widgets.findIndex(item => item.id === targetId);
-  if (from < 0 || to < 0) return;
-  const targetBox = target!.getBoundingClientRect();
-  const placeAfter = event.clientY > targetBox.top + targetBox.height / 2 || (Math.abs(event.clientY - (targetBox.top + targetBox.height / 2)) < targetBox.height * .2 && event.clientX > targetBox.left + targetBox.width / 2);
-  const [moved] = definition.value.widgets.splice(from, 1);
-  if (from < to) to -= 1;
-  definition.value.widgets.splice(to + (placeAfter ? 1 : 0), 0, moved);
+  const styles = getComputedStyle(gridElement.value);
+  const columnGap = Number.parseFloat(styles.columnGap) || 16;
+  const rowGap = Number.parseFloat(styles.rowGap) || 16;
+  const columnWidth = (gridElement.value.clientWidth - columnGap * 11) / 12;
+  const rowHeight = Number.parseFloat(styles.gridAutoRows) || 32;
+  const gridBox = gridElement.value.getBoundingClientRect();
+  const x = Math.max(0, Math.min(12 - widget.w, Math.round((event.clientX - gridBox.left - (columnWidth * widget.w) / 2) / (columnWidth + columnGap))));
+  const y = Math.max(0, Math.round((event.clientY - gridBox.top - (rowHeight * widget.h) / 2) / (rowHeight + rowGap)));
+  const candidate = {
+    left: gridBox.left + x * (columnWidth + columnGap),
+    top: gridBox.top + y * (rowHeight + rowGap),
+    right: gridBox.left + x * (columnWidth + columnGap) + widget.w * columnWidth + (widget.w - 1) * columnGap,
+    bottom: gridBox.top + y * (rowHeight + rowGap) + widget.h * rowHeight + (widget.h - 1) * rowGap,
+  };
+  const blocked = Array.from(gridElement.value.querySelectorAll<HTMLElement>('.marifex-widget:not(.marifex-widget--dragging)')).some(card => {
+    const box = card.getBoundingClientRect();
+    return candidate.left < box.right - 2 && candidate.right > box.left + 2 && candidate.top < box.bottom - 2 && candidate.bottom > box.top + 2;
+  });
+  if (blocked) return;
+  widget.x = x;
+  widget.y = y;
 }
 function endInteraction(event?: PointerEvent): void {
   if (!interaction || (event && event.pointerId !== interaction.pointerId)) return;

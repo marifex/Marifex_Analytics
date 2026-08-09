@@ -165,6 +165,9 @@ $assert(str_contains($dashboardFrontend, 'duplicateDashboard'), 'Builder must ex
 $assert(str_contains($dashboardFrontend, 'cancelEditing'), 'Builder must preserve draft/cancel behavior.');
 $assert(str_contains($dashboardFrontend, "mode: 'drag' | 'resize'"), 'Builder must provide pointer-driven drag and resize interactions.');
 $assert(!str_contains($dashboardFrontend, 'layoutPositions'), 'Responsive widget placement must not combine fixed row coordinates with breakpoint width overrides.');
+$assert(str_contains($dashboardFrontend, 'widget.x = x') && str_contains($dashboardFrontend, 'widget.y = y'), 'Header drag must record explicit 12-column canvas coordinates instead of only reordering the widget array.');
+$assert(str_contains($dashboardDefinition, "\$validatedWidget['x']") && str_contains($dashboardDefinition, "\$validatedWidget['y']"), 'Saved dashboard validation must preserve bounded widget canvas coordinates.');
+$assert(str_contains($widgetFrontend, 'widget.x === undefined') && str_contains($widgetFrontend, 'widget.y === undefined'), 'Widgets must render saved X/Y positions while retaining automatic placement for legacy definitions.');
 $assert(str_contains($widgetFrontend, 'settingsOpen') && str_contains($widgetFrontend, 'marifex-widget--settings-open'), 'Widget settings must open as a non-sizing edit overlay.');
 $assert(str_contains($dashboardFrontend, "metric: 'asset_inventory_total'"), 'Widget catalog must expose certified Phase 4 asset metrics.');
 $assert(str_contains($dashboardFrontend, "metric: 'open_changes'"), 'Widget catalog must expose certified Phase 4 change metrics.');
@@ -189,6 +192,7 @@ $assert(str_contains($dashboardCss, '.marifex-widget--palette-cream_gold') && st
 $assert(str_contains($dashboardCss, 'container-type: size'), 'Widget content must scale against its own width and height.');
 $assert(str_contains($dashboardCss, 'min(12cqw, 28cqh)'), 'KPI typography must respond to both widget width and height.');
 $assert(str_contains($dashboardCss, 'box-shadow: none') && str_contains($dashboardCss, 'grid-auto-rows: 32px'), 'The premium canvas must remove normal shadows and use compact row units.');
+$assert(str_contains($dashboardCss, 'align-content: start') && str_contains($dashboardCss, 'inset-block: 9rem 16px'), 'Widget settings must remain top-aligned and below GLPI sticky navigation.');
 $dashboardBootstrap = file_get_contents(dirname(__DIR__) . '/frontend/main.ts');
 $assert(str_contains($dashboardBootstrap, "meta[property=\"glpi:csrf_token\"]"), 'Dashboard bootstrap must fall back to GLPI core CSRF metadata.');
 $assert(str_contains($dashboardBootstrap, 'MutationObserver'), 'Dashboard app must mount when GLPI loads the Home tab asynchronously.');

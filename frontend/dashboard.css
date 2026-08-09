@@ -193,5 +193,5 @@
 .marifex-widget-action svg { block-size: 14px; fill: none; inline-size: 14px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
 .marifex-widget--editing .marifex-drag-indicator { padding: 4px; }
 .marifex-widget--editing .marifex-widget__body { overflow: hidden; }
-.marifex-widget--editing .marifex-widget__settings { background: #fff; border: 1px solid #d9dde3; border-radius: 6px; box-shadow: 0 16px 40px rgb(15 23 42 / 18%); display: grid; gap: 10px; grid-template-columns: 1fr; inset-block: 88px 16px; inset-inline-end: 16px; overflow: auto; padding: 38px 16px 16px; position: fixed; width: min(320px, calc(100vw - 32px)); z-index: 1060; }
+.marifex-widget--editing .marifex-widget__settings { align-content: start; background: #fff; border: 1px solid #d9dde3; border-radius: 6px; box-sizing: border-box; box-shadow: 0 16px 40px rgb(15 23 42 / 18%); display: grid; gap: 10px; grid-auto-rows: max-content; grid-template-columns: minmax(0, 1fr); inset-block: 9rem 16px; inset-inline-end: 16px; max-inline-size: calc(100vw - 32px); overflow: auto; padding: 38px 16px 16px; position: fixed; width: 320px; z-index: 1060; }
 .marifex-widget__settings-close { inset-block-start: 12px; inset-inline-end: 12px; position: absolute; }

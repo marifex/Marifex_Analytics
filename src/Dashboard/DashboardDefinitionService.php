@@ -482,7 +482,7 @@ final class DashboardDefinitionService
             };
             $height = (int) ($widget['h'] ?? $allowedHeights[0]);
             usort($allowedHeights, static fn(int $a, int $b): int => abs($height - $a) <=> abs($height - $b));
-            $validated[] = [
+            $validatedWidget = [
                 'id' => $id,
                 'metric' => $metric,
                 'type' => $type,
@@ -491,6 +491,11 @@ final class DashboardDefinitionService
                 'w' => max($minW, min($maxW, (int) ($widget['w'] ?? $minW))),
                 'h' => $allowedHeights[0],
             ];
+            if (isset($widget['x'], $widget['y']) && is_numeric($widget['x']) && is_numeric($widget['y'])) {
+                $validatedWidget['x'] = max(0, min(12 - $validatedWidget['w'], (int) $widget['x']));
+                $validatedWidget['y'] = max(0, min(999, (int) $widget['y']));
+            }
+            $validated[] = $validatedWidget;
             $ids[$id] = true;
         }
         return [
