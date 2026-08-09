@@ -2,6 +2,7 @@
 
 Status: **Approved implementation contract**
 Decision date: **2026-08-09**
+Phase 5A amendment approved: **2026-08-10**
 
 This document is the single controlled specification for the MarifeX dashboard presentation redesign and the narrowly approved supporting data additions. It consolidates the decisions drawn from the five supplied dashboard samples, the two Gemini reviews, the Claude review and the final MarifeX scope decisions.
 
@@ -224,6 +225,150 @@ Titles use sentence case, wrap to at most two lines and never use ellipsis as th
 - Below 768 px, all widgets become one column; chart legends move below only when a right-side legend cannot meet minimum plot width.
 - Responsive reflow changes presentation placement, not saved semantic filters or metric meaning.
 
+## Phase 5A: deterministic analytical insight layer
+
+Phase 5A extends the approved dashboard from count-oriented reporting to governed movement, flow, composition and concentration analysis. Every statement is produced by a fixed template from certified values. Phase 5A does not introduce AI narrative, prediction, anomaly inference, external benchmarking, arbitrary formulas, custom SQL or causal claims. The fixed calculations named below are approved derived presentations; they do not authorize a user formula editor or unnamed calculations.
+
+### Analytical questions
+
+Phase 5A must help a user answer:
+
+1. What changed during the selected period?
+2. Is the movement materially large?
+3. Where is the workload or exposure concentrated?
+4. Which single certified dimension changed the most?
+5. Is the evidence live, snapshot-based, fresh and comparison-ready?
+6. Which governed GLPI evidence should the user open?
+
+### Comparison windows and cold start
+
+- Comparisons follow the dashboard's selected 7, 30, 90, 180 or 365-day horizon. The comparison is always the immediately previous equal-length period; Phase 5A does not introduce a separate fixed weekly comparison.
+- A comparison requires `2 x horizon` consecutive completed daily snapshots within the active entity scope. A 30-day comparison therefore requires 60 completed daily snapshots. Missing required days keep the comparison unavailable.
+- Comparison readiness is calculated independently for the active entity scope, group filter, metric, horizon and cutoff. It is not a global dashboard flag.
+- Switching from a comparison-ready horizon to an unready horizon immediately removes the previous comparison and shows progress for the newly selected horizon. Switching back restores only the comparison valid for that horizon. Cached calculations must be keyed by entity scope, filter, metric, horizon and cutoff.
+- During cold start, current certified absolute values remain visible, while comparison, sustained-direction and contributor-movement claims are suppressed. The insight strip must not say `No material changes` when comparison history is incomplete.
+- Cold-start text identifies the selected baseline and progress, for example: `Building 30-day comparison baseline: 37 of 60 completed snapshots.` When the required snapshots are consecutive and scheduled future snapshots are healthy, the UI may also show the calculated availability date.
+
+| Selected horizon | Consecutive completed snapshots required |
+|---:|---:|
+| 7 days | 14 |
+| 30 days | 60 |
+| 90 days | 180 |
+| 180 days | 360 |
+| 365 days | 730 |
+
+### Approved derived measures
+
+All numerators and denominators are filtered to the active GLPI entity scope before aggregation. Ratios across multiple visible entities are calculated from the summed scoped numerators and denominators; entity-level ratios are never averaged or calculated globally and filtered afterward.
+
+| Measure | Controlled definition | Grain and comparison | Zero handling | Direction |
+|---|---|---|---|---|
+| Net ticket flow | tickets created minus tickets resolved | Sum over selected horizon versus previous equal horizon | Suppress when both values are zero | Negative is improving |
+| Resolution coverage | tickets resolved divided by tickets created | Sum over selected horizon versus previous equal horizon | When created is zero, show `No new tickets`; never show infinity | Above 100% indicates resolution exceeding arrival |
+| Backlog growth rate | `(open at period end - open at period start) / open at period start` | Selected horizon versus previous equal horizon | When start is zero, show absolute `0 to N` movement only | Negative is improving; zero is neutral |
+| Unassigned rate | unassigned open tickets divided by total open tickets at the same completed snapshot | Latest completed cutoff versus the equivalent previous-period cutoff | Suppress when total open is zero | Decreasing is improving |
+| High-priority backlog share | open tickets at GLPI priorities 4 High, 5 Very high and 6 Major divided by total open tickets | Same completed snapshot and previous equivalent cutoff | Suppress when total open is zero | Decreasing is improving |
+| Top-group workload share | largest assigned-group backlog divided by total assigned-group backlog; Unassigned is excluded | Same completed snapshot and previous equivalent cutoff | Suppress when no tickets are assigned | Neutral unless the informational majority rule applies |
+| Open request-source concentration | largest source within `tickets_by_request_source` divided by all open tickets represented by that certified metric | Same completed snapshot and previous equivalent cutoff | Suppress when the represented total is zero | Context-neutral; it must be described as open backlog composition, not incoming demand |
+| Stale-inventory exposure | `stale_computer_inventory / asset_inventory_total` using the same completed snapshot | Current completed cutoff versus the equivalent 30-day-ago cutoff when available | Suppress when managed non-template computer count is zero | Decreasing is improving |
+| Change net flow | changes created minus changes resolved | Sum over selected horizon versus previous equal horizon | Suppress when both values are zero | Negative is improving |
+| Change resolution coverage | resolved changes divided by created changes | Sum over selected horizon versus previous equal horizon | When created is zero, show `No new changes` | Above 100% indicates resolution exceeding arrival |
+| Problem net flow | problems created minus problems resolved | Sum over selected horizon versus previous equal horizon | Suppress when both values are zero | Negative is improving |
+| Problem resolution coverage | resolved problems divided by created problems | Sum over selected horizon versus previous equal horizon | When created is zero, show `No new problems` | Above 100% indicates resolution exceeding arrival |
+
+### Approved analytical use of existing measures
+
+- SLA exposure context combines the separately certified `sla_breach_count`, `sla_breach_rate` and `tickets_approaching_sla_breach` presentations. Phase 5A does not create a combined SLA risk percentage and does not replace the approved approaching-breach definition with a percentage-of-target threshold.
+- `unsatisfied_survey_responses` may show count movement because it is a historical integer series. A dissatisfaction rate remains unapproved until total survey responses are certified as its denominator.
+- `repeat_incident_computers` may show count and ranking movement using its existing trailing 30-day definition. Phase 5A does not change it to 90 days and does not create a rate without a certified incident-linked-asset denominator.
+- `latest_solution_refused_tickets` remains a live current count and evidence list. It must not show previous-period movement until a historical refused-solution rollup is separately certified, and it must not show a refusal rate until the proposed-solution denominator is certified.
+- Existing `software_license_compliance_rate` and `software_license_overallocated_seats` may show governed movement in the Asset and Licence dashboard. Phase 5A does not create an aggregate licence-utilization or coverage-gap ratio that could conceal title-level overallocation, and licence ratios do not enter the Executive brief.
+- Created-ticket demand by request source is analytically distinct from the approved open-ticket request-source metric and is deferred for separate certification.
+
+### Materiality, zero transitions and ranking
+
+An insight enters the Executive brief only after passing the approved materiality rules. Normal movement requires both the absolute and relative gates.
+
+| Measure class | Absolute gate | Relative gate |
+|---|---:|---:|
+| Count | 5 records | 10% of previous value |
+| Rate | 3 percentage points | 10% of previous value |
+| Net flow | 10 records | 10% of previous value |
+| Composition or concentration share | 5 percentage points | 10% of previous value |
+
+- Thresholds are fixed in a version-controlled analytical rule registry. Users cannot enter formulas or arbitrary thresholds. A changed threshold is a controlled product/scope change.
+- When the previous value is zero, relative movement is undefined. The absolute gate still applies; qualifying movement is labelled `New from zero`.
+- When the current value becomes zero, qualifying movement is labelled `Cleared to zero`. The previous value must meet the normal absolute floor.
+- Only a metric explicitly named in the version-controlled critical-bypass registry may bypass the absolute floor for a zero transition. Phase 5A creates no user-configurable bypass.
+- For comparable non-zero movements, the normalized materiality score is the lesser of `absolute change / absolute gate` and `absolute relative change / relative gate`. For an approved zero transition, the score is `absolute change / absolute gate`.
+- Insights rank worsening movements first, then improving movements. Within a direction they rank by normalized materiality score, then by this fixed class order: SLA exposure; backlog/flow/unassigned/priority; customer quality; asset/licence; change/problem. Exact ties use the certified metric key as a stable final ordering.
+- No more than five insights appear simultaneously. If none passes and history is ready, the brief says `No material snapshot changes in the selected period.`
+
+### Sustained direction and contributor analysis
+
+- `Momentum`, predictive-force wording and forecast language are prohibited. A sustained-direction statement is allowed only after the same certified measure moved in the same direction for at least three consecutive equal-length comparison periods.
+- Phase 5A identifies at most one largest contributing dimension change for a material metric and only when the same certified dimensional grain exists for both periods.
+- Contributor analysis is computed inside the active entity and profile scope. A dimension value that the user cannot view must not appear.
+- Approved wording is `Largest contributing dimension change`. The words `caused by`, `because`, `due to`, `resulted in`, `primary driver` and equivalent causal language are prohibited.
+- Multi-dimensional decomposition is outside Phase 5A.
+
+### Informational majority concentration
+
+- If one assignment group holds strictly more than 50% of the assigned workload, at least three groups have non-zero assigned workload and the normal ratio denominator gate is satisfied, the workload widget may show an informational blue `Majority concentration` indicator.
+- The indicator is factual and neutral. It must not be labelled critical, unhealthy, imbalanced or worsening.
+- Majority concentration enters the Executive brief only when its period movement also passes the normal composition-share materiality gates.
+- The threshold is fixed and non-configurable in Phase 5A. Per-group or specialist-group thresholds require a future governed threshold policy.
+
+### Freshness and analytical readiness
+
+- A pipeline-derived source becomes stale at `last successful completion + 1.5 x expected interval`, rounded upward to the nearest whole hour. For example, a six-hour cadence becomes stale after nine hours and a daily cadence after 36 hours.
+- The expected interval comes from the governed GLPI automatic-action schedule. A required pipeline that has never completed is `Missing`; a disabled required pipeline is `Unavailable`.
+- Live products show their query timestamp and are not assigned pipeline freshness.
+- A derived measure using multiple sources inherits the worst source state and uses the oldest contributing source timestamp as its effective freshness time.
+- Missing, unavailable or stale measures cannot enter the Executive brief. Their dependent callouts are individually suppressed; unrelated healthy insights remain available.
+- Settings shows factual analytical readiness coverage rather than a composite quality score, for example: `31 of 43 certified metrics are current; 8 have sufficient comparison history.`
+- The core comparison-readiness list is: `historical_open_backlog`, `created_vs_resolved_tickets`, `unassigned_open_tickets`, `tickets_approaching_sla_breach`, `sla_breach_count`, `sla_breach_rate`, `open_tickets_by_priority`, `historical_group_backlog`, `technician_workload_distribution` and `sla_breaches_by_technician`.
+- Live operational availability is reported separately for `current_open_tickets`, `active_sla_exceptions`, `operational_attention` and `latest_solution_refused_tickets`.
+- When a core insight source is not ready, the dashboard displays a compact readiness warning and Settings names the affected metrics.
+
+### Insight presentation and calculation transparency
+
+- KPI tiles retain their approved height. They add the absolute movement, direction, previous value and comparison context without creating another count card.
+- Existing charts, rankings and tables may highlight the relevant material point, row or segment and show a compact deterministic callout. These annotations must not reduce plot or label legibility.
+- A thin insight strip sits between the KPI and primary-analysis rows. Its collapsed state is approximately 32 px and shows the strongest material findings in one line rather than only a count of findings. Its user-expanded state is approximately 160 to 200 px and shows at most five insights. Expansion is deliberate and may move lower content below the fold.
+- Each expanded insight contains: metric and direction; current and previous values; absolute and percentage or percentage-point movement; comparison window; largest contributing dimension when valid; source and freshness; governed evidence action; and calculation-inspection action.
+- Calculation inspection displays the exact numerator, denominator, source values, formula version, comparison window, zero/suppression handling and result.
+- When insufficient history, denominator or freshness suppresses an insight, the UI states the exact reason and does not render an empty card.
+- Insight-level tabs are prohibited. Phase 5A uses the existing dashboard selector, existing Executive and focused dashboards, existing user-owned dashboards, duplication, templates, drag, resize and saved layouts. It creates no second view-management system and does not restrict the Phase 3 dashboard ownership model.
+
+### Export, scheduling, security and audit
+
+- PDF exports place a compact insight summary on page one and include the effective snapshot and freshness context. Evidence may use a governed authenticated GLPI link or a clear record reference; a page reference is allowed only when the referenced evidence is actually embedded in that PDF.
+- The existing CSV export remains one CSV file. Phase 5A uses an explicit `record_type` discriminator such as `metric`, `derived_measure` or `insight`; CSV output must not claim workbook sheets. Calculation fields use self-documenting headers or columns.
+- Screen, PDF, CSV and scheduled output apply identical denominator, materiality, freshness and authorization rules. Suppressed screen insights do not reappear as unsupported claims in exports.
+- Scheduled reports continue to execute with the owner's current rights and entity context, revalidating owner, entity and recipients before generation. Phase 5A does not introduce unapproved per-recipient impersonation or cached cross-session insights.
+- Entity and profile filtering is applied before aggregation and contributor selection. A derived value, contributor or evidence link must never expose a group, entity or record outside the current authorization scope.
+- Export and scheduled-report history stores the insight formula-version identifier, scoped source values, comparison values, applicable gates, pass/fail results and surfaced insights. Configuration and scope-version changes are audited.
+- Phase 5A does not log every successful interactive dashboard render. Interactive failures may use bounded operational logs. Any future per-render behavioral audit requires an approved retention and privacy policy.
+
+### Deferred and excluded analytical capabilities
+
+The following are not approved for Phase 5A implementation:
+
+- created-ticket demand by request source;
+- historical refused-solution movement and refused-solution rate;
+- dissatisfaction rate without a certified total-response denominator;
+- repeat-incident asset rate with a new denominator or changed time grain;
+- ticket reopen rate;
+- median, P75 or P90 first-response elapsed time;
+- multi-dimensional contribution decomposition;
+- aggregate licence-utilization or coverage-gap ratios on the Executive dashboard;
+- deployment-specific or per-group workload thresholds;
+- a new Service Delivery dashboard template or new navigation infrastructure;
+- user-entered materiality rules, formulas, dimensions or SQL;
+- per-render behavioral audit logging;
+- AI narrative, prediction, anomaly inference, external benchmarking or causal conclusions.
+
 ## Explicit exclusions
 
 The following remain outside approved scope:
@@ -259,3 +404,14 @@ The following remain outside approved scope:
 13. No excluded metric, widget, field or feature appears in code, configuration or dashboard templates.
 14. Structural tests verify the certified allowlists and the first-screen default layout.
 15. Any future deviation requires a written scope amendment before implementation.
+16. Every Phase 5A derived value follows the numerator, denominator, grain, zero handling and direction defined in this document.
+17. Comparison output appears only when two complete selected horizons exist for the active scope and filter; horizon switching never retains an invalid comparison.
+18. Cold-start dashboards show baseline progress and current certified values instead of `No material changes` or invented partial-period comparisons.
+19. Material insights pass the applicable absolute and relative gates, including the controlled new-from-zero and cleared-to-zero rules.
+20. Missing, unavailable or stale sources are excluded from the insight brief according to the approved cadence-based freshness calculation.
+21. The Executive brief contains no more than five deterministic insights, uses no causal or predictive language and exposes calculation details and governed evidence.
+22. Majority workload concentration uses only the fixed informational rule and never receives negative semantic classification.
+23. Existing dashboard selection, ownership, drag, resize and template behaviour remains unchanged; Phase 5A introduces no insight tabs or second view system.
+24. PDF, CSV and scheduled output use the same calculations, suppression and authorization rules as the screen; CSV output remains a valid single-file format.
+25. Entity and profile restrictions are applied before aggregation and contributor selection, and export history retains formula-version and materiality evidence.
+26. No deferred Phase 5B measure or other excluded capability appears in the registry, templates, configuration or output without a later written amendment.
