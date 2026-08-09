@@ -164,7 +164,8 @@ $assert(str_contains($dashboardFrontend, 'Create from template'), 'Builder must 
 $assert(str_contains($dashboardFrontend, 'duplicateDashboard'), 'Builder must expose dashboard duplication.');
 $assert(str_contains($dashboardFrontend, 'cancelEditing'), 'Builder must preserve draft/cancel behavior.');
 $assert(str_contains($dashboardFrontend, "mode: 'drag' | 'resize'"), 'Builder must provide pointer-driven drag and resize interactions.');
-$assert(str_contains($dashboardFrontend, 'layoutPositions'), 'Dashboard canvas must place widgets in deterministic aligned rows.');
+$assert(!str_contains($dashboardFrontend, 'layoutPositions'), 'Responsive widget placement must not combine fixed row coordinates with breakpoint width overrides.');
+$assert(str_contains($widgetFrontend, 'settingsOpen') && str_contains($widgetFrontend, 'marifex-widget--settings-open'), 'Widget settings must open as a non-sizing edit overlay.');
 $assert(str_contains($dashboardFrontend, "metric: 'asset_inventory_total'"), 'Widget catalog must expose certified Phase 4 asset metrics.');
 $assert(str_contains($dashboardFrontend, "metric: 'open_changes'"), 'Widget catalog must expose certified Phase 4 change metrics.');
 $assert(str_contains($dashboardFrontend, "metric: 'open_problems'"), 'Widget catalog must expose certified Phase 4 problem metrics.');

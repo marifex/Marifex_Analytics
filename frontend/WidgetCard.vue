@@ -9,10 +9,11 @@ import { widgetPalette, widgetPalettes, type WidgetPaletteKey } from './palettes
 
 use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
-const props = defineProps<{ widget: WidgetDefinition; gridX: number; gridY: number; data?: MetricResponse; loading: boolean; editing: boolean; interacting: boolean; interactionMode: 'drag' | 'resize' | null; selectedGroup: number | null; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string }>();
+const props = defineProps<{ widget: WidgetDefinition; data?: MetricResponse; loading: boolean; editing: boolean; interacting: boolean; interactionMode: 'drag' | 'resize' | null; selectedGroup: number | null; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string }>();
 const emit = defineEmits<{ remove: [id: string]; rename: [id: string, title: string]; palette: [id: string, palette: WidgetPaletteKey]; selectGroup: [id: number | null]; interactionStart: [id: string, mode: 'drag' | 'resize', event: PointerEvent] }>();
 const chartElement = ref<HTMLElement | null>(null);
 const widgetElement = ref<HTMLElement | null>(null);
+const settingsOpen = ref(false);
 let chart: ECharts | null = null;
 let resizeObserver: ResizeObserver | null = null;
 const activePalette = computed(() => widgetPalette(props.widget.palette));
@@ -34,6 +35,11 @@ const insightTop = computed(() => latestGroups.value[0]);
 const matrixColumns = computed(() => [...new Map((props.data?.matrix ?? []).map(cell => [cell.column_id, cell.column])).entries()].slice(0, 6));
 const matrixRows = computed(() => [...new Map((props.data?.matrix ?? []).map(cell => [cell.row_id, cell.row])).entries()]);
 function matrixValue(rowId: number, columnId: number): number { return props.data?.matrix?.find(cell => cell.row_id === rowId && cell.column_id === columnId)?.value ?? 0; }
+function toggleSettings(): void {
+  settingsOpen.value = !settingsOpen.value;
+  if (settingsOpen.value) window.dispatchEvent(new CustomEvent('marifex-widget-settings', { detail: props.widget.id }));
+}
+function closeOtherSettings(event: Event): void { if ((event as CustomEvent<string>).detail !== props.widget.id) settingsOpen.value = false; }
 const kpiValue = computed(() => {
   const value = props.data?.value ?? points.value.at(-1)?.value;
   if (value === undefined) return 'Not available';
@@ -141,20 +147,23 @@ function draw(): void {
 let resizeTimer: number | undefined;
 function resize(): void { if (resizeTimer) window.clearTimeout(resizeTimer); resizeTimer = window.setTimeout(() => chart?.resize({ animation: { duration: 0 } }), 150); }
 watch(() => [props.data, props.widget.type, props.widget.palette, props.selectedGroup, props.loading], async () => { await nextTick(); draw(); }, { deep: true });
-onMounted(() => { draw(); resizeObserver = new ResizeObserver(() => resize()); if (widgetElement.value) resizeObserver.observe(widgetElement.value); });
-onBeforeUnmount(() => { if (resizeTimer) window.clearTimeout(resizeTimer); resizeObserver?.disconnect(); chart?.dispose(); });
+watch(() => props.editing, editing => { if (!editing) settingsOpen.value = false; });
+onMounted(() => { draw(); resizeObserver = new ResizeObserver(() => resize()); if (widgetElement.value) resizeObserver.observe(widgetElement.value); window.addEventListener('marifex-widget-settings', closeOtherSettings); });
+onBeforeUnmount(() => { if (resizeTimer) window.clearTimeout(resizeTimer); resizeObserver?.disconnect(); chart?.dispose(); window.removeEventListener('marifex-widget-settings', closeOtherSettings); });
 </script>
 
 <template>
-  <article ref="widgetElement" class="card marifex-widget" :class="[`marifex-widget--${widget.type}`, `marifex-widget--palette-${activePalette.key}`, { 'marifex-widget--editing': editing, 'marifex-widget--dragging': interacting && interactionMode === 'drag', 'marifex-widget--resizing': interacting && interactionMode === 'resize' }]" :style="{ '--marifex-widget-rows': String(widget.h), gridColumn: `${gridX} / span ${widget.w}`, gridRow: `${gridY} / span ${widget.h}` }" :data-widget-id="widget.id" :data-widget-width="widget.w">
+  <article ref="widgetElement" class="card marifex-widget" :class="[`marifex-widget--${widget.type}`, `marifex-widget--palette-${activePalette.key}`, { 'marifex-widget--editing': editing, 'marifex-widget--settings-open': settingsOpen, 'marifex-widget--dragging': interacting && interactionMode === 'drag', 'marifex-widget--resizing': interacting && interactionMode === 'resize' }]" :style="{ '--marifex-widget-rows': String(widget.h), gridColumn: `span ${widget.w}`, gridRow: `span ${widget.h}` }" :data-widget-id="widget.id" :data-widget-width="widget.w">
     <div class="card-header marifex-widget__header" :class="{ 'marifex-widget__drag-handle': editing }" @pointerdown="editing && emit('interactionStart', widget.id, 'drag', $event)">
       <div><span v-if="data?.source === 'live'" class="marifex-widget__kicker">Live GLPI</span><h2 class="card-title">{{ widget.title }}</h2></div>
       <div v-if="editing" class="marifex-widget__actions">
         <span class="marifex-drag-indicator" aria-hidden="true" title="Drag widget"><i></i><i></i><i></i><i></i><i></i><i></i></span>
-        <button class="btn btn-sm btn-ghost-danger" type="button" title="Remove widget" @pointerdown.stop @click.stop="emit('remove', widget.id)">Remove</button>
+        <button class="btn btn-sm btn-ghost-secondary marifex-widget-action" type="button" title="Widget settings" aria-label="Widget settings" :aria-expanded="settingsOpen" @pointerdown.stop @click.stop="toggleSettings"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm8-3.5 2-1-2-3.5-2.2.5a8 8 0 0 0-1.7-1L15.5 5h-4L11 7a8 8 0 0 0-1.7 1L7 7.5 5 11l2 1a8 8 0 0 0 0 2L5 15l2 3.5 2.3-.5a8 8 0 0 0 1.7 1l.5 2h4l.6-2a8 8 0 0 0 1.7-1l2.2.5 2-3.5-2-1a8 8 0 0 0 0-2Z"/></svg></button>
+        <button class="btn btn-sm btn-ghost-danger marifex-widget-action" type="button" title="Remove widget" aria-label="Remove widget" @pointerdown.stop @click.stop="emit('remove', widget.id)"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7m4 4v6m4-6v6"/></svg></button>
       </div>
     </div>
-    <div v-if="editing" class="marifex-widget__settings">
+    <div v-if="editing && settingsOpen" class="marifex-widget__settings">
+      <button class="btn-close marifex-widget__settings-close" type="button" aria-label="Close widget settings" @click="settingsOpen = false"></button>
       <div><label class="form-label" :for="`title-${widget.id}`">Widget title</label><input :id="`title-${widget.id}`" class="form-control form-control-sm" :value="widget.title" maxlength="100" @change="emit('rename', widget.id, ($event.target as HTMLInputElement).value)"></div>
       <div><label class="form-label" :for="`palette-${widget.id}`">Color palette</label><select :id="`palette-${widget.id}`" class="form-select form-select-sm" :value="activePalette.key" @change="emit('palette', widget.id, ($event.target as HTMLSelectElement).value as WidgetPaletteKey)"><option v-for="palette in widgetPalettes" :key="palette.key" :value="palette.key">{{ palette.label }} · {{ palette.type }}</option></select></div>
     </div>

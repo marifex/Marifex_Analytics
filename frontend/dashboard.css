@@ -184,3 +184,14 @@
 @container (width < 82rem) { .marifex-widget--kpi { grid-column: span 4 !important; } }
 @container (width < 64rem) { .marifex-widget--kpi { grid-column: span 6 !important; } .marifex-widget:not(.marifex-widget--kpi):not(.marifex-widget--insight) { grid-column: 1 / -1 !important; } }
 @container (width < 44rem) { .marifex-widget { grid-column: 1 / -1 !important; } .marifex-donut-layout { grid-template-columns: 1fr; grid-template-rows: minmax(8rem, 1fr) auto; } .marifex-donut-legend { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+
+/* Edit mode preserves the rendered canvas; controls float without changing tracks. */
+.marifex-widget--editing { overflow: visible; }
+.marifex-widget--settings-open { z-index: 20; }
+.marifex-widget--editing .marifex-widget__actions { align-items: center; background: color-mix(in srgb, var(--mx-widget-bg) 92%, #fff); border: 1px solid var(--mx-widget-border); border-radius: 5px; flex-wrap: nowrap; gap: 1px; inset-block-start: 3px; inset-inline-end: 3px; padding: 1px; position: absolute; z-index: 5; }
+.marifex-widget-action { align-items: center; block-size: 24px; display: inline-flex; inline-size: 24px; justify-content: center; padding: 3px; }
+.marifex-widget-action svg { block-size: 14px; fill: none; inline-size: 14px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
+.marifex-widget--editing .marifex-drag-indicator { padding: 4px; }
+.marifex-widget--editing .marifex-widget__body { overflow: hidden; }
+.marifex-widget--editing .marifex-widget__settings { background: #fff; border: 1px solid #d9dde3; border-radius: 6px; box-shadow: 0 16px 40px rgb(15 23 42 / 18%); display: grid; gap: 10px; grid-template-columns: 1fr; inset-block: 88px 16px; inset-inline-end: 16px; overflow: auto; padding: 38px 16px 16px; position: fixed; width: min(320px, calc(100vw - 32px)); z-index: 1060; }
+.marifex-widget__settings-close { inset-block-start: 12px; inset-inline-end: 12px; position: absolute; }

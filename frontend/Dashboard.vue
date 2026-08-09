@@ -83,16 +83,6 @@ const catalog: Array<Omit<WidgetDefinition, 'id' | 'palette'>> = [
 const definition = computed(() => dashboard.value?.definition);
 const hasGroupFilter = computed(() => definition.value?.widgets.some(widget => supportsGroup(widget.metric)) ?? false);
 const dashboardSchedules = computed(() => schedules.value.filter(schedule => schedule.dashboard_definitions_id === dashboard.value?.id));
-const layoutPositions = computed(() => {
-  const positions: Record<string, { x: number; y: number }> = {};
-  let x = 1; let y = 1; let rowHeight = 0;
-  for (const widget of definition.value?.widgets ?? []) {
-    if (x + widget.w - 1 > 12) { y += rowHeight; x = 1; rowHeight = 0; }
-    positions[widget.id] = { x, y };
-    x += widget.w; rowHeight = Math.max(rowHeight, widget.h);
-  }
-  return positions;
-});
 const groups = computed(() => {
   const groupMetric = metrics.value[metricKey('historical_group_backlog', null)];
   const points = (groupMetric?.series ?? []) as Array<{ dimension_id?: number; dimension?: string }>;
@@ -343,7 +333,7 @@ onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(ref
       <div><label class="form-label" for="marifex-dashboard-name">Dashboard name</label><input id="marifex-dashboard-name" v-model.trim="dashboard.name" class="form-control" maxlength="120"></div>
       <button class="btn btn-outline-primary" type="button" @click="catalogOpen = true">Add widget</button>
       <button v-if="dashboard.id" class="btn btn-outline-danger" type="button" @click="deleteDashboard">Delete dashboard</button>
-      <small>Drag a card by its header to position it. Drag the corner grip to resize it; nearby widgets and chart content adjust automatically.</small>
+      <small>The canvas keeps the saved view geometry while editing. Drag a card by its header, resize from its corner grip, and use the settings icon for title or palette without changing card size.</small>
     </div>
 
     <div v-if="definition" class="card marifex-filterbar">
@@ -356,7 +346,7 @@ onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(ref
 
     <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
     <div v-if="definition" ref="gridElement" class="marifex-widget-grid" :class="{ 'marifex-widget-grid--editing': editing }">
-      <WidgetCard v-for="widget in definition.widgets" :key="widget.id" :widget="widget" :grid-x="layoutPositions[widget.id]?.x ?? 1" :grid-y="layoutPositions[widget.id]?.y ?? 1" :data="dataFor(widget)" :loading="loading" :editing="editing" :interacting="interactingWidget === widget.id" :interaction-mode="interactingWidget === widget.id ? interactionMode : null" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" :asset-search-url="assetSearchUrl" :licence-search-url="licenceSearchUrl" :change-search-url="changeSearchUrl" :problem-search-url="problemSearchUrl" @remove="removeWidget" @rename="renameWidget" @palette="recolorWidget" @select-group="chooseGroup" @interaction-start="beginInteraction" />
+      <WidgetCard v-for="widget in definition.widgets" :key="widget.id" :widget="widget" :data="dataFor(widget)" :loading="loading" :editing="editing" :interacting="interactingWidget === widget.id" :interaction-mode="interactingWidget === widget.id ? interactionMode : null" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" :asset-search-url="assetSearchUrl" :licence-search-url="licenceSearchUrl" :change-search-url="changeSearchUrl" :problem-search-url="problemSearchUrl" @remove="removeWidget" @rename="renameWidget" @palette="recolorWidget" @select-group="chooseGroup" @interaction-start="beginInteraction" />
     </div>
 
     <div v-if="catalogOpen" class="marifex-catalog-backdrop" role="presentation" @click.self="catalogOpen = false"><aside class="marifex-catalog" role="dialog" aria-modal="true" aria-labelledby="catalog-title"><header><div><p class="marifex-command__eyebrow">Certified semantic layer</p><h2 id="catalog-title">Widget library</h2></div><button class="btn-close" type="button" aria-label="Close" @click="catalogOpen = false"></button></header><p class="text-secondary">Every widget uses an approved metric. SQL and unrestricted data access are never accepted.</p><div class="marifex-catalog__grid"><button v-for="item in catalog" :key="`${item.metric}-${item.type}`" class="card marifex-catalog-item" type="button" @click="addWidget(item)"><span class="badge bg-azure-lt">{{ item.type }}</span><strong>{{ item.title }}</strong><small>{{ item.metric.replaceAll('_', ' ') }}</small></button></div></aside></div>
