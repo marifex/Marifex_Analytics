@@ -30,6 +30,7 @@ final class HomeDashboardTab extends CommonGLPI
         }
         TemplateRenderer::getInstance()->display('@marifex/dashboard/embed.html.twig', [
             'metric_endpoint' => '/plugins/marifex/api/metrics',
+            'insight_endpoint' => '/plugins/marifex/api/insights',
             'definition_endpoint' => '/plugins/marifex/api/dashboard',
             'ticket_drilldown_url' => '/plugins/marifex/drilldown/tickets',
             'asset_search_url' => '/front/computer.php',

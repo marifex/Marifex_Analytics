@@ -5,7 +5,10 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/vendor/autoload.php';
 
 use GlpiPlugin\Marifex\Install\Schema;
+use GlpiPlugin\Marifex\Insight\InsightCalculator;
+use GlpiPlugin\Marifex\Insight\InsightRuleRegistry;
 use GlpiPlugin\Marifex\Metric\MetricRegistry;
+use GlpiPlugin\Marifex\Report\CsvReportRenderer;
 use GlpiPlugin\Marifex\Report\HtmlReportRenderer;
 
 $failures = [];
@@ -22,12 +25,49 @@ $assert(count(array_filter($definitions, static fn ($definition): bool => $defin
 $metricQuery = file_get_contents(dirname(__DIR__) . '/src/Metric/MetricQueryService.php');
 $assert(str_contains($metricQuery, "['breached_count']") && str_contains($metricQuery, "['approaching_count']"), 'Operational attention must use complete SLA counts rather than the truncated detail rows.');
 
+$insightSeries = ['created_vs_resolved_tickets' => ['series' => []], 'historical_open_backlog' => ['series' => []], 'historical_group_backlog' => ['series' => []]];
+$fixtureStart = new DateTimeImmutable('2026-01-01');
+for ($day = 0; $day < 15; $day++) {
+    $date = $fixtureStart->modify('+' . $day . ' days')->format('Y-m-d');
+    $currentPeriod = $day >= 8;
+    $insightSeries['created_vs_resolved_tickets']['series'][] = ['date' => $date, 'dimension_id' => 1, 'dimension' => 'Created', 'value' => $currentPeriod ? 20 : 10];
+    $insightSeries['created_vs_resolved_tickets']['series'][] = ['date' => $date, 'dimension_id' => 2, 'dimension' => 'Resolved', 'value' => $currentPeriod ? 10 : 9];
+    $backlog = $day === 14 ? 140 : ($day >= 7 ? 110 : 100);
+    $insightSeries['historical_open_backlog']['series'][] = ['date' => $date, 'value' => $backlog];
+    foreach (($day >= 8 ? [1 => 60, 2 => 20, 3 => 20] : [1 => 40, 2 => 30, 3 => 30]) as $id => $value) {
+        $insightSeries['historical_group_backlog']['series'][] = ['date' => $date, 'dimension_id' => $id, 'dimension' => 'Group ' . $id, 'value' => $value];
+    }
+}
+$calculatedInsights = (new InsightCalculator())->calculate($insightSeries, [
+    'created_vs_resolved_tickets' => ['state' => 'current', 'completed_at' => '2026-01-16 01:00:00'],
+    'historical_open_backlog' => ['state' => 'current', 'completed_at' => '2026-01-16 01:00:00'],
+    'historical_group_backlog' => ['state' => 'current', 'completed_at' => '2026-01-16 01:00:00'],
+], new DateTimeImmutable('2026-01-15'), 7);
+$insightsByKey = array_column($calculatedInsights['insights'], null, 'key');
+$assert($calculatedInsights['formula_version'] === InsightRuleRegistry::FORMULA_VERSION, 'Phase 5A output must retain the normative formula-set identifier.');
+$assert(($insightsByKey['net_ticket_flow']['current'] ?? null) === 70.0 && ($insightsByKey['net_ticket_flow']['previous'] ?? null) === 7.0, 'Net ticket flow must compare equal seven-day periods.');
+$assert(($insightsByKey['resolution_coverage']['current'] ?? null) === 50.0 && ($insightsByKey['resolution_coverage']['previous'] ?? null) === 90.0, 'Resolution coverage must use resolved divided by created for each equal period.');
+$assert(abs((float) ($insightsByKey['backlog_growth_rate']['current'] ?? 0) - 27.3) < 0.01, 'Backlog growth must use certified period boundary snapshots.');
+$assert(count($calculatedInsights['insights']) <= 5, 'The Executive brief must never expose more than five findings.');
+$assert(($calculatedInsights['indicators'][0]['label'] ?? '') === 'Majority concentration', 'The fixed informational majority rule must identify a greater-than-50-percent share across at least three groups.');
+$completedFixtureDates = array_map(static fn(int $day): string => $fixtureStart->modify('+' . $day . ' days')->format('Y-m-d'), range(1, 14));
+$lowVolumeInsights = (new InsightCalculator())->calculate([
+    'unassigned_open_tickets' => ['completed_dates' => $completedFixtureDates, 'series' => [['date' => '2026-01-08', 'value' => 1], ['date' => '2026-01-15', 'value' => 2]]],
+    'historical_open_backlog' => ['completed_dates' => $completedFixtureDates, 'series' => [['date' => '2026-01-01', 'value' => 4], ['date' => '2026-01-08', 'value' => 4], ['date' => '2026-01-15', 'value' => 4]]],
+], [
+    'unassigned_open_tickets' => ['state' => 'current', 'completed_at' => '2026-01-16 01:00:00'],
+    'historical_open_backlog' => ['state' => 'current', 'completed_at' => '2026-01-16 01:00:00'],
+], new DateTimeImmutable('2026-01-15'), 7);
+$suppressionByKey = array_column($lowVolumeInsights['suppressed'], null, 'key');
+$assert(($suppressionByKey['unassigned_rate']['code'] ?? '') === 'DENOMINATOR_BELOW_MINIMUM', 'A below-floor ratio must be suppressed and must never be rendered as zero.');
+
 $tables = Schema::tables();
-$assert(count($tables) === 12, 'Analytics schema must contain twelve plugin-owned tables.');
+$assert(count($tables) === 13, 'Analytics schema must contain thirteen plugin-owned tables.');
 $assert(isset($tables['glpi_plugin_marifex_daily_matrix_rollups']), 'The approved priority and category matrix must use a bounded plugin-owned rollup.');
 $assert(isset($tables['glpi_plugin_marifex_dashboard_provisions']), 'Dashboard release provisioning must be tracked per user and entity.');
 $assert(isset($tables['glpi_plugin_marifex_report_schedules']), 'Phase 5 must persist governed report schedules.');
 $assert(isset($tables['glpi_plugin_marifex_report_runs']), 'Phase 5 must retain immutable report execution history.');
+$assert(isset($tables['glpi_plugin_marifex_analytical_audit']), 'Phase 5A must audit controlled configuration and formula-scope changes.');
 foreach ($tables as $name => $sql) {
     $assert(str_starts_with($name, 'glpi_plugin_marifex_'), "Unexpected table name: $name");
     $assert(!str_contains($sql, 'glpi_tickets` ('), 'Schema must not modify the operational ticket table.');
@@ -37,11 +77,15 @@ foreach ($tables as $name => $sql) {
 $controller = file_get_contents(dirname(__DIR__) . '/src/Controller/MetricController.php');
 $assert(!str_contains($controller, 'SELECT '), 'Metric controller must not accept or build SQL.');
 $assert(str_contains($controller, 'Profile::canView()'), 'Metric controller must enforce the plugin profile right.');
+$insightController = file_get_contents(dirname(__DIR__) . '/src/Controller/InsightController.php');
+$assert(str_contains($insightController, "Route('/api/insights'") && str_contains($insightController, 'Profile::canView()'), 'Phase 5A insights must use a permission-checked bounded API.');
 
 $settings = file_get_contents(dirname(__DIR__) . '/src/Controller/SettingsController.php');
 $assert(str_contains($settings, 'Profile::canAdminister()'), 'Settings controller must enforce the plugin admin right.');
 $assert(str_contains($settings, 'Phase4StatusService'), 'Settings must expose Phase 4 metric health.');
 $assert(str_contains($settings, 'HeadlessPdfRenderer'), 'Settings must expose Phase 5 PDF engine readiness.');
+$assert(str_contains($settings, 'InsightService'), 'Settings must expose factual Phase 5A comparison readiness.');
+$assert(str_contains($settings, 'AnalyticalAuditService'), 'Settings changes must create a bounded Phase 5A audit record.');
 $assert(str_contains(file_get_contents(dirname(__DIR__) . '/setup.php'), "Hooks::CONFIG_PAGE]['marifex'] = 'Settings'"), 'Plugin must expose its native configuration action.');
 
 $phase4Status = file_get_contents(dirname(__DIR__) . '/src/Metric/Phase4StatusService.php');
@@ -196,6 +240,7 @@ $assert(str_contains($dashboardFrontend, 'v-if="hasGroupFilter"'), 'Ticket group
 $assert(str_contains($dashboardFrontend, '@change="persistFilters"'), 'Dashboard horizon and global filters must persist to the active saved dashboard.');
 $assert(str_contains($dashboardFrontend, "exportUrl('pdf')"), 'Home dashboards must expose governed PDF export.');
 $assert(str_contains($dashboardFrontend, "exportUrl('csv')"), 'Home dashboards must expose governed CSV export.');
+$assert(str_contains($dashboardFrontend, 'InsightStrip') && str_contains($dashboardFrontend, 'loadInsights'), 'Home dashboards must load the governed Phase 5A insight strip.');
 $assert(str_contains($dashboardFrontend, 'Schedule dashboard report'), 'Home dashboards must expose scheduled delivery configuration.');
 $assert(!str_contains($widgetFrontend, '>W {{ widget.w }}</button>') && !str_contains($widgetFrontend, '>H {{ widget.h }}</button>'), 'Builder must not expose developer-style W/H resize buttons.');
 $assert(str_contains($widgetFrontend, 'ResizeObserver'), 'Charts must observe and adapt to widget size changes.');
@@ -203,6 +248,7 @@ $assert(str_contains($widgetFrontend, 'resizeTimer') && str_contains($widgetFron
 $assert(str_contains($widgetFrontend, 'donutGroups') && str_contains($widgetFrontend, "dimension: 'Other'"), 'Donuts must cap categories and aggregate the remainder as Other.');
 $assert(str_contains($widgetFrontend, "widget.type === 'attention'") && str_contains($widgetFrontend, "widget.type === 'matrix'"), 'Controlled attention and matrix presentations must be rendered.');
 $assert(str_contains($widgetFrontend, 'Color palette') && str_contains($widgetFrontend, "emit('palette'"), 'Every widget must expose a palette selector in edit mode.');
+$assert(!str_contains($widgetFrontend, 'vs previous period'), 'KPI cards must not compare only the last two samples as if they were the selected horizon.');
 $assert(str_contains($dashboardFrontend, '@palette="recolorWidget"'), 'Per-widget palette changes must update the saved dashboard definition.');
 $paletteFrontend = file_get_contents(dirname(__DIR__) . '/frontend/palettes.ts');
 $assert(str_contains($paletteFrontend, "defaultWidgetPalette: WidgetPaletteKey = 'cream_gold'") && str_contains($paletteFrontend, "type: 'Gradient'"), 'Cream Gold must remain the default widget gradient palette.');
@@ -249,6 +295,8 @@ $assert(str_contains($reportAuthorization, 'RIGHT_EXPORT') && str_contains($repo
 $assert(str_contains($reportAuthorization, 'getSonsOf'), 'Scheduled report authorization must respect recursive entity access.');
 $assert(str_contains($reportSchedule, 'Session::checkCSRF') || str_contains(file_get_contents(dirname(__DIR__) . '/src/Controller/ReportScheduleController.php'), 'Session::checkCSRF'), 'Report schedule writes must enforce GLPI CSRF validation.');
 $assert(str_contains($reportRunner, 'validateRecipients'), 'Every scheduled delivery must revalidate recipients.');
+$assert(str_contains($csvRenderer, "'record_type'") && str_contains($csvRenderer, "'formula_version'"), 'Phase 5A CSV output must distinguish records and preserve formula evidence.');
+$assert(str_contains($reportExport, "'insight_evidence'") && str_contains($reportExport, "'formula_version'"), 'Report history must retain scoped Phase 5A calculation evidence.');
 $assert(str_contains($csvRenderer, "preg_match('/^[=+\\-@\\t\\r]/'"), 'CSV exports must neutralize spreadsheet formula injection.');
 $assert(str_contains($pdfRenderer, '--headless=new') && str_contains($pdfRenderer, '--print-to-pdf='), 'PDF export must use the scoped headless-browser architecture.');
 $assert(str_contains($pdfRenderer, "is_file('/.dockerenv')") && str_contains($pdfRenderer, "['--no-sandbox']"), 'Containerized PDF export must use the explicit Chromium sandbox compatibility flag.');
@@ -270,6 +318,14 @@ $assert(str_contains($renderedFixture, 'Service Desk') && str_contains($rendered
 $assert(str_contains($renderedFixture, 'Open SLA breaches') && str_contains($renderedFixture, 'severity-critical'), 'Static PDF attention widgets must include severity and counts.');
 $assert(str_contains($renderedFixture, '#7 Ticket') && str_contains($renderedFixture, '2h overdue'), 'Static PDF detail tables must include record values.');
 $assert(str_contains($renderedFixture, 'Medium') && str_contains($renderedFixture, 'Hardware'), 'Static PDF matrices must include row and column values.');
+$reportFixture['insights'] = $calculatedInsights;
+$renderedInsightFixture = (new HtmlReportRenderer())->render($reportFixture);
+$assert(str_contains($renderedInsightFixture, 'Executive insight summary') && str_contains($renderedInsightFixture, 'phase5a-1'), 'PDF page one must include the governed Phase 5A summary and formula version.');
+$csvPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'marifex-phase5a-' . bin2hex(random_bytes(4)) . '.csv';
+(new CsvReportRenderer())->render($reportFixture, $csvPath);
+$csvFixture = file_get_contents($csvPath);
+@unlink($csvPath);
+$assert(str_contains((string) $csvFixture, 'record_type') && str_contains((string) $csvFixture, 'phase5a-1'), 'CSV export must include governed insight rows in the single report file.');
 $assert(str_contains($reportSchedule, 'new DateTimeZone($timezone)') && !str_contains($reportSchedule, '!in_array($timezone, DateTimeZone::listIdentifiers(), true)'), 'Schedules must accept valid IANA aliases reported by browsers.');
 $assert(str_contains(file_get_contents(dirname(__DIR__) . '/hook.php'), "'scheduledReports'"), 'Phase 5 must register the scheduled report GLPI automatic action.');
 
@@ -283,6 +339,7 @@ $assert(str_contains($drilldownController, 'activeEntityIds()'), 'Ticket drilldo
 
 $dashboardEmbed = file_get_contents(dirname(__DIR__) . '/templates/dashboard/embed.html.twig');
 $assert(str_contains($dashboardEmbed, 'data-definition-endpoint'), 'Dashboard shell must expose the saved definition endpoint to the scoped app.');
+$assert(str_contains($dashboardEmbed, 'data-insight-endpoint'), 'Dashboard shell must expose the governed Phase 5A endpoint.');
 $assert(str_contains($dashboardEmbed, 'data-ticket-search-url'), 'Dashboard shell must expose the GLPI-owned drilldown target.');
 $assert(str_contains($dashboardEmbed, 'data-asset-search-url'), 'Dashboard shell must expose the native asset drilldown target.');
 $assert(str_contains($dashboardEmbed, 'data-licence-search-url'), 'Dashboard shell must expose the native licence drilldown target.');

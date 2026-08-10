@@ -10,6 +10,48 @@ export type MetricResponse = {
   matrix?: Array<{ row_id: number; row: string; column_id: number; column: string; value: number }>;
   as_of?: string;
 };
+export type InsightCalculation = {
+  formula_version: string;
+  formula: string;
+  current_numerator?: number;
+  current_denominator?: number;
+  previous_numerator?: number;
+  previous_denominator?: number;
+  absolute_gate: number;
+  relative_gate_percent: number;
+  result: number;
+  indicator?: string;
+};
+export type InsightItem = {
+  key: string;
+  label: string;
+  direction: 'worsening' | 'improving' | 'neutral';
+  unit: string;
+  current: number;
+  previous: number;
+  absolute_change: number;
+  relative_change_percent: number | null;
+  percentage_point_change: number | null;
+  materiality_score: number;
+  comparison_text: string;
+  narrative: string;
+  contributor?: { dimension_id: number; label: string; delta: number } | null;
+  evidence_target: 'ticket' | 'asset' | 'licence' | 'change' | 'problem';
+  source: 'data_mart';
+  as_of: string | null;
+  calculation: InsightCalculation;
+};
+export type InsightResponse = {
+  formula_version: string;
+  horizon_days: number;
+  cutoff: string;
+  generated_at: string;
+  summary: string;
+  insights: InsightItem[];
+  suppressed: Array<{ key: string; code: string; message: string }>;
+  indicators: Array<{ key: string; metric: string; label: string; severity: 'informational'; value: number }>;
+  readiness: { ready_metrics: number; total_metrics: number; required_snapshots: number; metrics: Array<{ metric: string; completed: number; required: number; ready: boolean; state: string }> };
+};
 export type WidgetType = 'kpi' | 'line' | 'bar' | 'donut' | 'table' | 'detail_table' | 'matrix' | 'attention' | 'insight';
 export type WidgetDefinition = { id: string; metric: string; type: WidgetType; title: string; palette: import('./palettes').WidgetPaletteKey; w: number; h: number; x?: number; y?: number };
 export type DashboardDefinition = { version: number; dateRangeDays: number; refreshMinutes: number; filters: { groupId: number | null }; widgets: WidgetDefinition[] };

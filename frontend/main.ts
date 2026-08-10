@@ -8,6 +8,7 @@ function mountDashboard(root: HTMLElement): void {
   const pageCsrfToken = document.querySelector<HTMLMetaElement>('meta[property="glpi:csrf_token"]')?.content ?? '';
   createApp(Dashboard, {
     metricEndpoint: root.dataset.metricEndpoint ?? '/plugins/marifex/api/metrics',
+    insightEndpoint: root.dataset.insightEndpoint ?? '/plugins/marifex/api/insights',
     definitionEndpoint: root.dataset.definitionEndpoint ?? '/plugins/marifex/api/dashboard',
     csrfToken: root.dataset.csrfToken ?? pageCsrfToken,
     ticketSearchUrl: root.dataset.ticketSearchUrl ?? '/plugins/marifex/drilldown/tickets',

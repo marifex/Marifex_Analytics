@@ -117,6 +117,8 @@ final class ReportExporter
                 'file_name' => $fileName,
                 'file_path' => $path,
                 'file_hash' => hash_file('sha256', $path),
+                'formula_version' => (string) ($report['insights']['formula_version'] ?? ''),
+                'insight_evidence' => json_encode($report['insights'] ?? [], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
                 'completed_at' => $completed,
                 'expires_at' => gmdate('Y-m-d H:i:s', time() + ($retention * DAY_TIMESTAMP)),
             ], ['id' => $runId]);

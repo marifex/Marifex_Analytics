@@ -72,6 +72,13 @@
   </div>
 
   <div class="card mt-3">
+    <div class="card-header"><div><h2 class="card-title">{{ __('Phase 5A analytical readiness', 'marifex') }}</h2><div class="text-secondary mt-1"><code>{{ phase5_readiness.formula_version }}</code> · {{ phase5_readiness.certified_current }} of {{ phase5_readiness.certified_total }} certified metrics are current; {{ phase5_readiness.comparison_ready }} of {{ phase5_readiness.comparison_total }} core metrics have a complete 30-day comparison baseline.</div></div></div>
+    <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>{{ __('Core metric', 'marifex') }}</th><th>{{ __('Baseline snapshots', 'marifex') }}</th><th>{{ __('Source state', 'marifex') }}</th><th>{{ __('Ready', 'marifex') }}</th></tr></thead><tbody>
+      {% for metric in phase5_readiness.metrics %}<tr><td><code>{{ metric.metric }}</code></td><td>{{ metric.completed }} / {{ metric.required }}</td><td>{{ metric.state }}</td><td><span class="badge {{ metric.ready ? 'bg-green-lt' : 'bg-yellow-lt' }}">{{ metric.ready ? __('Ready', 'marifex') : __('Building baseline', 'marifex') }}</span></td></tr>{% endfor %}
+    </tbody></table></div>
+  </div>
+
+  <div class="card mt-3">
     <div class="card-header"><h2 class="card-title">{{ __('Verified event mappings', 'marifex') }}</h2></div>
     <div class="table-responsive">
       <table class="table table-vcenter card-table">
@@ -145,16 +152,17 @@
     </div>
     <div class="table-responsive">
       <table class="table table-vcenter card-table">
-        <thead><tr><th>{{ __('Started', 'marifex') }}</th><th>{{ __('Format', 'marifex') }}</th><th>{{ __('Status') }}</th><th>{{ __('Recipients', 'marifex') }}</th><th>{{ __('Result', 'marifex') }}</th></tr></thead>
+        <thead><tr><th>{{ __('Started', 'marifex') }}</th><th>{{ __('Format', 'marifex') }}</th><th>{{ __('Status') }}</th><th>{{ __('Formula', 'marifex') }}</th><th>{{ __('Recipients', 'marifex') }}</th><th>{{ __('Result', 'marifex') }}</th></tr></thead>
         <tbody>
           {% for run in report_runs %}
             <tr>
               <td>{{ run.started_at }}</td><td>{{ run.format|upper }}</td>
               <td><span class="badge {{ run.status == 'completed' ? 'bg-green-lt' : (run.status == 'running' ? 'bg-yellow-lt' : 'bg-red-lt') }}">{{ run.status }}</span></td>
+              <td><code>{{ run.formula_version|default('—') }}</code></td>
               <td>{{ run.recipient_count }}</td>
               <td>{% if run.status == 'completed' and run.file_path %}<a href="{{ report_file_url }}/{{ run.id }}">{{ run.file_name }}</a>{% else %}<span class="text-secondary">{{ run.error_message|default(__('No file', 'marifex')) }}</span>{% endif %}</td>
             </tr>
-          {% else %}<tr><td colspan="5" class="text-secondary">{{ __('No report has been generated yet.', 'marifex') }}</td></tr>{% endfor %}
+          {% else %}<tr><td colspan="6" class="text-secondary">{{ __('No report has been generated yet.', 'marifex') }}</td></tr>{% endfor %}
         </tbody>
       </table>
     </div>

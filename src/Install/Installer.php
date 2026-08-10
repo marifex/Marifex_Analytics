@@ -8,10 +8,11 @@ use Config;
 use DBmysql;
 use Migration;
 use RuntimeException;
+use GlpiPlugin\Marifex\Insight\AnalyticalAuditService;
 
 final class Installer
 {
-    private const VERSION = 170;
+    private const VERSION = 180;
     private const TABLE_PREFIX = 'glpi_plugin_marifex_';
 
     public function install(): void
@@ -72,6 +73,10 @@ final class Installer
                 'UNIQUE'
             );
         }
+        if ($installedVersion > 0 && $installedVersion < 180) {
+            $migration->addField('glpi_plugin_marifex_report_runs', 'formula_version', 'varchar(32) DEFAULT NULL');
+            $migration->addField('glpi_plugin_marifex_report_runs', 'insight_evidence', 'json DEFAULT NULL');
+        }
         $migration->executeMigration();
 
         Config::setConfigurationValues('plugin:marifex', array_merge([
@@ -83,6 +88,9 @@ final class Installer
         ], $configuration, [
             'schema_version' => (string) self::VERSION,
         ]));
+        if ($installedVersion < self::VERSION) {
+            (new AnalyticalAuditService())->record('scope_version_installed', ['schema_version' => $installedVersion], ['schema_version' => self::VERSION], 0, 0);
+        }
     }
 
     public function uninstall(): bool

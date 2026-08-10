@@ -146,6 +146,8 @@ final class Schema
                 `file_path` varchar(512) DEFAULT NULL,
                 `file_hash` char(64) DEFAULT NULL,
                 `recipient_count` int unsigned NOT NULL DEFAULT 0,
+                `formula_version` varchar(32) DEFAULT NULL,
+                `insight_evidence` json DEFAULT NULL,
                 `error_message` text DEFAULT NULL,
                 `started_at` timestamp NOT NULL,
                 `completed_at` timestamp NULL DEFAULT NULL,
@@ -182,6 +184,17 @@ final class Schema
                 `status` enum('running','passed','warning','failed') NOT NULL DEFAULT 'running',
                 `details` json DEFAULT NULL,
                 PRIMARY KEY (`id`), KEY `scope_completed` (`scope`,`completed_at`)
+            ) $suffix",
+            'glpi_plugin_marifex_analytical_audit' => "CREATE TABLE `glpi_plugin_marifex_analytical_audit` (
+                `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+                `event_type` varchar(64) NOT NULL,
+                `users_id` int unsigned NOT NULL DEFAULT 0,
+                `entities_id` int unsigned NOT NULL DEFAULT 0,
+                `formula_version` varchar(32) NOT NULL,
+                `before_state` json DEFAULT NULL,
+                `after_state` json DEFAULT NULL,
+                `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`), KEY `event_created` (`event_type`,`date_creation`)
             ) $suffix",
         ];
     }

@@ -7,6 +7,7 @@ namespace GlpiPlugin\Marifex\Report;
 use DateTimeImmutable;
 use DateTimeZone;
 use GlpiPlugin\Marifex\Metric\MetricQueryService;
+use GlpiPlugin\Marifex\Insight\InsightService;
 use GlpiPlugin\Marifex\Security\EntityScope;
 
 final class ReportDataBuilder
@@ -31,6 +32,11 @@ final class ReportDataBuilder
                 'data' => $query->query($widget['metric'], $from, $to, $supportsGroup && $groupId > 0 ? $groupId : null),
             ];
         }
+        $insights = (new InsightService(new EntityScope($entityIds, $entityId)))->build(
+            (int) $definition['dateRangeDays'],
+            $groupId > 0 ? $groupId : null,
+            $to->modify('-1 day'),
+        );
         return [
             'dashboard' => $dashboard,
             'generated_at' => $now->format(DATE_ATOM),
@@ -39,6 +45,7 @@ final class ReportDataBuilder
             'timezone' => $timezone,
             'entities_id' => $entityId,
             'widgets' => $widgets,
+            'insights' => $insights,
         ];
     }
 }

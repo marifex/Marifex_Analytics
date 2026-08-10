@@ -8,6 +8,8 @@ use Config;
 use DateTimeZone;
 use Glpi\Controller\AbstractController;
 use GlpiPlugin\Marifex\Metric\Phase4StatusService;
+use GlpiPlugin\Marifex\Insight\InsightService;
+use GlpiPlugin\Marifex\Insight\AnalyticalAuditService;
 use GlpiPlugin\Marifex\Profile;
 use GlpiPlugin\Marifex\Report\HeadlessPdfRenderer;
 use GlpiPlugin\Marifex\Security\EntityScope;
@@ -36,13 +38,23 @@ final class SettingsController extends AbstractController
             return new RedirectResponse($CFG_GLPI['root_doc'] . '/plugins/marifex/Settings');
         }
 
+        $phase4Metrics = (new Phase4StatusService())->all();
+        $phase5 = (new InsightService())->build(30);
         return $this->render('@marifex/settings/index.html.twig', [
             'config' => Config::getConfigurationValues('plugin:marifex'),
             'timezones' => DateTimeZone::listIdentifiers(),
             'pipelines' => $this->pipelines(),
             'mappings' => $this->mappings(),
             'reconciliations' => $this->reconciliations(),
-            'phase4_metrics' => (new Phase4StatusService())->all(),
+            'phase4_metrics' => $phase4Metrics,
+            'phase5_readiness' => [
+                'certified_current' => count(array_filter($phase4Metrics, static fn(array $metric): bool => in_array($metric['status'], ['current', 'live'], true))),
+                'certified_total' => count($phase4Metrics),
+                'comparison_ready' => (int) ($phase5['readiness']['ready_metrics'] ?? 0),
+                'comparison_total' => (int) ($phase5['readiness']['total_metrics'] ?? 0),
+                'formula_version' => (string) ($phase5['formula_version'] ?? ''),
+                'metrics' => $phase5['readiness']['metrics'] ?? [],
+            ],
             'report_engine' => (new HeadlessPdfRenderer())->status(),
             'report_runs' => $this->reportRuns(),
             'report_file_url' => $CFG_GLPI['root_doc'] . '/plugins/marifex/reports/files',
@@ -51,6 +63,7 @@ final class SettingsController extends AbstractController
 
     private function save(Request $request): void
     {
+        $before = Config::getConfigurationValues('plugin:marifex');
         $batchSize = $request->request->getInt('etl_batch_size');
         $timezone = $request->request->getString('snapshot_timezone');
         $retention = $request->request->getInt('report_retention_days');
@@ -76,6 +89,9 @@ final class SettingsController extends AbstractController
             'report_retention_days' => $retention,
             'headless_browser_path' => $browserPath,
         ]);
+        $after = Config::getConfigurationValues('plugin:marifex');
+        $keys = ['etl_batch_size', 'snapshot_timezone', 'retain_analytics_on_uninstall', 'report_retention_days', 'headless_browser_path'];
+        (new AnalyticalAuditService())->record('configuration_changed', array_intersect_key($before, array_flip($keys)), array_intersect_key($after, array_flip($keys)));
     }
 
     /** @return list<array<string, mixed>> */
@@ -134,7 +150,7 @@ final class SettingsController extends AbstractController
         global $DB;
         if (!$DB->tableExists('glpi_plugin_marifex_report_runs')) return [];
         return iterator_to_array($DB->request([
-            'SELECT' => ['id', 'format', 'status', 'file_name', 'file_path', 'recipient_count', 'error_message', 'started_at', 'completed_at'],
+            'SELECT' => ['id', 'format', 'status', 'file_name', 'file_path', 'recipient_count', 'formula_version', 'error_message', 'started_at', 'completed_at'],
             'FROM' => 'glpi_plugin_marifex_report_runs',
             'WHERE' => (new EntityScope())->criteria(),
             'ORDER' => ['id DESC'],

@@ -4,12 +4,12 @@ import { init, use, type ECharts } from 'echarts/core';
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
-import type { DimensionPoint, MetricResponse, Point, WidgetDefinition } from './types';
+import type { DimensionPoint, InsightItem, MetricResponse, Point, WidgetDefinition } from './types';
 import { widgetPalette, widgetPalettes, type WidgetPaletteKey } from './palettes';
 
 use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
-const props = defineProps<{ widget: WidgetDefinition; sectionLabel?: string; data?: MetricResponse; loading: boolean; editing: boolean; interacting: boolean; interactionMode: 'drag' | 'resize' | null; selectedGroup: number | null; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string }>();
+const props = defineProps<{ widget: WidgetDefinition; sectionLabel?: string; data?: MetricResponse; movement?: InsightItem; indicator?: string; loading: boolean; editing: boolean; interacting: boolean; interactionMode: 'drag' | 'resize' | null; selectedGroup: number | null; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string }>();
 const emit = defineEmits<{ remove: [id: string]; rename: [id: string, title: string]; palette: [id: string, palette: WidgetPaletteKey]; selectGroup: [id: number | null]; interactionStart: [id: string, mode: 'drag' | 'resize', event: PointerEvent] }>();
 const chartElement = ref<HTMLElement | null>(null);
 const widgetElement = ref<HTMLElement | null>(null);
@@ -74,12 +74,12 @@ const valueHeader = computed(() => {
   if (props.widget.metric === 'created_vs_resolved_tickets') return 'Tickets';
   return 'Open';
 });
-const trend = computed(() => {
-  if (points.value.length < 2) return null;
-  const current = points.value.at(-1)!.value;
-  const previous = points.value.at(-2)!.value;
-  if (previous === 0) return null;
-  return ((current - previous) / previous) * 100;
+const movementText = computed(() => {
+  if (!props.movement) return null;
+  const change = props.movement.absolute_change;
+  const native = props.movement.unit === 'percent' ? `${Math.abs(change).toFixed(1)} pp` : Math.abs(change).toLocaleString();
+  const previous = props.movement.unit === 'percent' ? `${props.movement.previous.toFixed(1)}%` : props.movement.previous.toLocaleString();
+  return `${change >= 0 ? '↑' : '↓'} ${native} from ${previous}, ${props.movement.comparison_text}`;
 });
 const drilldown = (groupId?: number) => {
   if (props.widget.metric.startsWith('asset_') || ['stale_computer_inventory', 'low_disk_capacity_computers', 'computers_in_stock_over_30_days', 'incidents_by_operating_system', 'repeat_incident_computers'].includes(props.widget.metric)) return props.assetSearchUrl;
@@ -172,7 +172,7 @@ onBeforeUnmount(() => { if (resizeTimer) window.clearTimeout(resizeTimer); resiz
       <div v-if="loading" class="marifex-skeleton"><span></span><span></span><span></span></div>
       <template v-else-if="widget.type === 'kpi'">
         <strong class="marifex-executive-kpi">{{ kpiValue }}</strong>
-        <div class="marifex-kpi-context"><span v-if="trend !== null" :class="trend > 0 ? 'marifex-semantic--risk' : 'marifex-semantic--healthy'">{{ trend > 0 ? '↑' : '↓' }} {{ Math.abs(trend).toFixed(1) }}% vs previous period</span><span v-else>No historical comparison available</span></div>
+        <div class="marifex-kpi-context"><span v-if="movementText" :class="`marifex-semantic--${movement?.direction === 'worsening' ? 'risk' : movement?.direction === 'improving' ? 'healthy' : 'neutral'}`">{{ movementText }}</span><span v-else>No material governed movement</span></div>
       </template>
       <template v-else-if="widget.type === 'insight'">
         <div v-if="insightTop" class="marifex-insight"><span>Leading finding</span><strong>{{ insightTop.dimension }}</strong><p>{{ insightTop.value.toLocaleString() }} current records</p><a :href="drilldown(insightTop.dimension_id)">Open detail</a></div>
@@ -200,6 +200,7 @@ onBeforeUnmount(() => { if (resizeTimer) window.clearTimeout(resizeTimer); resiz
         </div>
       </div>
       <div v-else ref="chartElement" class="marifex-widget__chart" role="img" :aria-label="widget.title"></div>
+      <span v-if="indicator" class="marifex-widget__indicator">{{ indicator }}</span>
     </div>
     <button v-if="editing" class="marifex-widget__resize-handle" type="button" aria-label="Resize widget" title="Drag to resize" @pointerdown.stop="emit('interactionStart', widget.id, 'resize', $event)"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 14h8V6M10 14h4v-4"/></svg></button>
   </article>

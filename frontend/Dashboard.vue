@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import WidgetCard from './WidgetCard.vue';
-import type { DashboardTemplate, DashboardWorkspace, MetricResponse, ReportSchedule, SavedDashboard, WidgetDefinition } from './types';
+import InsightStrip from './InsightStrip.vue';
+import type { DashboardTemplate, DashboardWorkspace, InsightItem, InsightResponse, MetricResponse, ReportSchedule, SavedDashboard, WidgetDefinition } from './types';
 import { defaultWidgetPalette, type WidgetPaletteKey } from './palettes';
 
-const props = defineProps<{ metricEndpoint: string; definitionEndpoint: string; csrfToken: string; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string; reportExportUrl: string; reportScheduleEndpoint: string; canExport: boolean; canSchedule: boolean }>();
+const props = defineProps<{ metricEndpoint: string; insightEndpoint: string; definitionEndpoint: string; csrfToken: string; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string; reportExportUrl: string; reportScheduleEndpoint: string; canExport: boolean; canSchedule: boolean }>();
 const dashboard = ref<SavedDashboard | null>(null);
 const dashboards = ref<DashboardWorkspace['dashboards']>([]);
 const templates = ref<DashboardTemplate[]>([]);
 const metrics = ref<Record<string, MetricResponse>>({});
+const insightData = ref<InsightResponse | null>(null);
+const insightLoading = ref(false);
+const insightError = ref('');
 const loading = ref(true);
 const saving = ref(false);
 const error = ref('');
@@ -112,6 +116,22 @@ function dataFor(widget: WidgetDefinition): MetricResponse | undefined {
   const groupId = supportsGroup(widget.metric) ? selectedGroup.value : null;
   return metrics.value[metricKey(widget.metric, groupId)];
 }
+const widgetInsightKeys: Record<string, string> = {
+  sla_breach_count: 'sla_breach_count_movement',
+  sla_breach_rate: 'sla_breach_rate_movement',
+  tickets_approaching_sla_breach: 'approaching_sla_movement',
+  unsatisfied_survey_responses: 'unsatisfied_response_movement',
+  software_license_overallocated_seats: 'licence_overallocation_movement',
+  software_license_compliance_rate: 'licence_compliance_movement',
+};
+function insightFor(widget: WidgetDefinition): InsightItem | undefined {
+  const key = widgetInsightKeys[widget.metric];
+  return key ? insightData.value?.insights.find(item => item.key === key) : undefined;
+}
+function indicatorFor(widget: WidgetDefinition): string | undefined {
+  const indicator = insightData.value?.indicators.find(item => item.metric === widget.metric);
+  return indicator ? `${indicator.label} · ${indicator.value.toFixed(1)}%` : undefined;
+}
 function headers(): Record<string, string> {
   return { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Glpi-Csrf-Token': props.csrfToken, 'X-Requested-With': 'XMLHttpRequest' };
 }
@@ -181,6 +201,21 @@ async function loadMetrics(): Promise<void> {
     return [key, await response.json()] as const;
   }));
   metrics.value = Object.fromEntries(entries);
+  await loadInsights();
+}
+async function loadInsights(): Promise<void> {
+  if (!definition.value) return;
+  insightLoading.value = true; insightError.value = '';
+  try {
+    const params = new URLSearchParams({ horizon: String(definition.value.dateRangeDays) });
+    if (selectedGroup.value) params.set('group_id', String(selectedGroup.value));
+    const response = await fetch(`${props.insightEndpoint}?${params}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error('Insight request failed');
+    insightData.value = await response.json() as InsightResponse;
+  } catch {
+    insightData.value = null;
+    insightError.value = 'Certified insights are temporarily unavailable.';
+  } finally { insightLoading.value = false; }
 }
 async function applyFilters(): Promise<void> {
   if (definition.value) definition.value.filters.groupId = selectedGroup.value;
@@ -358,8 +393,9 @@ onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(ref
     </div>
 
     <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
+    <InsightStrip v-if="definition" :data="insightData" :loading="insightLoading" :error="insightError" :ticket-url="ticketSearchUrl" :asset-url="assetSearchUrl" :licence-url="licenceSearchUrl" :change-url="changeSearchUrl" :problem-url="problemSearchUrl" />
     <div v-if="definition" ref="gridElement" class="marifex-widget-grid" :class="{ 'marifex-widget-grid--editing': editing }">
-      <WidgetCard v-for="widget in definition.widgets" :key="widget.id" :widget="widget" :section-label="sectionLabels[widget.id]" :data="dataFor(widget)" :loading="loading" :editing="editing" :interacting="interactingWidget === widget.id" :interaction-mode="interactingWidget === widget.id ? interactionMode : null" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" :asset-search-url="assetSearchUrl" :licence-search-url="licenceSearchUrl" :change-search-url="changeSearchUrl" :problem-search-url="problemSearchUrl" @remove="removeWidget" @rename="renameWidget" @palette="recolorWidget" @select-group="chooseGroup" @interaction-start="beginInteraction" />
+      <WidgetCard v-for="widget in definition.widgets" :key="widget.id" :widget="widget" :section-label="sectionLabels[widget.id]" :data="dataFor(widget)" :movement="insightFor(widget)" :indicator="indicatorFor(widget)" :loading="loading" :editing="editing" :interacting="interactingWidget === widget.id" :interaction-mode="interactingWidget === widget.id ? interactionMode : null" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" :asset-search-url="assetSearchUrl" :licence-search-url="licenceSearchUrl" :change-search-url="changeSearchUrl" :problem-search-url="problemSearchUrl" @remove="removeWidget" @rename="renameWidget" @palette="recolorWidget" @select-group="chooseGroup" @interaction-start="beginInteraction" />
     </div>
 
     <div v-if="catalogOpen" class="marifex-catalog-backdrop" role="presentation" @click.self="catalogOpen = false"><aside class="marifex-catalog" role="dialog" aria-modal="true" aria-labelledby="catalog-title"><header><div><p class="marifex-command__eyebrow">Certified semantic layer</p><h2 id="catalog-title">Widget library</h2></div><button class="btn-close" type="button" aria-label="Close" @click="catalogOpen = false"></button></header><p class="text-secondary">Every widget uses an approved metric. SQL and unrestricted data access are never accepted.</p><div class="marifex-catalog__grid"><button v-for="item in catalog" :key="`${item.metric}-${item.type}`" class="card marifex-catalog-item" type="button" @click="addWidget(item)"><span class="badge bg-azure-lt">{{ item.type }}</span><strong>{{ item.title }}</strong><small>{{ item.metric.replaceAll('_', ' ') }}</small></button></div></aside></div>
