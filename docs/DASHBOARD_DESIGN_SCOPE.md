@@ -527,3 +527,99 @@ The following remain outside approved scope:
 24. PDF, CSV and scheduled output use the same calculations, suppression and authorization rules as the screen; CSV output remains a valid single-file format.
 25. Entity and profile restrictions are applied before aggregation and contributor selection, and export history retains formula-version and materiality evidence.
 26. No deferred Phase 5B measure or other excluded capability appears in the registry, templates, configuration or output without a later written amendment.
+
+## Phase 5B: certified quality, demand and distribution analytics
+
+This section is the controlled written amendment that authorizes Phase 5B after Phase 5A operational acceptance. Phase 5B extends the existing certified data mart and deterministic insight engine. It does not add AI narrative, prediction, anomaly detection, causal claims, arbitrary user formulas, custom SQL, a second dashboard-management system or a new dashboard template.
+
+Phase 5A is considered operationally accepted when all certified sources are current and at least one supported horizon completes its two-horizon comparison gate. Longer horizons may remain in the approved per-horizon cold-start state while genuine daily snapshots accumulate. Scheduled email delivery is excluded from this acceptance because the deployment mail transport is not configured.
+
+### Phase 5B formula version and common governance
+
+- Formula version: `phase5b-1`.
+- Entity, recursive-entity and profile filtering is applied before every numerator, denominator, percentile population and contributor calculation.
+- The selected dashboard horizon remains the comparison horizon unless a measure below explicitly defines a fixed trailing window.
+- Count and rate movements use the Phase 5A absolute and relative materiality gates. Rates use percentage-point movement for the absolute gate.
+- Ratio denominators require at least 5 records unless a stricter measure-specific minimum is defined below.
+- Percentile populations require at least 20 valid observations in both current and comparison windows.
+- Stale, unavailable, incomplete or below-minimum inputs are suppressed with an explicit reason and never appear as supported findings in screen or export output.
+- Equal-length comparison requires two complete horizons. Fixed trailing-window measures compare the current complete trailing window with the immediately preceding equal-length window.
+- All contributor language remains non-causal. `Largest contributor` or `largest contributing change` is permitted; `caused by`, `because of`, `due to` and equivalent causal language is prohibited.
+- The Executive insight brief remains capped at five findings across Phase 5A and 5B. Adding rules does not add another card row.
+
+### Certified Phase 5B data products and formulas
+
+| Key | Certified definition | Grain and comparison | Gate / direction |
+|---|---|---|---|
+| `created_tickets_by_request_source` | Daily count of tickets created in the day, grouped by certified GLPI `requesttypes_id`. Unlike the Phase 5A source metric, this is demand flow and excludes older open tickets. | Daily dimension series; selected equal horizons. | Count movement: 5 records and 10%; neutral composition. |
+| `ticket_reopen_events` | Count of verified ticket status transitions from solved or closed (`5` or `6`) to an open status (`1` to `4`) during the day. Multiple valid reopen transitions on one ticket remain separate events. | Daily integer series; selected equal horizons. | 5 events and 10%; decreasing is healthy. |
+| `ticket_resolution_events` | Count of verified ticket status transitions from an open status (`1` to `4`) to solved or closed (`5` or `6`) during the day. | Daily integer series; selected equal horizons. | Certified denominator product; not independently classified. |
+| `ticket_reopen_event_rate` | `sum(ticket_reopen_events) / sum(ticket_resolution_events) * 100`. This is explicitly an event rate, not a cohort probability; values above 100% are valid and must not be clamped. | Selected current horizon versus immediately preceding equal horizon. | Denominator minimum 5 in both periods; 3 percentage points and 10%; decreasing is healthy. |
+| `first_response_p50_seconds` | Nearest-rank 50th percentile of `glpi_tickets.takeintoaccount_delay_stat` for non-deleted tickets created in the trailing 30 days with a recorded `takeintoaccountdate` and non-negative delay. | Recomputed daily trailing 30-day scalar; current cutoff versus cutoff 30 days earlier. | Minimum 20 observations; 300 seconds and 10%; decreasing is healthy. |
+| `first_response_p75_seconds` | Same certified population as P50; nearest-rank 75th percentile. | Recomputed daily trailing 30-day scalar; current versus 30 days earlier. | Minimum 20; 600 seconds and 10%; decreasing is healthy. |
+| `first_response_p90_seconds` | Same certified population as P50; nearest-rank 90th percentile. | Recomputed daily trailing 30-day scalar; current versus 30 days earlier. | Minimum 20; 900 seconds and 10%; decreasing is healthy. |
+| `survey_responses_total` | Count of ticket-satisfaction rows answered in the trailing 30 days with a non-null scaled score. | Recomputed daily trailing 30-day denominator product. | Minimum 30; not independently classified. |
+| `dissatisfied_responses_total` | Count within the same population whose `satisfaction_scaled_to_5` is at most 2. | Recomputed daily trailing 30-day numerator product. | Count movement may be shown; decreasing is healthy. |
+| `customer_dissatisfaction_rate` | `dissatisfied_responses_total / survey_responses_total * 100`. | Current trailing 30 days versus preceding trailing 30 days. | Denominator minimum 30 in both windows; 3 percentage points and 10%; decreasing is healthy. |
+| `solution_proposed_tickets` | Distinct tickets with at least one solution row created in the trailing 30 days. | Recomputed daily trailing 30-day denominator product. | Minimum 10; not independently classified. |
+| `solution_refused_tickets` | Distinct tickets with at least one solution row created in the same trailing 30 days whose certified status is refused. | Recomputed daily trailing 30-day numerator product. | Count movement may be shown; decreasing is healthy. |
+| `refused_solution_rate` | `solution_refused_tickets / solution_proposed_tickets * 100`. | Current trailing 30 days versus preceding trailing 30 days. | Denominator minimum 10 in both windows; 3 percentage points and 10%; decreasing is healthy. |
+| `incident_linked_computers` | Distinct computers linked to at least one incident ticket created in the trailing 90 days. | Recomputed daily trailing 90-day denominator product. | Minimum 5; not independently classified. |
+| `repeat_incident_computers_90d` | Distinct computers linked to at least two distinct incident tickets created in the same trailing 90 days. | Recomputed daily trailing 90-day numerator product. | Count movement may be shown; decreasing is healthy. |
+| `repeat_incident_asset_rate` | `repeat_incident_computers_90d / incident_linked_computers * 100`. | Current trailing 90 days versus the trailing 90-day window ending 7 days earlier. | Denominator minimum 5 in both windows; 3 percentage points and 10%; decreasing is healthy. |
+| `licence_covered_titles` | Count of distinct software titles in the active entity scope having both positive recorded entitlement and positive recorded installation/allocation counts. | Daily scalar readiness product. | Must be at least 50 before aggregate licence ratios are supported. |
+| `licence_utilization_rate` | `sum(recorded allocations for covered titles) / sum(recorded entitlements for covered titles) * 100`. Values above 100% are valid and indicate recorded over-allocation; the result is not clamped. | Daily scalar; selected cutoff comparison after readiness gate. | `licence_covered_titles >= 50`, denominator positive; 3 percentage points and 10%; movement toward 100% is contextual, while above 100% is exposure. |
+| `licence_coverage_gap_rate` | `count(installed software titles without positive recorded entitlement) / count(installed software titles) * 100`. | Daily scalar; selected cutoff comparison. | At least 50 installed titles; 3 percentage points and 10%; decreasing is healthy. |
+
+Nearest-rank percentile means: sort the valid non-negative delays ascending and select observation `ceil(percentile * N)`, using one-based indexing. Percentiles must never be averaged across days or entities. Recursive-entity scope combines authorized raw observations first, then calculates the percentile once.
+
+### Phase 5B deterministic insight rules
+
+Phase 5B may surface these additional governed findings when their data products pass readiness, freshness, denominator and materiality gates:
+
+1. created-ticket demand movement by leading request source;
+2. reopen-event count movement;
+3. reopen-event rate movement;
+4. P50, P75 and P90 first-response movement, with P90 ranked above P75 and P50;
+5. customer-dissatisfaction rate movement;
+6. refused-solution count and rate movement;
+7. repeat-incident asset count and rate movement;
+8. licence-utilization and licence-coverage-gap movement after the fixed population gate.
+
+For a dimension-series movement, calculation evidence may expose the top three absolute contributing dimension changes in deterministic order: absolute delta descending, then dimension identifier ascending. The executive sentence names only the largest contributor. The other two appear only in calculation inspection and exports. This is deterministic decomposition of one certified dimension, not multi-dimensional causal attribution.
+
+### Phase 5B UI and dashboard boundaries
+
+- No new Executive KPI row is added. Phase 5B findings share the existing insight strip and five-finding cap.
+- Phase 5B metrics become available to the existing add-widget catalogue using the existing dashboard ownership, drag, resize, palette and persistence model.
+- The existing Executive dashboard is not automatically expanded. New default widgets may only be added by a separate written layout amendment.
+- No Service Delivery dashboard, new tab, sidebar, view selector or parallel navigation system is introduced in Phase 5B.
+- Licence ratios are not automatically placed on the Executive dashboard. They are available to the existing Asset and Licence Governance dashboard and user-owned dashboards after their readiness gates pass.
+- Calculation inspection, PDF, CSV and scheduled static reports use formula version `phase5b-1` and the same suppression rules as the screen.
+
+### Phase 5B exclusions
+
+The following remain excluded:
+
+- arbitrary user formulas, SQL, dimensions or editable mathematical expressions;
+- user-configurable causal or predictive rules;
+- cross-metric or cross-dimensional causal decomposition;
+- deployment-specific thresholds that are not represented as controlled, validated configuration with a later written formula amendment;
+- per-render behavioural audit logging;
+- a new Service Delivery dashboard or other navigation infrastructure;
+- AI narrative, prediction, anomaly inference, external benchmarking or causal conclusions;
+- Phase 6 MSP/customer comparisons; and
+- Phase 7 predictive/AI features.
+
+### Phase 5B acceptance criteria
+
+1. Every Phase 5B registry product matches the exact numerator, denominator, grain, window and zero handling above.
+2. Reopen measures use verified status events and distinguish event rate from ticket cohort probability.
+3. First-response percentiles use authorized raw observations and the nearest-rank method; percentiles are never averaged.
+4. Satisfaction, refused-solution, repeat-incident and licence ratios remain suppressed below their fixed population gates.
+5. Created-ticket request-source demand is not confused with the existing open-ticket source composition metric.
+6. Phase 5B adds no Executive card row and no new dashboard navigation system.
+7. The combined Phase 5A/5B brief remains deterministic, non-causal and capped at five findings.
+8. Screen, PDF, CSV and report-history evidence contain identical formula-version, source, gate and suppression outcomes.
+9. Existing Phase 3 dashboard ownership, drag, resize, palette and saved-layout behavior remains unchanged.
+10. Structural and browser integration tests verify entity scope, cold start, denominator suppression, percentile correctness, responsive layout and export parity.
