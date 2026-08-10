@@ -12,7 +12,7 @@ use GlpiPlugin\Marifex\Insight\AnalyticalAuditService;
 
 final class Installer
 {
-    private const VERSION = 180;
+    private const VERSION = 200;
     private const TABLE_PREFIX = 'glpi_plugin_marifex_';
 
     public function install(): void

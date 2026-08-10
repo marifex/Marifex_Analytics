@@ -72,7 +72,7 @@
   </div>
 
   <div class="card mt-3">
-    <div class="card-header"><div><h2 class="card-title">{{ __('Phase 5A analytical readiness', 'marifex') }}</h2><div class="text-secondary mt-1"><code>{{ phase5_readiness.formula_version }}</code> · {{ phase5_readiness.certified_current }} of {{ phase5_readiness.certified_total }} certified metrics are current; {{ phase5_readiness.comparison_ready }} of {{ phase5_readiness.comparison_total }} core metrics have a complete 30-day comparison baseline.</div></div></div>
+    <div class="card-header"><div><h2 class="card-title">{{ __('Phase 5 analytical readiness', 'marifex') }}</h2><div class="text-secondary mt-1"><code>{{ phase5_readiness.formula_version }}</code> · {{ phase5_readiness.certified_current }} of {{ phase5_readiness.certified_total }} certified metrics are current; {{ phase5_readiness.comparison_ready }} of {{ phase5_readiness.comparison_total }} core metrics have a complete 30-day comparison baseline.</div></div></div>
     <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>{{ __('Core metric', 'marifex') }}</th><th>{{ __('Baseline snapshots', 'marifex') }}</th><th>{{ __('Source state', 'marifex') }}</th><th>{{ __('Ready', 'marifex') }}</th></tr></thead><tbody>
       {% for metric in phase5_readiness.metrics %}<tr><td><code>{{ metric.metric }}</code></td><td>{{ metric.completed }} / {{ metric.required }}</td><td>{{ metric.state }}</td><td><span class="badge {{ metric.ready ? 'bg-green-lt' : 'bg-yellow-lt' }}">{{ metric.ready ? __('Ready', 'marifex') : __('Building baseline', 'marifex') }}</span></td></tr>{% endfor %}
     </tbody></table></div>

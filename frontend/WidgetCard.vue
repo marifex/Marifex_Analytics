@@ -20,6 +20,9 @@ const activePalette = computed(() => widgetPalette(props.widget.palette));
 const donutColors = computed(() => activePalette.value.colors);
 
 const points = computed(() => (props.data?.series ?? []) as Point[]);
+const latestPoint = computed(() => points.value.at(-1));
+const populationRateMetrics = ['software_license_compliance_rate', 'sla_breach_rate', 'customer_dissatisfaction_rate', 'refused_solution_rate', 'repeat_incident_asset_rate', 'licence_utilization_rate', 'licence_coverage_gap_rate'];
+const isUnmeasurable = computed(() => populationRateMetrics.includes(props.widget.metric) && latestPoint.value?.sample_count === 0);
 const groupPoints = computed(() => (props.data?.series ?? []) as DimensionPoint[]);
 const latestGroups = computed(() => {
   const latestDate = groupPoints.value.at(-1)?.date;
@@ -41,10 +44,12 @@ function toggleSettings(): void {
 }
 function closeOtherSettings(event: Event): void { if ((event as CustomEvent<string>).detail !== props.widget.id) settingsOpen.value = false; }
 const kpiValue = computed(() => {
+  if (isUnmeasurable.value) return 'N/A';
   const value = props.data?.value ?? points.value.at(-1)?.value;
   if (value === undefined) return 'Not available';
   if (['average_open_ticket_age', 'average_unassigned_time'].includes(props.widget.metric)) return `${(value / 86400).toFixed(1)} days`;
-  if (['software_license_compliance_rate', 'sla_breach_rate'].includes(props.widget.metric)) return `${value.toFixed(1)}%`;
+  if (['first_response_p50_seconds', 'first_response_p75_seconds', 'first_response_p90_seconds'].includes(props.widget.metric)) return value < 3600 ? `${(value / 60).toFixed(1)} min` : `${(value / 3600).toFixed(1)} hr`;
+  if (populationRateMetrics.includes(props.widget.metric)) return `${value.toFixed(1)}%`;
   if (props.widget.metric === 'assignment_changes_per_ticket') return value.toFixed(2);
   return value.toLocaleString();
 });
@@ -54,7 +59,7 @@ const dimensionHeader = computed(() => {
   if (props.widget.metric === 'open_change_status_distribution') return 'Change status';
   if (props.widget.metric === 'open_problem_status_distribution') return 'Problem status';
   if (props.widget.metric === 'open_tickets_by_priority') return 'Priority';
-  if (props.widget.metric === 'tickets_by_request_source') return 'Request source';
+  if (['tickets_by_request_source', 'created_tickets_by_request_source'].includes(props.widget.metric)) return 'Request source';
   if (['sla_breaches_by_technician', 'technician_workload_distribution'].includes(props.widget.metric)) return 'Technician';
   if (props.widget.metric === 'resolution_time_age_bands') return 'Resolution band';
   if (['prohibited_software_installations', 'unlicensed_software_installations'].includes(props.widget.metric)) return 'Software';
@@ -82,8 +87,8 @@ const movementText = computed(() => {
   return `${change >= 0 ? '↑' : '↓'} ${native} from ${previous}, ${props.movement.comparison_text}`;
 });
 const drilldown = (groupId?: number) => {
-  if (props.widget.metric.startsWith('asset_') || ['stale_computer_inventory', 'low_disk_capacity_computers', 'computers_in_stock_over_30_days', 'incidents_by_operating_system', 'repeat_incident_computers'].includes(props.widget.metric)) return props.assetSearchUrl;
-  if (props.widget.metric.startsWith('software_license_') || ['prohibited_software_installations', 'unlicensed_software_installations'].includes(props.widget.metric)) return props.licenceSearchUrl;
+  if (props.widget.metric.startsWith('asset_') || ['stale_computer_inventory', 'low_disk_capacity_computers', 'computers_in_stock_over_30_days', 'incidents_by_operating_system', 'repeat_incident_computers', 'incident_linked_computers', 'repeat_incident_computers_90d', 'repeat_incident_asset_rate'].includes(props.widget.metric)) return props.assetSearchUrl;
+  if (props.widget.metric.startsWith('software_license_') || props.widget.metric.startsWith('licence_') || ['prohibited_software_installations', 'unlicensed_software_installations'].includes(props.widget.metric)) return props.licenceSearchUrl;
   if (props.widget.metric.includes('change')) return props.changeSearchUrl;
   if (props.widget.metric.includes('problem')) return props.problemSearchUrl;
   if (!groupId) return props.ticketSearchUrl;
@@ -172,7 +177,7 @@ onBeforeUnmount(() => { if (resizeTimer) window.clearTimeout(resizeTimer); resiz
       <div v-if="loading" class="marifex-skeleton"><span></span><span></span><span></span></div>
       <template v-else-if="widget.type === 'kpi'">
         <strong class="marifex-executive-kpi">{{ kpiValue }}</strong>
-        <div class="marifex-kpi-context"><span v-if="movementText" :class="`marifex-semantic--${movement?.direction === 'worsening' ? 'risk' : movement?.direction === 'improving' ? 'healthy' : 'neutral'}`">{{ movementText }}</span><span v-else>No material governed movement</span></div>
+        <div class="marifex-kpi-context"><span v-if="isUnmeasurable">No measurable population</span><span v-else-if="movementText" :class="`marifex-semantic--${movement?.direction === 'worsening' ? 'risk' : movement?.direction === 'improving' ? 'healthy' : 'neutral'}`">{{ movementText }}</span><span v-else>No material governed movement</span></div>
       </template>
       <template v-else-if="widget.type === 'insight'">
         <div v-if="insightTop" class="marifex-insight"><span>Leading finding</span><strong>{{ insightTop.dimension }}</strong><p>{{ insightTop.value.toLocaleString() }} current records</p><a :href="drilldown(insightTop.dimension_id)">Open detail</a></div>

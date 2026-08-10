@@ -1,4 +1,4 @@
-export type Point = { date: string; value: number };
+export type Point = { date: string; value: number; sample_count?: number };
 export type DimensionPoint = Point & { dimension_id: number; dimension: string };
 export type MetricResponse = {
   metric: string;
@@ -21,6 +21,9 @@ export type InsightCalculation = {
   relative_gate_percent: number;
   result: number;
   indicator?: string;
+  current_sample_count?: number;
+  previous_sample_count?: number;
+  contributors?: Array<{ dimension_id: number; label: string; delta: number }>;
 };
 export type InsightItem = {
   key: string;
@@ -43,6 +46,7 @@ export type InsightItem = {
 };
 export type InsightResponse = {
   formula_version: string;
+  domains?: string[];
   horizon_days: number;
   cutoff: string;
   generated_at: string;

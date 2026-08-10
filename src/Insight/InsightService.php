@@ -24,6 +24,12 @@ final class InsightService
         'unsatisfied_survey_responses', 'repeat_incident_computers',
         'software_license_overallocated_seats', 'software_license_compliance_rate',
         'technician_workload_distribution', 'sla_breaches_by_technician',
+        'created_tickets_by_request_source', 'ticket_reopen_events', 'ticket_resolution_events',
+        'first_response_p50_seconds', 'first_response_p75_seconds', 'first_response_p90_seconds',
+        'survey_responses_total', 'dissatisfied_responses_total', 'customer_dissatisfaction_rate',
+        'solution_proposed_tickets', 'solution_refused_tickets', 'refused_solution_rate',
+        'incident_linked_computers', 'repeat_incident_computers_90d', 'repeat_incident_asset_rate',
+        'licence_covered_titles', 'licence_installed_titles', 'licence_utilization_rate', 'licence_coverage_gap_rate',
     ];
 
     private const TICKET_METRICS = [
@@ -31,6 +37,10 @@ final class InsightService
         'tickets_by_request_source', 'sla_breach_count', 'sla_breach_rate',
         'tickets_approaching_sla_breach', 'unsatisfied_survey_responses',
         'technician_workload_distribution', 'sla_breaches_by_technician',
+        'created_tickets_by_request_source', 'ticket_reopen_events', 'ticket_resolution_events',
+        'first_response_p50_seconds', 'first_response_p75_seconds', 'first_response_p90_seconds',
+        'survey_responses_total', 'dissatisfied_responses_total', 'customer_dissatisfaction_rate',
+        'solution_proposed_tickets', 'solution_refused_tickets', 'refused_solution_rate',
     ];
 
     public function __construct(
@@ -40,14 +50,14 @@ final class InsightService
     }
 
     /** @return array<string, mixed> */
-    public function build(int $horizon, ?int $groupId = null, ?DateTimeImmutable $cutoff = null): array
+    public function build(int $horizon, ?int $groupId = null, ?DateTimeImmutable $cutoff = null, array $domains = []): array
     {
         $horizon = in_array($horizon, [7, 30, 90, 180, 365], true) ? $horizon : 30;
         $configuration = Config::getConfigurationValues('plugin:marifex');
         $timezone = new DateTimeZone((string) ($configuration['snapshot_timezone'] ?? 'UTC'));
         $cutoff ??= new DateTimeImmutable('yesterday', $timezone);
         $cutoff = $cutoff->setTime(0, 0);
-        $historyDays = max(2 * $horizon, 60);
+        $historyDays = max(2 * $horizon, 180);
         $from = $cutoff->sub(new DateInterval('P' . $historyDays . 'D'));
         $query = new MetricQueryService($this->entityScope);
         $datasets = [];
@@ -63,7 +73,7 @@ final class InsightService
                 $states[$metric]['reason'] = 'The selected group filter has no certified group-grain source for this metric.';
             }
         }
-        return $this->calculator->calculate($datasets, $states, $cutoff, $horizon, $groupId);
+        return $this->calculator->calculate($datasets, $states, $cutoff, $horizon, $groupId, $domains);
     }
 
     /** @return list<string> */

@@ -7,7 +7,7 @@ use GlpiPlugin\Marifex\DashboardMenu;
 use GlpiPlugin\Marifex\HomeDashboardTab;
 use GlpiPlugin\Marifex\Profile;
 
-define('PLUGIN_MARIFEX_VERSION', '0.11.0-dev');
+define('PLUGIN_MARIFEX_VERSION', '0.12.0-dev');
 define('PLUGIN_MARIFEX_MIN_GLPI_VERSION', '11.0.0');
 define('PLUGIN_MARIFEX_MAX_GLPI_VERSION', '12.0.0');
 define('PLUGIN_MARIFEX_ROOT', __DIR__);
@@ -37,8 +37,8 @@ function plugin_init_marifex(): void
         || str_ends_with($requestPath, '/front/central.php')
         || str_ends_with($requestPath, '/Central')
     )) {
-        $PLUGIN_HOOKS[Hooks::ADD_CSS]['marifex'][] = 'css/marifex.css?v=0.11.0-dev.1';
-        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['marifex'][] = 'js/dashboard.js?v=0.11.0-dev.1';
+        $PLUGIN_HOOKS[Hooks::ADD_CSS]['marifex'][] = 'css/marifex.css?v=0.12.0-dev.1';
+        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['marifex'][] = 'js/dashboard.js?v=0.12.0-dev.2';
     }
 }
 

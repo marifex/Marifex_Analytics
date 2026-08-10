@@ -83,6 +83,25 @@ const catalog: Array<Omit<WidgetDefinition, 'id' | 'palette'>> = [
   { metric: 'active_sla_exceptions', type: 'detail_table', title: 'Active SLA exceptions', w: 8, h: 7 },
   { metric: 'operational_attention', type: 'attention', title: 'Operational attention', w: 7, h: 6 },
   { metric: 'sla_breaches_by_technician', type: 'insight', title: 'Top SLA pressure', w: 4, h: 3 },
+  { metric: 'created_tickets_by_request_source', type: 'bar', title: 'Created demand by request source', w: 6, h: 4 },
+  { metric: 'ticket_reopen_events', type: 'kpi', title: 'Ticket reopen events', w: 3, h: 2 },
+  { metric: 'ticket_resolution_events', type: 'kpi', title: 'Ticket resolution events', w: 3, h: 2 },
+  { metric: 'first_response_p50_seconds', type: 'kpi', title: 'First-response P50', w: 3, h: 2 },
+  { metric: 'first_response_p75_seconds', type: 'kpi', title: 'First-response P75', w: 3, h: 2 },
+  { metric: 'first_response_p90_seconds', type: 'kpi', title: 'First-response P90', w: 3, h: 2 },
+  { metric: 'survey_responses_total', type: 'kpi', title: 'Survey responses', w: 3, h: 2 },
+  { metric: 'dissatisfied_responses_total', type: 'kpi', title: 'Dissatisfied responses', w: 3, h: 2 },
+  { metric: 'customer_dissatisfaction_rate', type: 'kpi', title: 'Customer dissatisfaction rate', w: 3, h: 2 },
+  { metric: 'solution_proposed_tickets', type: 'kpi', title: 'Tickets with proposed solutions', w: 3, h: 2 },
+  { metric: 'solution_refused_tickets', type: 'kpi', title: 'Tickets with refused solutions', w: 3, h: 2 },
+  { metric: 'refused_solution_rate', type: 'kpi', title: 'Refused-solution rate', w: 3, h: 2 },
+  { metric: 'incident_linked_computers', type: 'kpi', title: 'Incident-linked computers', w: 3, h: 2 },
+  { metric: 'repeat_incident_computers_90d', type: 'kpi', title: 'Repeat-incident computers (90 days)', w: 3, h: 2 },
+  { metric: 'repeat_incident_asset_rate', type: 'kpi', title: 'Repeat-incident asset rate', w: 3, h: 2 },
+  { metric: 'licence_covered_titles', type: 'kpi', title: 'Licence-covered titles', w: 3, h: 2 },
+  { metric: 'licence_installed_titles', type: 'kpi', title: 'Installed software titles', w: 3, h: 2 },
+  { metric: 'licence_utilization_rate', type: 'kpi', title: 'Licence utilization rate', w: 3, h: 2 },
+  { metric: 'licence_coverage_gap_rate', type: 'kpi', title: 'Licence coverage-gap rate', w: 3, h: 2 },
 ];
 const definition = computed(() => dashboard.value?.definition);
 const hasGroupFilter = computed(() => definition.value?.widgets.some(widget => supportsGroup(widget.metric)) ?? false);
@@ -112,6 +131,17 @@ function range(): { from: string; to: string } {
 function toDate(date: Date): string { return date.toISOString().slice(0, 10); }
 function metricKey(metric: string, groupId: number | null = selectedGroup.value): string { return `${metric}:${groupId ?? 0}`; }
 function supportsGroup(metric: string): boolean { return ['current_open_tickets', 'historical_open_backlog'].includes(metric); }
+function insightDomains(): string[] {
+  const metricDomains: Record<string, string> = {
+    asset_inventory_total: 'asset', asset_inventory_by_state: 'asset', stale_computer_inventory: 'asset', low_disk_capacity_computers: 'asset', computers_in_stock_over_30_days: 'asset', incidents_by_operating_system: 'asset', repeat_incident_computers: 'asset', incident_linked_computers: 'asset', repeat_incident_computers_90d: 'asset', repeat_incident_asset_rate: 'asset',
+    prohibited_software_installations: 'licence', unlicensed_software_installations: 'licence', software_license_entitlements: 'licence', software_license_allocations: 'licence', software_license_overallocated_seats: 'licence', software_license_compliance_rate: 'licence', licence_covered_titles: 'licence', licence_installed_titles: 'licence', licence_utilization_rate: 'licence', licence_coverage_gap_rate: 'licence',
+    open_changes: 'change', daily_change_volume: 'change', daily_change_resolutions: 'change', open_change_status_distribution: 'change',
+    open_problems: 'problem', daily_problem_volume: 'problem', daily_problem_resolutions: 'problem', open_problem_status_distribution: 'problem',
+  };
+  const domains = new Set<string>();
+  definition.value?.widgets.forEach(widget => domains.add(metricDomains[widget.metric] ?? 'ticket'));
+  return domains.size >= 3 || domains.has('ticket') ? [] : [...domains];
+}
 function dataFor(widget: WidgetDefinition): MetricResponse | undefined {
   const groupId = supportsGroup(widget.metric) ? selectedGroup.value : null;
   return metrics.value[metricKey(widget.metric, groupId)];
@@ -123,6 +153,18 @@ const widgetInsightKeys: Record<string, string> = {
   unsatisfied_survey_responses: 'unsatisfied_response_movement',
   software_license_overallocated_seats: 'licence_overallocation_movement',
   software_license_compliance_rate: 'licence_compliance_movement',
+  ticket_reopen_events: 'ticket_reopen_count_movement',
+  created_tickets_by_request_source: 'created_request_source_demand_movement',
+  first_response_p50_seconds: 'first_response_p50_movement',
+  first_response_p75_seconds: 'first_response_p75_movement',
+  first_response_p90_seconds: 'first_response_p90_movement',
+  customer_dissatisfaction_rate: 'customer_dissatisfaction_rate_movement',
+  refused_solution_rate: 'refused_solution_rate_movement',
+  solution_refused_tickets: 'refused_solution_count_movement',
+  repeat_incident_asset_rate: 'repeat_incident_asset_rate_movement',
+  repeat_incident_computers_90d: 'repeat_incident_asset_count_movement',
+  licence_utilization_rate: 'licence_utilization_movement',
+  licence_coverage_gap_rate: 'licence_coverage_gap_movement',
 };
 function insightFor(widget: WidgetDefinition): InsightItem | undefined {
   const key = widgetInsightKeys[widget.metric];
@@ -209,6 +251,8 @@ async function loadInsights(): Promise<void> {
   try {
     const params = new URLSearchParams({ horizon: String(definition.value.dateRangeDays) });
     if (selectedGroup.value) params.set('group_id', String(selectedGroup.value));
+    const domains = insightDomains();
+    if (domains.length) params.set('domains', domains.join(','));
     const response = await fetch(`${props.insightEndpoint}?${params}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
     if (!response.ok) throw new Error('Insight request failed');
     insightData.value = await response.json() as InsightResponse;

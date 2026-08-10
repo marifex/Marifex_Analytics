@@ -32,6 +32,13 @@ final class DomainSnapshotBuilder
         'daily_problem_volume',
         'daily_problem_resolutions',
         'open_problem_status_distribution',
+        'incident_linked_computers',
+        'repeat_incident_computers_90d',
+        'repeat_incident_asset_rate',
+        'licence_covered_titles',
+        'licence_installed_titles',
+        'licence_utilization_rate',
+        'licence_coverage_gap_rate',
     ];
 
     public function run(DateTimeImmutable $localDay, DateTimeZone $timezone): int
@@ -47,9 +54,10 @@ final class DomainSnapshotBuilder
         ]);
 
         $written = $this->snapshotAssets($snapshotDate, $cutoffUtc);
-        $written += $this->snapshotSoftwareRisk($snapshotDate);
+        $written += $this->snapshotSoftwareRisk($snapshotDate, $cutoffUtc);
         $written += $this->snapshotAssetIncidents($snapshotDate, $cutoffUtc);
-        $written += $this->snapshotLicences($snapshotDate);
+        $written += $this->snapshotPhase5bAssetIncidents($snapshotDate, $cutoffUtc);
+        $written += $this->snapshotLicences($snapshotDate, $cutoffUtc);
         $written += $this->snapshotItilDomain($snapshotDate, $startUtc, $cutoffUtc, 'glpi_changes', 'change');
         $written += $this->snapshotItilDomain($snapshotDate, $startUtc, $cutoffUtc, 'glpi_problems', 'problem');
         return $written;
@@ -83,7 +91,9 @@ final class DomainSnapshotBuilder
             $entityId = (int) $computer['entities_id'];
             $stateId = (int) $computer['states_id'];
             $totals[$entityId] = ($totals[$entityId] ?? 0) + 1;
-            if (!$computer['last_inventory_update'] || (string) $computer['last_inventory_update'] < $staleBefore) {
+            if (!$computer['last_inventory_update']
+                || (string) $computer['last_inventory_update'] >= $cutoff
+                || (string) $computer['last_inventory_update'] < $staleBefore) {
                 $stale[$entityId] = ($stale[$entityId] ?? 0) + 1;
             }
             if (isset($stockStateIds[$stateId]) && (string) $computer['date_creation'] < $staleBefore) {
@@ -94,9 +104,9 @@ final class DomainSnapshotBuilder
 
         $lowDiskComputers = [];
         foreach ($DB->request([
-            'SELECT' => ['entities_id', 'items_id', 'totalsize', 'freesize'],
+            'SELECT' => ['entities_id', 'items_id', 'totalsize', 'freesize', 'date_creation'],
             'FROM' => 'glpi_items_disks',
-            'WHERE' => ['itemtype' => 'Computer', 'is_deleted' => 0],
+            'WHERE' => ['itemtype' => 'Computer', 'is_deleted' => 0, ['date_creation' => ['<', $cutoff]]],
         ]) as $disk) {
             $total = (int) $disk['totalsize'];
             if ($total > 0 && ((int) $disk['freesize'] / $total) < 0.10) {
@@ -120,9 +130,11 @@ final class DomainSnapshotBuilder
         return $written;
     }
 
-    private function snapshotSoftwareRisk(string $date): int
+    private function snapshotSoftwareRisk(string $date, DateTimeImmutable $cutoffUtc): int
     {
         global $DB;
+        $cutoffDate = $cutoffUtc->format('Y-m-d');
+        $cutoff = $cutoffUtc->format('Y-m-d H:i:s');
         $software = [];
         foreach ($DB->request([
             'SELECT' => ['id', 'is_valid'],
@@ -137,10 +149,13 @@ final class DomainSnapshotBuilder
         }
         $installations = [];
         foreach ($DB->request([
-            'SELECT' => ['entities_id', 'softwareversions_id'],
+            'SELECT' => ['entities_id', 'softwareversions_id', 'date_install'],
             'FROM' => 'glpi_items_softwareversions',
             'WHERE' => ['itemtype' => 'Computer', 'is_deleted' => 0, 'is_deleted_item' => 0, 'is_template_item' => 0],
         ]) as $installation) {
+            if ($installation['date_install'] && (string) $installation['date_install'] >= $cutoffDate) {
+                continue;
+            }
             $softwareId = $versions[(int) $installation['softwareversions_id']] ?? 0;
             if ($softwareId > 0 && isset($software[$softwareId])) {
                 $entityId = (int) $installation['entities_id'];
@@ -149,10 +164,13 @@ final class DomainSnapshotBuilder
         }
         $entitlements = [];
         foreach ($DB->request([
-            'SELECT' => ['entities_id', 'softwares_id', 'number'],
+            'SELECT' => ['entities_id', 'softwares_id', 'number', 'date_creation'],
             'FROM' => 'glpi_softwarelicenses',
             'WHERE' => ['is_deleted' => 0, 'is_template' => 0, 'is_valid' => 1],
         ]) as $licence) {
+            if ($licence['date_creation'] && (string) $licence['date_creation'] >= $cutoff) {
+                continue;
+            }
             $entityId = (int) $licence['entities_id'];
             $softwareId = (int) $licence['softwares_id'];
             $entitlements[$entityId][$softwareId] = ($entitlements[$entityId][$softwareId] ?? 0) + max(0, (int) $licence['number']);
@@ -201,10 +219,13 @@ final class DomainSnapshotBuilder
         }
         $operatingSystems = [];
         foreach ($DB->request([
-            'SELECT' => ['items_id', 'operatingsystems_id'],
+            'SELECT' => ['items_id', 'operatingsystems_id', 'install_date'],
             'FROM' => 'glpi_items_operatingsystems',
             'WHERE' => ['itemtype' => 'Computer', 'is_deleted' => 0],
         ]) as $operatingSystem) {
+            if ($operatingSystem['install_date'] && (string) $operatingSystem['install_date'] >= $cutoffUtc->format('Y-m-d')) {
+                continue;
+            }
             $operatingSystems[(int) $operatingSystem['items_id']] = (int) $operatingSystem['operatingsystems_id'];
         }
         $incidentCounts = [];
@@ -241,17 +262,23 @@ final class DomainSnapshotBuilder
         return $written;
     }
 
-    private function snapshotLicences(string $date): int
+    private function snapshotLicences(string $date, DateTimeImmutable $cutoffUtc): int
     {
         global $DB;
+        $cutoff = $cutoffUtc->format('Y-m-d H:i:s');
+        $cutoffDate = $cutoffUtc->format('Y-m-d');
         $licences = [];
         foreach ($DB->request([
-            'SELECT' => ['id', 'entities_id', 'number'],
+            'SELECT' => ['id', 'entities_id', 'softwares_id', 'number', 'date_creation'],
             'FROM' => 'glpi_softwarelicenses',
             'WHERE' => ['is_deleted' => 0, 'is_template' => 0, 'is_valid' => 1],
         ]) as $licence) {
+            if ($licence['date_creation'] && (string) $licence['date_creation'] >= $cutoff) {
+                continue;
+            }
             $licences[(int) $licence['id']] = [
                 'entity_id' => (int) $licence['entities_id'],
+                'software_id' => (int) $licence['softwares_id'],
                 'entitlements' => max(0, (int) $licence['number']),
                 'allocations' => 0,
             ];
@@ -271,24 +298,124 @@ final class DomainSnapshotBuilder
         }
 
         $entities = [];
+        $titles = [];
         foreach ($licences as $licence) {
             $entityId = $licence['entity_id'];
             $entities[$entityId]['entitlements'] = ($entities[$entityId]['entitlements'] ?? 0) + $licence['entitlements'];
             $entities[$entityId]['allocations'] = ($entities[$entityId]['allocations'] ?? 0) + $licence['allocations'];
             $entities[$entityId]['overallocated'] = ($entities[$entityId]['overallocated'] ?? 0)
                 + max(0, $licence['allocations'] - $licence['entitlements']);
+            $softwareId = $licence['software_id'];
+            $titles[$entityId][$softwareId]['entitlements'] = ($titles[$entityId][$softwareId]['entitlements'] ?? 0) + $licence['entitlements'];
+            $titles[$entityId][$softwareId]['allocations'] = ($titles[$entityId][$softwareId]['allocations'] ?? 0) + $licence['allocations'];
+        }
+
+        $versionSoftware = [];
+        foreach ($DB->request(['SELECT' => ['id', 'softwares_id'], 'FROM' => 'glpi_softwareversions']) as $version) {
+            $versionSoftware[(int) $version['id']] = (int) $version['softwares_id'];
+        }
+        $installedTitles = [];
+        foreach ($DB->request([
+            'SELECT' => ['entities_id', 'softwareversions_id', 'date_install'],
+            'FROM' => 'glpi_items_softwareversions',
+            'WHERE' => ['itemtype' => 'Computer', 'is_deleted' => 0, 'is_deleted_item' => 0, 'is_template_item' => 0],
+        ]) as $installation) {
+            if ($installation['date_install'] && (string) $installation['date_install'] >= $cutoffDate) {
+                continue;
+            }
+            $softwareId = $versionSoftware[(int) $installation['softwareversions_id']] ?? 0;
+            if ($softwareId > 0) {
+                $installedTitles[(int) $installation['entities_id']][$softwareId] = true;
+            }
         }
 
         $written = 0;
+        $observationEntities = array_unique(array_merge(array_keys($titles), array_keys($installedTitles)));
+        foreach ($observationEntities as $entityId) {
+            $softwareIds = array_unique(array_merge(array_keys($titles[$entityId] ?? []), array_keys($installedTitles[$entityId] ?? [])));
+            foreach ($softwareIds as $softwareId) {
+                $DB->insert('glpi_plugin_marifex_daily_licence_title_observations', [
+                    'snapshot_date' => $date,
+                    'entities_id' => (int) $entityId,
+                    'softwares_id' => (int) $softwareId,
+                    'entitlement_count' => (int) ($titles[$entityId][$softwareId]['entitlements'] ?? 0),
+                    'allocation_count' => (int) ($titles[$entityId][$softwareId]['allocations'] ?? 0),
+                    'is_installed' => isset($installedTitles[$entityId][$softwareId]) ? 1 : 0,
+                ]);
+                ++$written;
+            }
+        }
         foreach ($entities as $entityId => $values) {
             $entitlements = (int) $values['entitlements'];
             $allocations = (int) $values['allocations'];
-            $rate = $allocations === 0 ? 100.0 : min(100.0, ($entitlements / $allocations) * 100);
+            $rate = $allocations > 0 ? min(100.0, ($entitlements / $allocations) * 100) : 0.0;
             $this->writeRollup($date, $entityId, 'software_license_entitlements', $entitlements, $entitlements);
             $this->writeRollup($date, $entityId, 'software_license_allocations', $allocations, $allocations);
             $this->writeRollup($date, $entityId, 'software_license_overallocated_seats', (int) $values['overallocated'], $allocations);
-            $this->writeRollup($date, $entityId, 'software_license_compliance_rate', $rate, max(1, $allocations));
+            $this->writeRollup($date, $entityId, 'software_license_compliance_rate', $rate, $allocations);
+            $covered = array_filter($titles[$entityId] ?? [], static fn(array $title): bool => ($title['entitlements'] ?? 0) > 0 && ($title['allocations'] ?? 0) > 0);
+            $coveredEntitlements = array_sum(array_column($covered, 'entitlements'));
+            $coveredAllocations = array_sum(array_column($covered, 'allocations'));
+            $installed = array_keys($installedTitles[$entityId] ?? []);
+            $gap = count(array_filter($installed, static fn(int $softwareId): bool => (int) ($titles[$entityId][$softwareId]['entitlements'] ?? 0) <= 0));
+            $this->writeRollup($date, $entityId, 'licence_covered_titles', count($covered), count($covered));
+            $this->writeRollup($date, $entityId, 'licence_installed_titles', count($installed), count($installed));
+            $this->writeRollup($date, $entityId, 'licence_utilization_rate', $coveredEntitlements > 0 ? $coveredAllocations / $coveredEntitlements * 100 : 0, $coveredEntitlements);
+            $this->writeRollup($date, $entityId, 'licence_coverage_gap_rate', count($installed) > 0 ? $gap / count($installed) * 100 : 0, count($installed));
+            $written += 8;
+        }
+        foreach (array_diff(array_keys($installedTitles), array_keys($entities)) as $entityId) {
+            $installed = array_keys($installedTitles[$entityId]);
+            $this->writeRollup($date, (int) $entityId, 'licence_covered_titles', 0, 0);
+            $this->writeRollup($date, (int) $entityId, 'licence_installed_titles', count($installed), count($installed));
+            $this->writeRollup($date, (int) $entityId, 'licence_utilization_rate', 0, 0);
+            $this->writeRollup($date, (int) $entityId, 'licence_coverage_gap_rate', 100, count($installed));
             $written += 4;
+        }
+        return $written;
+    }
+
+    private function snapshotPhase5bAssetIncidents(string $date, DateTimeImmutable $cutoffUtc): int
+    {
+        global $DB;
+        $from = $cutoffUtc->modify('-90 days')->format('Y-m-d H:i:s');
+        $cutoff = $cutoffUtc->format('Y-m-d H:i:s');
+        $tickets = [];
+        foreach ($DB->request([
+            'SELECT' => ['id'], 'FROM' => 'glpi_tickets',
+            'WHERE' => ['is_deleted' => 0, 'type' => 1, ['date_creation' => ['>=', $from]], ['date_creation' => ['<', $cutoff]]],
+        ]) as $ticket) {
+            $tickets[(int) $ticket['id']] = true;
+        }
+        $computerEntities = [];
+        foreach ($DB->request([
+            'SELECT' => ['id', 'entities_id'], 'FROM' => 'glpi_computers',
+            'WHERE' => ['is_deleted' => 0, 'is_template' => 0],
+        ]) as $computer) {
+            $computerEntities[(int) $computer['id']] = (int) $computer['entities_id'];
+        }
+        $counts = [];
+        if ($tickets !== []) {
+            foreach ($DB->request([
+                'SELECT' => ['items_id', 'tickets_id'], 'FROM' => 'glpi_items_tickets',
+                'WHERE' => ['itemtype' => 'Computer', 'tickets_id' => array_keys($tickets)],
+            ]) as $link) {
+                $computerId = (int) $link['items_id'];
+                $entityId = $computerEntities[$computerId] ?? null;
+                if ($entityId !== null) {
+                    $counts[$entityId][$computerId][(int) $link['tickets_id']] = true;
+                }
+            }
+        }
+        $entityIds = array_values(array_unique(array_values($computerEntities)));
+        $written = 0;
+        foreach ($entityIds as $entityId) {
+            $linked = count($counts[$entityId] ?? []);
+            $repeat = count(array_filter($counts[$entityId] ?? [], static fn(array $ticketSet): bool => count($ticketSet) >= 2));
+            $this->writeRollup($date, $entityId, 'incident_linked_computers', $linked, $linked);
+            $this->writeRollup($date, $entityId, 'repeat_incident_computers_90d', $repeat, $linked);
+            $this->writeRollup($date, $entityId, 'repeat_incident_asset_rate', $linked > 0 ? $repeat / $linked * 100 : 0, $linked);
+            $written += 3;
         }
         return $written;
     }

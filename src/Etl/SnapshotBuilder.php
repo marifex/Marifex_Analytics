@@ -24,6 +24,7 @@ final class SnapshotBuilder
 
         $DB->delete('glpi_plugin_marifex_daily_snapshots', ['snapshot_date' => $snapshotDate]);
         $DB->delete('glpi_plugin_marifex_daily_rollups', ['rollup_date' => $snapshotDate]);
+        $DB->delete('glpi_plugin_marifex_daily_licence_title_observations', ['snapshot_date' => $snapshotDate]);
 
         $intervals = $DB->request([
             'SELECT' => ['tickets_id', 'entities_id', 'state_value', 'started_at'],

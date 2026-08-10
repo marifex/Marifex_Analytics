@@ -91,8 +91,11 @@ final class HtmlReportRenderer
         if (in_array($metric, ['average_open_ticket_age', 'average_unassigned_time'], true)) {
             return number_format(((float) $value) / 86400, 1) . ' days';
         }
-        if (in_array($metric, ['software_license_compliance_rate', 'sla_breach_rate'], true)) {
+        if (in_array($metric, ['software_license_compliance_rate', 'sla_breach_rate', 'customer_dissatisfaction_rate', 'refused_solution_rate', 'repeat_incident_asset_rate', 'licence_utilization_rate', 'licence_coverage_gap_rate'], true)) {
             return number_format((float) $value, 1) . '%';
+        }
+        if (in_array($metric, ['first_response_p50_seconds', 'first_response_p75_seconds', 'first_response_p90_seconds'], true)) {
+            return (float) $value < 3600 ? number_format((float) $value / 60, 1) . ' min' : number_format((float) $value / 3600, 1) . ' hr';
         }
         return number_format((float) $value, is_float($value) ? 1 : 0);
     }

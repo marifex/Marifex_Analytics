@@ -6,7 +6,7 @@ namespace GlpiPlugin\Marifex\Insight;
 
 final class InsightRuleRegistry
 {
-    public const FORMULA_VERSION = 'phase5a-1';
+    public const FORMULA_VERSION = 'phase5b-1';
     public const DENOMINATOR_MINIMUM = 5;
     public const RELATIVE_GATE = 10.0;
 
@@ -33,6 +33,19 @@ final class InsightRuleRegistry
             'repeat_incident_computer_movement' => self::rule('Computers with repeated incidents', 'count', 5.0, 'decrease', 'asset', 41, 'computers'),
             'licence_overallocation_movement' => self::rule('Overallocated licence seats', 'count', 5.0, 'decrease', 'licence', 42, 'seats'),
             'licence_compliance_movement' => self::rule('Software licence compliance rate', 'rate', 3.0, 'increase', 'licence', 43, 'percent'),
+            'created_request_source_demand_movement' => self::rule('Created-ticket demand', 'count', 5.0, 'neutral', 'ticket', 27, 'tickets'),
+            'ticket_reopen_count_movement' => self::rule('Ticket reopen events', 'count', 5.0, 'decrease', 'ticket', 28, 'events'),
+            'ticket_reopen_rate_movement' => self::rule('Ticket reopen event rate', 'rate', 3.0, 'decrease', 'ticket', 29, 'percent'),
+            'first_response_p90_movement' => self::rule('First-response P90', 'duration', 900.0, 'decrease', 'ticket', 31, 'seconds'),
+            'first_response_p75_movement' => self::rule('First-response P75', 'duration', 600.0, 'decrease', 'ticket', 32, 'seconds'),
+            'first_response_p50_movement' => self::rule('First-response P50', 'duration', 300.0, 'decrease', 'ticket', 33, 'seconds'),
+            'customer_dissatisfaction_rate_movement' => self::rule('Customer dissatisfaction rate', 'rate', 3.0, 'decrease', 'ticket', 34, 'percent'),
+            'refused_solution_count_movement' => self::rule('Tickets with refused solutions', 'count', 5.0, 'decrease', 'ticket', 35, 'tickets'),
+            'refused_solution_rate_movement' => self::rule('Refused-solution rate', 'rate', 3.0, 'decrease', 'ticket', 36, 'percent'),
+            'repeat_incident_asset_count_movement' => self::rule('Repeat-incident computers (90 days)', 'count', 5.0, 'decrease', 'asset', 44, 'computers'),
+            'repeat_incident_asset_rate_movement' => self::rule('Repeat-incident asset rate', 'rate', 3.0, 'decrease', 'asset', 45, 'percent'),
+            'licence_utilization_movement' => self::rule('Licence utilization rate', 'rate', 3.0, 'neutral', 'licence', 46, 'percent'),
+            'licence_coverage_gap_movement' => self::rule('Licence coverage-gap rate', 'rate', 3.0, 'decrease', 'licence', 47, 'percent'),
         ];
     }
 

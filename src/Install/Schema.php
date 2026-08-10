@@ -196,6 +196,31 @@ final class Schema
                 `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (`id`), KEY `event_created` (`event_type`,`date_creation`)
             ) $suffix",
+            'glpi_plugin_marifex_daily_response_observations' => "CREATE TABLE `glpi_plugin_marifex_daily_response_observations` (
+                `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+                `snapshot_date` date NOT NULL,
+                `entities_id` int unsigned NOT NULL,
+                `tickets_id` int unsigned NOT NULL,
+                `delay_seconds` bigint unsigned NOT NULL,
+                `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `snapshot_ticket` (`snapshot_date`,`tickets_id`),
+                KEY `entity_snapshot` (`entities_id`,`snapshot_date`)
+            ) $suffix",
+            'glpi_plugin_marifex_daily_licence_title_observations' => "CREATE TABLE `glpi_plugin_marifex_daily_licence_title_observations` (
+                `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+                `snapshot_date` date NOT NULL,
+                `entities_id` int unsigned NOT NULL,
+                `softwares_id` int unsigned NOT NULL,
+                `entitlement_count` bigint unsigned NOT NULL DEFAULT 0,
+                `allocation_count` bigint unsigned NOT NULL DEFAULT 0,
+                `is_installed` tinyint(1) NOT NULL DEFAULT 0,
+                `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `snapshot_entity_title` (`snapshot_date`,`entities_id`,`softwares_id`),
+                KEY `entity_snapshot` (`entities_id`,`snapshot_date`),
+                KEY `title_snapshot` (`softwares_id`,`snapshot_date`)
+            ) $suffix",
         ];
     }
 }

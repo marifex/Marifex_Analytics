@@ -3,6 +3,7 @@
 /.npm-cache/
 /.reference/
 /versions/
+/backups/
 /.phpunit.cache/
 /.php-cs-fixer.cache
 /public/build/

@@ -22,8 +22,9 @@ final class InsightController extends AbstractController
         if (!Profile::canView()) throw new AccessDeniedHttpException();
         $horizon = $request->query->getInt('horizon', 30);
         $groupId = $request->query->getInt('group_id');
+        $domains = array_values(array_filter(array_map('trim', explode(',', (string) $request->query->get('domains', '')))));
         try {
-            return new JsonResponse((new InsightService())->build($horizon, $groupId > 0 ? $groupId : null));
+            return new JsonResponse((new InsightService())->build($horizon, $groupId > 0 ? $groupId : null, null, $domains));
         } catch (RuntimeException $error) {
             throw new BadRequestHttpException($error->getMessage(), $error);
         }

@@ -64,6 +64,11 @@ final class MetricQueryService
                 $from ?? new DateTimeImmutable('-30 days'),
                 $to ?? new DateTimeImmutable('today')
             ),
+            'created_tickets_by_request_source' => $this->dimensionSeries(
+                $definition,
+                $from ?? new DateTimeImmutable('-30 days'),
+                $to ?? new DateTimeImmutable('today')
+            ),
             'asset_inventory_total',
             'stale_computer_inventory',
             'unassigned_open_tickets',
@@ -89,7 +94,103 @@ final class MetricQueryService
                 $from ?? new DateTimeImmutable('-30 days'),
                 $to ?? new DateTimeImmutable('today')
             ),
+            'ticket_reopen_events',
+            'ticket_resolution_events',
+            'survey_responses_total',
+            'dissatisfied_responses_total',
+            'customer_dissatisfaction_rate',
+            'solution_proposed_tickets',
+            'solution_refused_tickets',
+            'refused_solution_rate',
+            'incident_linked_computers',
+            'repeat_incident_computers_90d',
+            'repeat_incident_asset_rate' => $this->dailyRollupSeries(
+                $definition,
+                $from ?? new DateTimeImmutable('-180 days'),
+                $to ?? new DateTimeImmutable('today')
+            ),
+            'licence_covered_titles',
+            'licence_installed_titles',
+            'licence_utilization_rate',
+            'licence_coverage_gap_rate' => $this->licenceTitleSeries(
+                $definition,
+                $from ?? new DateTimeImmutable('-180 days'),
+                $to ?? new DateTimeImmutable('today')
+            ),
+            'first_response_p50_seconds' => $this->responsePercentileSeries($definition, 0.50, $from ?? new DateTimeImmutable('-180 days'), $to ?? new DateTimeImmutable('today')),
+            'first_response_p75_seconds' => $this->responsePercentileSeries($definition, 0.75, $from ?? new DateTimeImmutable('-180 days'), $to ?? new DateTimeImmutable('today')),
+            'first_response_p90_seconds' => $this->responsePercentileSeries($definition, 0.90, $from ?? new DateTimeImmutable('-180 days'), $to ?? new DateTimeImmutable('today')),
         };
+    }
+
+    /** @return array<string, mixed> */
+    private function responsePercentileSeries(MetricDefinition $definition, float $percentile, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        global $DB;
+        $this->assertDatabase($DB);
+        if ($from > $to || $from->diff($to)->days > 3660) {
+            throw new RuntimeException('Invalid metric date range.');
+        }
+        $byDate = [];
+        foreach ($DB->request([
+            'SELECT' => ['snapshot_date', 'delay_seconds'],
+            'FROM' => 'glpi_plugin_marifex_daily_response_observations',
+            'WHERE' => array_merge($this->entityScope->criteria(), [
+                ['snapshot_date' => ['>=', $from->format('Y-m-d')]],
+                ['snapshot_date' => ['<=', $to->format('Y-m-d')]],
+            ]),
+            'ORDER' => ['snapshot_date ASC', 'delay_seconds ASC'],
+        ]) as $row) {
+            $byDate[(string) $row['snapshot_date']][] = (int) $row['delay_seconds'];
+        }
+        $series = [];
+        foreach ($byDate as $date => $values) {
+            $index = max(0, min(count($values) - 1, (int) ceil($percentile * count($values)) - 1));
+            $series[] = ['date' => $date, 'value' => $values[$index], 'sample_count' => count($values)];
+        }
+        return ['metric' => $definition->key, 'label' => __($definition->label, 'marifex'), 'source' => $definition->source, 'from' => $from->format('Y-m-d'), 'to' => $to->format('Y-m-d'), 'series' => $series];
+    }
+
+    /** @return array<string, mixed> */
+    private function licenceTitleSeries(MetricDefinition $definition, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        global $DB;
+        $this->assertDatabase($DB);
+        if ($from > $to || $from->diff($to)->days > 3660) {
+            throw new RuntimeException('Invalid metric date range.');
+        }
+        $facts = [];
+        foreach ($DB->request([
+            'SELECT' => ['snapshot_date', 'softwares_id', 'entitlement_count', 'allocation_count', 'is_installed'],
+            'FROM' => 'glpi_plugin_marifex_daily_licence_title_observations',
+            'WHERE' => array_merge($this->entityScope->criteria(), [
+                ['snapshot_date' => ['>=', $from->format('Y-m-d')]],
+                ['snapshot_date' => ['<=', $to->format('Y-m-d')]],
+            ]),
+            'ORDER' => ['snapshot_date ASC', 'softwares_id ASC'],
+        ]) as $row) {
+            $date = (string) $row['snapshot_date'];
+            $softwareId = (int) $row['softwares_id'];
+            $facts[$date][$softwareId]['entitlements'] = ($facts[$date][$softwareId]['entitlements'] ?? 0) + (int) $row['entitlement_count'];
+            $facts[$date][$softwareId]['allocations'] = ($facts[$date][$softwareId]['allocations'] ?? 0) + (int) $row['allocation_count'];
+            $facts[$date][$softwareId]['installed'] = ($facts[$date][$softwareId]['installed'] ?? false) || (int) $row['is_installed'] === 1;
+        }
+        $series = [];
+        foreach ($facts as $date => $titles) {
+            $covered = array_filter($titles, static fn(array $title): bool => $title['entitlements'] > 0 && ($title['allocations'] > 0 || $title['installed']));
+            $installed = array_filter($titles, static fn(array $title): bool => $title['installed']);
+            $gap = array_filter($installed, static fn(array $title): bool => $title['entitlements'] <= 0);
+            $coveredEntitlements = array_sum(array_column($covered, 'entitlements'));
+            $coveredAllocations = array_sum(array_column($covered, 'allocations'));
+            [$value, $samples] = match ($definition->key) {
+                'licence_covered_titles' => [count($covered), count($covered)],
+                'licence_installed_titles' => [count($installed), count($installed)],
+                'licence_utilization_rate' => [$coveredEntitlements > 0 ? $coveredAllocations / $coveredEntitlements * 100 : 0, count($covered)],
+                'licence_coverage_gap_rate' => [count($installed) > 0 ? count($gap) / count($installed) * 100 : 0, count($installed)],
+            };
+            $series[] = ['date' => $date, 'value' => str_ends_with($definition->key, '_rate') ? round($value, 1) : $value, 'sample_count' => $samples];
+        }
+        return ['metric' => $definition->key, 'label' => __($definition->label, 'marifex'), 'source' => $definition->source, 'from' => $from->format('Y-m-d'), 'to' => $to->format('Y-m-d'), 'series' => $series];
     }
 
     /** @return array<string, mixed> */
@@ -353,7 +454,7 @@ final class MetricQueryService
             ? 'SUM(`metric_value` * `sample_count`) / NULLIF(SUM(`sample_count`), 0) AS value'
             : 'SUM(`metric_value`) AS value';
         $iterator = $DB->request([
-            'SELECT' => ['rollup_date', new QueryExpression($valueExpression)],
+            'SELECT' => ['rollup_date', new QueryExpression($valueExpression), new QueryExpression('SUM(`sample_count`) AS sample_count')],
             'FROM' => 'glpi_plugin_marifex_daily_rollups',
             'WHERE' => array_merge($this->entityScope->criteria(), [
                 'metric_key' => $definition->key,
@@ -373,6 +474,7 @@ final class MetricQueryService
                     'decimal_series' => round((float) $row['value'], 2),
                     default => (int) $row['value'],
                 },
+                'sample_count' => (int) $row['sample_count'],
             ];
         }
 
@@ -477,7 +579,7 @@ final class MetricQueryService
             'asset_inventory_by_state' => $this->stateLabels($dimensionIds),
             'open_tickets_by_priority' => $this->priorityLabels($dimensionIds),
             'sla_breaches_by_technician', 'technician_workload_distribution' => $this->userLabels($dimensionIds),
-            'tickets_by_request_source' => $this->tableLabels('glpi_requesttypes', $dimensionIds, 'Request source'),
+            'tickets_by_request_source', 'created_tickets_by_request_source' => $this->tableLabels('glpi_requesttypes', $dimensionIds, 'Request source'),
             'created_vs_resolved_tickets' => [1 => __('Created', 'marifex'), 2 => __('Resolved', 'marifex')],
             'resolution_time_age_bands' => [1 => __('< 1 day', 'marifex'), 2 => __('1-3 days', 'marifex'), 3 => __('3-7 days', 'marifex'), 4 => __('7-30 days', 'marifex'), 5 => __('30+ days', 'marifex')],
             'prohibited_software_installations', 'unlicensed_software_installations' => $this->tableLabels('glpi_softwares', $dimensionIds, 'Software'),
