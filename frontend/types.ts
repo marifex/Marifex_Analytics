@@ -57,7 +57,7 @@ export type InsightResponse = {
   readiness: { ready_metrics: number; total_metrics: number; required_snapshots: number; metrics: Array<{ metric: string; completed: number; required: number; ready: boolean; state: string }> };
 };
 export type WidgetType = 'kpi' | 'line' | 'bar' | 'donut' | 'table' | 'detail_table' | 'matrix' | 'attention' | 'insight';
-export type WidgetDefinition = { id: string; metric: string; type: WidgetType; title: string; palette: import('./palettes').WidgetPaletteKey; w: number; h: number; x?: number; y?: number };
+export type WidgetDefinition = { id: string; metric: string; type: WidgetType; title: string; palette: import('./palettes').WidgetPaletteKey; chartPalette: string; requiredColorSlots: number; w: number; h: number; x?: number; y?: number };
 export type DashboardDefinition = { version: number; dateRangeDays: number; refreshMinutes: number; filters: { groupId: number | null }; widgets: WidgetDefinition[] };
 export type SavedDashboard = { id: number | null; name: string; definition: DashboardDefinition; date_mod: string | null };
 export type DashboardSummary = { id: number; name: string; is_active: boolean; date_mod: string | null };

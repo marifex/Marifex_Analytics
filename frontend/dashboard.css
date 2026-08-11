@@ -95,7 +95,7 @@
 .marifex-donut-layout { align-items: stretch; block-size: 100%; display: grid; gap: .35rem; grid-template-columns: minmax(0, 1.08fr) minmax(8.5rem, .92fr); min-block-size: 0; }
 .marifex-donut-layout__chart { min-block-size: 0; }
 .marifex-donut-legend { align-content: center; display: grid; gap: .18rem; min-inline-size: 0; padding-block: .35rem; }
-.marifex-donut-legend__item { align-items: center; background: transparent; border: 0; color: var(--mx-widget-text); display: grid; font-size: .52rem; gap: .3rem; grid-template-columns: .7rem minmax(0, 1fr); line-height: 1.12; min-inline-size: 0; padding: .12rem 0; text-align: start; }
+.marifex-donut-legend__item { align-items: center; background: transparent; border: 0; color: var(--mx-widget-text); display: grid; font-family: var(--tblr-font-sans-serif, Inter, system-ui, sans-serif); font-size: clamp(.64rem, 1.1cqw, .74rem); font-weight: 650; gap: .35rem; grid-template-columns: .72rem minmax(0, 1fr); line-height: 1.2; min-inline-size: 0; overflow-wrap: anywhere; padding: .14rem 0; text-align: start; }
 .marifex-donut-legend__item:hover,.marifex-donut-legend__item.is-selected { color: var(--mx-widget-accent); }
 .marifex-donut-legend__swatch { border-radius: .14rem; block-size: .48rem; inline-size: .7rem; }
 .marifex-widget--kpi .marifex-widget__body { display: flex; flex-direction: column; justify-content: center; padding: clamp(.45rem, 4cqh, 1rem); }
@@ -223,5 +223,21 @@
 .marifex-widget-action svg { block-size: 14px; fill: none; inline-size: 14px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
 .marifex-widget--editing .marifex-drag-indicator { padding: 4px; }
 .marifex-widget--editing .marifex-widget__body { overflow: hidden; }
-.marifex-widget--editing .marifex-widget__settings { align-content: start; background: #fff; border: 1px solid #d9dde3; border-radius: 6px; box-sizing: border-box; box-shadow: 0 16px 40px rgb(15 23 42 / 18%); display: grid; gap: 10px; grid-auto-rows: max-content; grid-template-columns: minmax(0, 1fr); inset-block: 9rem 16px; inset-inline-end: 16px; max-inline-size: calc(100vw - 32px); overflow: auto; padding: 38px 16px 16px; position: fixed; width: 320px; z-index: 1060; }
-.marifex-widget__settings-close { inset-block-start: 12px; inset-inline-end: 12px; position: absolute; }
+.marifex-widget--editing .marifex-widget__settings { align-content: start; background: #fff; border: 1px solid #d9dde3; border-radius: 6px; box-sizing: border-box; box-shadow: 0 16px 40px rgb(15 23 42 / 18%); display: grid; gap: 12px; grid-auto-rows: max-content; grid-template-columns: minmax(0, 1fr); inset-block: 9rem 16px; inset-inline-end: 16px; max-inline-size: calc(100vw - 32px); overflow: auto; padding: 16px; position: fixed; width: 340px; z-index: 1060; }
+.marifex-widget__settings-heading { border-block-end: 1px solid #e5e7eb; padding-block-end: 10px; }
+.marifex-widget__settings-heading h3 { font-size: 15px; margin: 0; }
+.marifex-widget__settings-heading p { color: #687386; font-size: 11px; margin: 3px 0 0; }
+.marifex-widget__settings-actions { border-block-start: 1px solid #e5e7eb; display: flex; gap: 8px; justify-content: flex-end; padding-block-start: 12px; }
+.marifex-palette-manager { display: grid; gap: 16px; grid-template-columns: minmax(260px,.8fr) minmax(360px,1.2fr); }
+.marifex-palette-manager__list { align-content: start; display: grid; gap: 6px; max-block-size: 560px; overflow: auto; }
+.marifex-palette-row { align-items: center; background: #fff; border: 1px solid #dfe4ec; border-radius: 6px; display: grid; gap: 3px; grid-template-columns: minmax(0,1fr) auto; padding: 8px; text-align: start; }
+.marifex-palette-row.is-selected { border-color: #206bc4; box-shadow: 0 0 0 1px #206bc4; }
+.marifex-palette-row small { color: #687386; font-size: 10px; grid-column: 1; }
+.marifex-palette-row__swatches { display: flex; gap: 2px; grid-column: 2; grid-row: 1 / span 2; }
+.marifex-palette-row__swatches i,.marifex-palette-preview span { block-size: 18px; border: 1px solid rgb(0 0 0 / 12%); display: block; inline-size: 18px; }
+.marifex-palette-manager__editor { display: grid; gap: 10px; }
+.marifex-palette-manager__actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.marifex-palette-preview { border: 1px solid #dfe4ec; border-radius: 6px; display: grid; gap: 6px; padding: 8px; }
+.marifex-palette-preview > div { align-items: center; display: flex; gap: 3px; }
+.marifex-palette-preview strong { font-size: 10px; inline-size: 90px; text-transform: capitalize; }
+@media (max-width: 900px) { .marifex-palette-manager { grid-template-columns: 1fr; } }

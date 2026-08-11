@@ -4,11 +4,14 @@ import WidgetCard from './WidgetCard.vue';
 import InsightStrip from './InsightStrip.vue';
 import type { DashboardTemplate, DashboardWorkspace, InsightItem, InsightResponse, MetricResponse, ReportSchedule, SavedDashboard, WidgetDefinition } from './types';
 import { defaultWidgetPalette, type WidgetPaletteKey } from './palettes';
+import type { ChartPalette, PaletteCatalogue } from './chartPalettes';
 
-const props = defineProps<{ metricEndpoint: string; insightEndpoint: string; definitionEndpoint: string; csrfToken: string; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string; reportExportUrl: string; reportScheduleEndpoint: string; canExport: boolean; canSchedule: boolean }>();
+const props = defineProps<{ metricEndpoint: string; insightEndpoint: string; definitionEndpoint: string; paletteEndpoint: string; csrfToken: string; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string; reportExportUrl: string; reportScheduleEndpoint: string; canExport: boolean; canSchedule: boolean }>();
 const dashboard = ref<SavedDashboard | null>(null);
 const dashboards = ref<DashboardWorkspace['dashboards']>([]);
 const templates = ref<DashboardTemplate[]>([]);
+const chartPalettes = ref<ChartPalette[]>([]);
+const defaultChartPalette = ref('chart_cream_gold');
 const metrics = ref<Record<string, MetricResponse>>({});
 const insightData = ref<InsightResponse | null>(null);
 const insightLoading = ref(false);
@@ -34,7 +37,7 @@ let dragGhost: HTMLElement | null = null;
 let editSnapshot: SavedDashboard | null = null;
 let refreshTimer: number | undefined;
 
-const catalog: Array<Omit<WidgetDefinition, 'id' | 'palette'>> = [
+const catalog: Array<Omit<WidgetDefinition, 'id' | 'palette' | 'chartPalette' | 'requiredColorSlots'>> = [
   { metric: 'current_open_tickets', type: 'kpi', title: 'Open now', w: 3, h: 2 },
   { metric: 'average_open_ticket_age', type: 'kpi', title: 'Average ticket age', w: 3, h: 2 },
   { metric: 'average_open_ticket_age', type: 'line', title: 'Ticket age trajectory', w: 6, h: 4 },
@@ -194,9 +197,14 @@ function scheduleRefresh(): void {
 async function load(): Promise<void> {
   loading.value = true; error.value = '';
   try {
-    const response = await fetch(props.definitionEndpoint, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-    if (!response.ok) throw new Error('Dashboard definition request failed');
+    const [response, paletteResponse] = await Promise.all([
+      fetch(props.definitionEndpoint, { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
+      fetch(props.paletteEndpoint, { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
+    ]);
+    if (!response.ok || !paletteResponse.ok) throw new Error('Dashboard definition request failed');
     adoptWorkspace(await response.json());
+    const paletteData = await paletteResponse.json() as PaletteCatalogue;
+    chartPalettes.value = paletteData.palettes; defaultChartPalette.value = paletteData.default;
     await loadMetrics();
     if (props.canSchedule) void loadSchedules().catch(() => { scheduleError.value = 'Report schedules could not be loaded.'; });
   } catch { error.value = 'The analytics dashboard could not be loaded. Check the plugin automatic actions and try again.'; }
@@ -323,13 +331,15 @@ function cancelEditing(): void {
   if (editSnapshot) { dashboard.value = editSnapshot; selectedGroup.value = editSnapshot.definition.filters.groupId; }
   editSnapshot = null; editing.value = false; scheduleRefresh(); void loadMetrics();
 }
-function addWidget(item: Omit<WidgetDefinition, 'id' | 'palette'>): void {
+function addWidget(item: Omit<WidgetDefinition, 'id' | 'palette' | 'chartPalette' | 'requiredColorSlots'>): void {
   if (!definition.value || definition.value.widgets.length >= 40) return;
-  definition.value.widgets.push({ ...item, palette: defaultWidgetPalette, id: `widget-${Date.now().toString(36)}` }); catalogOpen.value = false; if (!editing.value) startEditing(); void loadMetrics();
+  const slots = item.type === 'donut' ? 6 : item.metric === 'created_vs_resolved_tickets' ? 2 : ['line','bar'].includes(item.type) ? 1 : 0;
+  definition.value.widgets.push({ ...item, palette: defaultWidgetPalette, chartPalette: defaultChartPalette.value, requiredColorSlots: slots, id: `widget-${Date.now().toString(36)}` }); catalogOpen.value = false; if (!editing.value) startEditing(); void loadMetrics();
 }
 function removeWidget(id: string): void { if (definition.value && definition.value.widgets.length > 1) definition.value.widgets = definition.value.widgets.filter(widget => widget.id !== id); }
 function renameWidget(id: string, title: string): void { const widget = definition.value?.widgets.find(item => item.id === id); const clean = title.trim(); if (widget && clean) widget.title = clean; }
 function recolorWidget(id: string, palette: WidgetPaletteKey): void { const widget = definition.value?.widgets.find(item => item.id === id); if (widget) widget.palette = palette; }
+function recolorChart(id: string, palette: string): void { const widget = definition.value?.widgets.find(item => item.id === id); if (widget) widget.chartPalette = palette; }
 function beginInteraction(id: string, mode: 'drag' | 'resize', event: PointerEvent): void {
   if (!editing.value || event.button !== 0) return;
   const widget = definition.value?.widgets.find(item => item.id === id); if (!widget) return;
@@ -439,7 +449,7 @@ onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(ref
     <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
     <InsightStrip v-if="definition" :data="insightData" :loading="insightLoading" :error="insightError" :ticket-url="ticketSearchUrl" :asset-url="assetSearchUrl" :licence-url="licenceSearchUrl" :change-url="changeSearchUrl" :problem-url="problemSearchUrl" />
     <div v-if="definition" ref="gridElement" class="marifex-widget-grid" :class="{ 'marifex-widget-grid--editing': editing }">
-      <WidgetCard v-for="widget in definition.widgets" :key="widget.id" :widget="widget" :section-label="sectionLabels[widget.id]" :data="dataFor(widget)" :movement="insightFor(widget)" :indicator="indicatorFor(widget)" :loading="loading" :editing="editing" :interacting="interactingWidget === widget.id" :interaction-mode="interactingWidget === widget.id ? interactionMode : null" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" :asset-search-url="assetSearchUrl" :licence-search-url="licenceSearchUrl" :change-search-url="changeSearchUrl" :problem-search-url="problemSearchUrl" @remove="removeWidget" @rename="renameWidget" @palette="recolorWidget" @select-group="chooseGroup" @interaction-start="beginInteraction" />
+      <WidgetCard v-for="widget in definition.widgets" :key="widget.id" :widget="widget" :chart-palettes="chartPalettes" :section-label="sectionLabels[widget.id]" :data="dataFor(widget)" :movement="insightFor(widget)" :indicator="indicatorFor(widget)" :loading="loading" :editing="editing" :interacting="interactingWidget === widget.id" :interaction-mode="interactingWidget === widget.id ? interactionMode : null" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" :asset-search-url="assetSearchUrl" :licence-search-url="licenceSearchUrl" :change-search-url="changeSearchUrl" :problem-search-url="problemSearchUrl" @remove="removeWidget" @rename="renameWidget" @palette="recolorWidget" @chart-palette="recolorChart" @select-group="chooseGroup" @interaction-start="beginInteraction" />
     </div>
 
     <div v-if="catalogOpen" class="marifex-catalog-backdrop" role="presentation" @click.self="catalogOpen = false"><aside class="marifex-catalog" role="dialog" aria-modal="true" aria-labelledby="catalog-title"><header><div><p class="marifex-command__eyebrow">Certified semantic layer</p><h2 id="catalog-title">Widget library</h2></div><button class="btn-close" type="button" aria-label="Close" @click="catalogOpen = false"></button></header><p class="text-secondary">Every widget uses an approved metric. SQL and unrestricted data access are never accepted.</p><div class="marifex-catalog__grid"><button v-for="item in catalog" :key="`${item.metric}-${item.type}`" class="card marifex-catalog-item" type="button" @click="addWidget(item)"><span class="badge bg-azure-lt">{{ item.type }}</span><strong>{{ item.title }}</strong><small>{{ item.metric.replaceAll('_', ' ') }}</small></button></div></aside></div>

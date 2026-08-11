@@ -3,6 +3,7 @@
 Status: **Approved implementation contract**
 Decision date: **2026-08-09**
 Phase 5A amendment approved: **2026-08-10**
+Phase 5C amendment approved: **2026-08-10**
 
 This document is the single controlled specification for the MarifeX dashboard presentation redesign and the narrowly approved supporting data additions. It consolidates the decisions drawn from the five supplied dashboard samples, the two Gemini reviews, the Claude review and the final MarifeX scope decisions.
 
@@ -624,3 +625,107 @@ The following remain excluded:
 8. Screen, PDF, CSV and report-history evidence contain identical formula-version, source, gate and suppression outcomes.
 9. Existing Phase 3 dashboard ownership, drag, resize, palette and saved-layout behavior remains unchanged.
 10. Structural and browser integration tests verify entity scope, cold start, denominator suppression, percentile correctness, responsive layout and export parity.
+
+## Phase 5C: governed visual palettes and accessible chart inspection
+
+This written amendment authorizes Phase 5C. It changes presentation governance and chart interaction only. It creates no metric, formula, insight, dashboard, navigation path or Phase 5D target logic.
+
+### Palette architecture and ownership
+
+- Widget surface themes and chart-series palettes are independent settings. Existing `palette` values continue to control the widget surface; a new `chartPalette` value controls plotted series, marks and legend swatches.
+- Built-in chart palettes are immutable. Custom chart palettes are entity-owned, may be recursive, and are limited to 20 per entity; built-ins and inherited palettes do not count toward the limit.
+- A child entity sees a recursive parent palette read-only. It may assign it or duplicate it into a locally owned palette, but may not edit or delete the inherited record.
+- Parent edits use live resolution: the new revision applies on the next dashboard load or refresh. Before saving, the parent administrator must see affected widget, dashboard and child-entity counts plus names the administrator is authorized to view, then explicitly confirm.
+- Every edit increments a server-owned integer revision. Audit evidence retains actor, entity, palette identity, previous and new revisions, previous and new definitions, and the affected counts.
+- Each entity may select one effective default chart palette. A child may override the inherited default locally.
+
+### Palette types and rendered-slot sufficiency
+
+| Type | Controlled definition | Allowed input |
+|---|---|---|
+| Categorical | Ordered distinct colours for simultaneously visible series or donut slices | 6 to 12 hex colours |
+| Monochrome | One base colour plus deterministic lightness generation | one hex base, 6 to 12 generated slots, lightness span 24 to 64 percentage points |
+| Gradient | Ordered colour stops used continuously or as an ordered discrete ramp | 2 to 12 hex stops |
+
+- Every widget declares `requiredColorSlots`. Sufficiency is measured by simultaneously rendered colour slots, not the number of rows or bars. A ten-row one-series ranking requires one slot; a two-line comparison requires two; a donut is capped at five slices plus `Other` and therefore requires six.
+- Assignment is blocked when a palette cannot provide the declared slots. The renderer must never cycle, repeat or silently substitute colours.
+- Bars, lines and donuts render at 100% series opacity. Area fills may be configured only from 15% through 60%. Text and widget surfaces never use opacity to solve contrast.
+
+### Built-in migration and rollback
+
+- Existing widgets store built-in surface keys, never raw colours. Migration adds a chart palette using this exhaustive mapping: `cream_gold -> chart_cream_gold`, `ocean -> chart_ocean`, `mint -> chart_mint`, `lavender -> chart_lavender`, `charcoal_gold -> chart_charcoal_gold`, `neutral -> chart_neutral`, `classic_blue -> chart_classic_blue`, `teal_green -> chart_teal_green`, `deep_purple -> chart_deep_purple`, `warm_amber -> chart_warm_amber`, `coral_red -> chart_coral_red`, `sky_blue -> chart_sky_blue`, `bright_orange -> chart_bright_orange`, `rose_pink -> chart_rose_pink`, `forest_green -> chart_forest_green`, and `slate_gray -> chart_slate_gray`.
+- An unknown stored surface key blocks migration with an explicit dashboard/widget error. There is no catch-all `Legacy` palette and no silent fallback.
+- Migration is transactional. Before changing a dashboard definition, the previous JSON is retained in the existing definition audit/version evidence. A failed migration rolls back all Phase 5C schema and definition changes in that transaction.
+- Deleting a custom palette requires an explicit replacement palette. The impacted definitions and default selection are updated atomically or not at all; the confirmation shows the affected widget count and authorized dashboard names.
+
+### Custom-palette JSON schema
+
+Imports are UTF-8 JSON objects no larger than 50 KB. Duplicate keys and unknown fields are rejected. Client input carries `schemaVersion`; it never supplies the server revision.
+
+```json
+{
+  "schemaVersion": 1,
+  "name": "Operations blue",
+  "type": "categorical",
+  "colors": ["#1D4ED8", "#2563EB", "#60A5FA", "#0EA5E9", "#14B8A6", "#64748B"],
+  "baseColor": null,
+  "slotCount": null,
+  "lightnessSpan": null,
+  "areaOpacity": 0.25,
+  "isRecursive": false
+}
+```
+
+- Required common fields: `schemaVersion` exactly `1`, `name`, `type`, `areaOpacity`, `isRecursive`.
+- `name` is 1 to 50 Unicode letters, numbers, spaces, hyphens or underscores after NFC normalization. Output is escaped at every HTML boundary.
+- All colours use uppercase or lowercase `#RRGGBB`; alpha, CSS functions, URLs, scripts and arbitrary CSS are rejected.
+- Categorical and gradient palettes require `colors` and require the monochrome fields to be null or absent. Monochrome requires `baseColor`, `slotCount` and `lightnessSpan` and requires `colors` to be null or absent.
+- Export uses the same schema and resolved definition, excluding internal IDs, entity IDs, revision numbers and audit metadata.
+
+### Deterministic accessibility validation
+
+- Hex colours are converted from sRGB to linear RGB. Relative luminance and contrast use WCAG 2.x formulas. A non-text series colour below `3:1` against its adjacent plot surface produces a warning.
+- Protanopia and deuteranopia previews use fixed severity-100 Machado 2009 simulation matrices. Simulated sRGB colours are converted through D65 XYZ to CIE Lab.
+- Pairwise distinguishability uses CIEDE2000. If any pair of simultaneously rendered slots has `Delta E 00 < 10` in either simulation, the editor shows a warning naming the pair and simulation. This warning does not block saving; insufficient slot count and invalid schema do block saving.
+- Validation is deterministic and shared by preview, save and import. Preview offers normal, protanopia and deuteranopia modes, plus reverse and duplicate actions. Reverse creates an unsaved reversed definition; it does not mutate the source palette.
+
+### Chart inspection and interaction
+
+- Point tooltips show metric label, date or category, exact formatted value, unit and snapshot/live timestamp. Dynamic text is supplied as text and escaped; tooltip construction must not use `innerHTML`.
+- ECharts native tooltip and axis snapping are used. Hover must respond within 100 ms on the standard test environment, cause no query, reload, layout movement or saved-state change, and never display a `Loading` tooltip. An unloaded chart shows its existing skeleton and has no interactive points.
+- Series and legend hover emphasize the target and de-emphasize other series through opacity only; semantic colour does not change.
+- Tooltips are confined to the chart viewport and flip at every edge, including approved minimum widget sizes.
+- Tab enters and leaves a chart widget. Arrow keys move through rendered points, Home selects the first and End the last. Time series use chronological order; categorical charts use visual order. The selected point is announced through a polite live region containing the same controlled tooltip text.
+- Touch uses tap-to-show and tap-away-to-dismiss. Pinch, swipe, brush selection and chart zoom gestures remain excluded.
+- Multi-series line, bar and area legends may temporarily hide/show a series. This client-only filter is keyboard accessible and resets on reload or dashboard-filter change. It performs no query and is never saved. Donut slices cannot be hidden.
+- Data-point activation is allowed only through a fixed evidence-action registry to an authorized native GLPI target. Unsupported points are not clickable and receive no link affordance. The registry is extension-ready for Phase 5D but contains no Phase 5D actions.
+
+### Export, performance and security
+
+- PDF and report-run history retain palette identifier, name and exact revision for every rendered widget so the presentation can be reproduced. CSV contains no palette or other presentation metadata.
+- Palette writes and replacement migrations are atomic. Visible ECharts instances are updated in an asynchronous batch; a dashboard with eight visible widgets must complete its visual palette update within 500 ms in the standard test environment.
+- Palette reads, impacts, defaults, creates, edits, duplicates, imports, deletes and replacements enforce the active entity scope and GLPI profile rights before returning names, counts or definitions.
+- User strings are normalized, length-bounded, escaped and never interpolated into CSS. Only validated hex values and governed numeric ranges reach renderer options.
+
+### Phase 5C exclusions
+
+Phase 5C does not include arbitrary CSS, patterns, arbitrary brightness/contrast controls, chart-type or axis switching, chart zoom, raw-data exploration, drill paths, sharing, publishing, irreversible apply-to-all, new analytics, new dashboards, new navigation, email notifications or any Phase 5D target and threshold capability.
+
+### Phase 5C acceptance criteria
+
+1. Surface and chart palette settings are independent and every existing stored surface key migrates through the exhaustive mapping above.
+2. Unknown keys block migration explicitly, while failed migrations and replacements are transactional.
+3. Built-in, inherited and locally owned palettes obey entity rights, recursion, defaults, the 20-palette limit and revision audit rules.
+4. Create, preview, duplicate, reverse, edit, JSON import/export, default selection and delete-with-replacement pass structural and browser tests.
+5. Schema validation rejects oversize files, duplicate/unknown keys, invalid names, invalid colours, scripts, URLs and out-of-range values.
+6. Slot sufficiency is declared per widget and assignment never cycles, repeats or silently substitutes colours.
+7. Normal, protanopia and deuteranopia previews use the controlled calculations and show the controlled contrast/distinguishability warnings without falsely blocking a valid save.
+8. Tooltip content, confinement, hover emphasis, keyboard point navigation, live announcements and touch dismissal pass at minimum and standard widget sizes.
+9. Legend filtering is temporary, accessible, limited to multi-series Cartesian charts, and donuts never hide slices.
+10. Only allowlisted, authorized evidence targets are interactive; unsupported data marks are visibly non-clickable.
+11. PDF and report history preserve palette identity and revision, CSV contains no palette metadata, and eight visible widgets update within 500 ms.
+12. Phase 5C introduces no metric, formula, insight, dashboard, navigation element, email action or Phase 5D behaviour.
+
+## Phase 5D: reserved, not approved for implementation
+
+Phase 5D remains limited to a future written amendment for governed targets, warning bands, target variance, breach streaks, recovery and exception ranking. No Phase 5D code may be added until its formulas, configuration ownership, evidence rules and acceptance criteria are approved in writing.

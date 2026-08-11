@@ -119,6 +119,7 @@ final class ReportExporter
                 'file_hash' => hash_file('sha256', $path),
                 'formula_version' => (string) ($report['insights']['formula_version'] ?? ''),
                 'insight_evidence' => json_encode($report['insights'] ?? [], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
+                'presentation_evidence' => $format === 'pdf' ? json_encode($this->presentationEvidence($dashboard), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) : null,
                 'completed_at' => $completed,
                 'expires_at' => gmdate('Y-m-d H:i:s', time() + ($retention * DAY_TIMESTAMP)),
             ], ['id' => $runId]);
@@ -131,6 +132,17 @@ final class ReportExporter
             ], ['id' => $runId]);
             throw $error;
         }
+    }
+
+    /** @param array<string, mixed> $dashboard @return list<array<string, mixed>> */
+    private function presentationEvidence(array $dashboard): array
+    {
+        $service = new \GlpiPlugin\Marifex\Palette\PaletteService(); $result = [];
+        foreach (($dashboard['definition']['widgets'] ?? []) as $widget) {
+            $palette = $service->resolve((string) ($widget['chartPalette'] ?? ''));
+            if ($palette !== null) $result[] = ['widget_id' => (string) $widget['id'], 'palette_id' => (string) $palette['id'], 'palette_name' => (string) $palette['name'], 'palette_revision' => (int) $palette['revision']];
+        }
+        return $result;
     }
 
     /** @param array<string, mixed> $schedule */

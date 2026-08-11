@@ -88,7 +88,7 @@ $phase5bPercentileByKey = array_column($phase5bPercentile['insights'], null, 'ke
 $assert(($phase5bPercentileByKey['first_response_p90_movement']['current'] ?? null) === 7200.0, 'First-response percentiles must compare fixed 30-day cutoff populations with their observation counts.');
 
 $tables = Schema::tables();
-$assert(count($tables) === 15, 'Analytics schema must contain all fifteen plugin-owned tables through Phase 5B.');
+$assert(count($tables) === 16, 'Analytics schema must contain all sixteen plugin-owned tables through Phase 5C.');
 $assert(isset($tables['glpi_plugin_marifex_daily_matrix_rollups']), 'The approved priority and category matrix must use a bounded plugin-owned rollup.');
 $assert(isset($tables['glpi_plugin_marifex_dashboard_provisions']), 'Dashboard release provisioning must be tracked per user and entity.');
 $assert(isset($tables['glpi_plugin_marifex_report_schedules']), 'Phase 5 must persist governed report schedules.');
@@ -261,7 +261,7 @@ $assert(str_contains($dashboardFrontend, 'widget.x = x') && str_contains($dashbo
 $assert(str_contains($dashboardDefinition, "\$validatedWidget['x']") && str_contains($dashboardDefinition, "\$validatedWidget['y']"), 'Saved dashboard validation must preserve bounded widget canvas coordinates.');
 $assert(str_contains($widgetFrontend, 'widget.x === undefined') && str_contains($widgetFrontend, 'widget.y === undefined'), 'Widgets must render saved X/Y positions while retaining automatic placement for legacy definitions.');
 $assert(str_contains($widgetFrontend, 'settingsOpen') && str_contains($widgetFrontend, 'marifex-widget--settings-open'), 'Widget settings must open as a non-sizing edit overlay.');
-$assert(str_contains($widgetFrontend, '@input="emit(\'rename\''), 'Widget title edits must update the saved definition before the first Save click.');
+$assert(str_contains($widgetFrontend, 'v-model="draftTitle"') && str_contains($widgetFrontend, "emit('rename', props.widget.id, title)"), 'Widget title edits must remain staged until Apply and then update the dashboard definition before Save.');
 $assert(str_contains($dashboardFrontend, "'executive-sla-list': 'Service health'") && str_contains($dashboardFrontend, "'executive-change-open': 'Change and problem control'"), 'Executive widgets must expose all controlled below-fold section labels.');
 $assert(str_contains($widgetFrontend, 'marifex-widget__section-label') && str_contains($dashboardCss, '.marifex-widget__section-label'), 'Section labels must render inside widget geometry so saved free-canvas positions remain stable.');
 $assert(str_contains($dashboardFrontend, "metric: 'asset_inventory_total'"), 'Widget catalog must expose certified Phase 4 asset metrics.');
@@ -290,7 +290,9 @@ $assert(str_contains($widgetFrontend, 'ResizeObserver'), 'Charts must observe an
 $assert(str_contains($widgetFrontend, 'resizeTimer') && str_contains($widgetFrontend, '150'), 'Chart reflow must be debounced during pointer resizing.');
 $assert(str_contains($widgetFrontend, 'donutGroups') && str_contains($widgetFrontend, "dimension: 'Other'"), 'Donuts must cap categories and aggregate the remainder as Other.');
 $assert(str_contains($widgetFrontend, "widget.type === 'attention'") && str_contains($widgetFrontend, "widget.type === 'matrix'"), 'Controlled attention and matrix presentations must be rendered.');
-$assert(str_contains($widgetFrontend, 'Color palette') && str_contains($widgetFrontend, "emit('palette'"), 'Every widget must expose a palette selector in edit mode.');
+$assert(str_contains($widgetFrontend, 'Widget surface theme') && str_contains($widgetFrontend, 'Chart series palette') && str_contains($widgetFrontend, "emit('palette'"), 'Every widget must expose independent surface and chart palette selectors in edit mode.');
+$assert(str_contains($widgetFrontend, 'Apply &amp; close') && str_contains($widgetFrontend, 'cancelSettings') && !str_contains($widgetFrontend, 'marifex-widget__settings-close'), 'Widget settings must use explicit staged Cancel and Apply-and-close actions instead of an unreliable close icon.');
+$assert(str_contains($widgetFrontend, 'v-if="widget.requiredColorSlots > 0"') && str_contains($widgetFrontend, 'This widget has no plotted chart series'), 'Only plotted chart widgets may expose a chart-series palette selector.');
 $assert(!str_contains($widgetFrontend, 'vs previous period'), 'KPI cards must not compare only the last two samples as if they were the selected horizon.');
 $assert(str_contains($dashboardFrontend, '@palette="recolorWidget"'), 'Per-widget palette changes must update the saved dashboard definition.');
 $paletteFrontend = file_get_contents(dirname(__DIR__) . '/frontend/palettes.ts');
@@ -325,6 +327,29 @@ $assert(str_contains($widgetCard, 'props.problemSearchUrl'), 'Problem widgets mu
 $assert(!str_contains($widgetCard, 'Analytics Data Mart'), 'Home widget headings must not expose the Analytics Data Mart implementation label.');
 $definitionService = file_get_contents(dirname(__DIR__) . '/src/Dashboard/DashboardDefinitionService.php');
 $assert(str_contains($definitionService, 'WIDGET_PALETTES') && str_contains($definitionService, "'palette' => \$palette"), 'The server must allowlist and persist widget palettes.');
+$paletteRegistry = file_get_contents(__DIR__ . '/../src/Palette/PaletteRegistry.php');
+$paletteValidator = file_get_contents(__DIR__ . '/../src/Palette/PaletteValidator.php');
+$paletteService = file_get_contents(__DIR__ . '/../src/Palette/PaletteService.php');
+$paletteController = file_get_contents(__DIR__ . '/../src/Controller/PaletteController.php');
+$chartPaletteFrontend = file_get_contents(__DIR__ . '/../frontend/chartPalettes.ts');
+$scope = file_get_contents(__DIR__ . '/../docs/DASHBOARD_DESIGN_SCOPE.md');
+$assert(str_contains($paletteRegistry, 'SURFACE_TO_CHART') && substr_count($paletteRegistry, "'chart_") >= 16, 'Phase 5C must exhaustively map every built-in surface theme to a chart palette.');
+$assert(str_contains($paletteValidator, '51200') && str_contains($paletteValidator, 'duplicate keys') && str_contains($paletteValidator, "['categorical','monochrome','gradient']"), 'Phase 5C imports must enforce the controlled schema, size and duplicate-key rules.');
+$validator = new \GlpiPlugin\Marifex\Palette\PaletteValidator();
+$validPaletteJson = '{"schemaVersion":1,"name":"Regression Palette","type":"categorical","colors":["#1D4ED8","#10B981","#8B5CF6","#F59E0B","#EF4444","#64748B"],"areaOpacity":0.25,"isRecursive":false}';
+$assert($validator->assertImport($validPaletteJson)['name'] === 'Regression Palette', 'A valid strict Phase 5C palette JSON import must parse successfully.');
+$duplicateRejected = false;
+try { $validator->assertImport('{"schemaVersion":1,"name":"One","name":"Two","type":"categorical","colors":["#1D4ED8","#10B981","#8B5CF6","#F59E0B","#EF4444","#64748B"],"areaOpacity":0.25,"isRecursive":false}'); } catch (InvalidArgumentException) { $duplicateRejected = true; }
+$assert($duplicateRejected, 'Duplicate JSON keys must be rejected before decoding.');
+$assert(str_contains($paletteService, 'confirmationRequired') && str_contains($paletteService, 'chart_palette_updated') && str_contains($paletteService, 'childEntities'), 'Palette revision writes must expose impacts and retain audit evidence.');
+$assert(str_contains($paletteController, "'/api/palettes'") && str_contains($paletteController, 'Profile::canAdminister'), 'Palette writes must use the governed endpoint and administrator right.');
+$paletteManager = file_get_contents(__DIR__ . '/../public/js/palette-manager.js');
+$assert(str_contains($paletteManager, "'X-Requested-With':'XMLHttpRequest'") && str_contains($paletteManager, "'X-Glpi-Csrf-Token'"), 'Palette writes must satisfy GLPI 11 AJAX CSRF handling.');
+$assert(!str_contains($paletteManager, 'prompt(') && !str_contains($paletteManager, 'confirm(') && str_contains($paletteManager, 'Confirm delete & replace'), 'Palette impact confirmation must use governed inline controls rather than native browser dialogs.');
+$assert(str_contains($chartPaletteFrontend, 'protanopia') && str_contains($chartPaletteFrontend, 'deuteranopia') && str_contains($chartPaletteFrontend, 'contrastRatio'), 'Phase 5C must provide deterministic visual-accessibility preview primitives.');
+$assert(str_contains($widgetFrontend, "renderMode: 'richText'") && str_contains($widgetFrontend, 'navigateChart') && str_contains($widgetFrontend, 'aria-live="polite"'), 'Charts must provide confined native tooltips and keyboard point inspection.');
+$assert(str_contains($widgetFrontend, 'fontWeight: 600') && str_contains($widgetFrontend, 'chartFontFamily'), 'Chart axes and legends must use the readable governed dashboard typography.');
+$assert(str_contains($scope, 'Delta E 00 < 10') && str_contains($scope, 'Phase 5D: reserved, not approved for implementation'), 'The controlled scope must retain Phase 5C thresholds and keep Phase 5D unapproved.');
 $assert(str_contains($definitionService, "'classic_blue'") && str_contains($definitionService, "'slate_gray'"), 'The server palette allowlist must include the approved gradient collection.');
 $executiveWidgets = substr($definitionService, (int) strpos($definitionService, 'private function premiumExecutiveWidgets'));
 $assert(!str_contains($executiveWidgets, "'created_tickets_by_request_source'") && !str_contains($executiveWidgets, "'ticket_reopen_events'"), 'Phase 5B must not silently add cards to the default Executive layout.');

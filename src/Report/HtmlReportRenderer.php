@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace GlpiPlugin\Marifex\Report;
 
+use GlpiPlugin\Marifex\Palette\PaletteService;
+
 final class HtmlReportRenderer
 {
     private const PALETTES = [
@@ -63,7 +65,8 @@ final class HtmlReportRenderer
     {
         $title = $this->e((string) $widget['title']);
         $palette = isset(self::PALETTES[$widget['palette'] ?? '']) ? (string) $widget['palette'] : 'cream_gold';
-        $colors = self::PALETTES[$palette];
+        $chartPalette = isset($widget['chartPalette']) && class_exists(\Session::class) ? (new PaletteService())->resolve((string) $widget['chartPalette']) : null;
+        $colors = is_array($chartPalette['colors'] ?? null) ? $chartPalette['colors'] : self::PALETTES[$palette];
         $body = match ($widget['type']) {
             'kpi' => '<div class="kpi">' . $this->e($this->kpi($widget['metric'], $data)) . '</div><p class="context">Current certified value</p>',
             'line' => $this->line($data['series'] ?? [], $colors[0]),

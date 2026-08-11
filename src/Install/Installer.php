@@ -12,7 +12,7 @@ use GlpiPlugin\Marifex\Insight\AnalyticalAuditService;
 
 final class Installer
 {
-    private const VERSION = 200;
+    private const VERSION = 210;
     private const TABLE_PREFIX = 'glpi_plugin_marifex_';
 
     public function install(): void
@@ -77,7 +77,14 @@ final class Installer
             $migration->addField('glpi_plugin_marifex_report_runs', 'formula_version', 'varchar(32) DEFAULT NULL');
             $migration->addField('glpi_plugin_marifex_report_runs', 'insight_evidence', 'json DEFAULT NULL');
         }
+        if ($installedVersion > 0 && $installedVersion < 210) {
+            $migration->addField('glpi_plugin_marifex_report_runs', 'presentation_evidence', 'json DEFAULT NULL');
+        }
         $migration->executeMigration();
+
+        if ($installedVersion > 0 && $installedVersion < 210) {
+            (new \GlpiPlugin\Marifex\Palette\PaletteMigrationService())->migrateDashboardDefinitions();
+        }
 
         Config::setConfigurationValues('plugin:marifex', array_merge([
             'retain_analytics_on_uninstall' => 1,

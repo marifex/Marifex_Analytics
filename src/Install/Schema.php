@@ -148,6 +148,7 @@ final class Schema
                 `recipient_count` int unsigned NOT NULL DEFAULT 0,
                 `formula_version` varchar(32) DEFAULT NULL,
                 `insight_evidence` json DEFAULT NULL,
+                `presentation_evidence` json DEFAULT NULL,
                 `error_message` text DEFAULT NULL,
                 `started_at` timestamp NOT NULL,
                 `completed_at` timestamp NULL DEFAULT NULL,
@@ -220,6 +221,23 @@ final class Schema
                 UNIQUE KEY `snapshot_entity_title` (`snapshot_date`,`entities_id`,`softwares_id`),
                 KEY `entity_snapshot` (`entities_id`,`snapshot_date`),
                 KEY `title_snapshot` (`softwares_id`,`snapshot_date`)
+            ) $suffix",
+            'glpi_plugin_marifex_chart_palettes' => "CREATE TABLE `glpi_plugin_marifex_chart_palettes` (
+                `id` int unsigned NOT NULL AUTO_INCREMENT,
+                `name` varchar(50) NOT NULL,
+                `entities_id` int unsigned NOT NULL,
+                `is_recursive` tinyint(1) NOT NULL DEFAULT 0,
+                `is_default` tinyint(1) NOT NULL DEFAULT 0,
+                `palette_type` enum('categorical','monochrome','gradient') NOT NULL,
+                `definition` json NOT NULL,
+                `revision` int unsigned NOT NULL DEFAULT 1,
+                `users_id` int unsigned NOT NULL,
+                `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `date_mod` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `entity_name` (`entities_id`,`name`),
+                KEY `entity_recursive` (`entities_id`,`is_recursive`),
+                KEY `entity_default` (`entities_id`,`is_default`)
             ) $suffix",
         ];
     }

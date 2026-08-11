@@ -7,6 +7,8 @@ namespace GlpiPlugin\Marifex\Dashboard;
 use GlpiPlugin\Marifex\Security\EntityScope;
 use InvalidArgumentException;
 use Session;
+use GlpiPlugin\Marifex\Palette\PaletteRegistry;
+use GlpiPlugin\Marifex\Palette\PaletteService;
 
 final class DashboardDefinitionService
 {
@@ -533,6 +535,11 @@ final class DashboardDefinitionService
             if (!in_array($palette, self::WIDGET_PALETTES, true)) {
                 throw new InvalidArgumentException('Unsupported widget color palette.');
             }
+            $requiredColorSlots = PaletteRegistry::requiredSlots($type, $metric);
+            $chartPalette = (string) ($widget['chartPalette'] ?? (PaletteRegistry::SURFACE_TO_CHART[$palette] ?? ''));
+            if (!(new PaletteService())->canAssign($chartPalette, $requiredColorSlots)) {
+                throw new InvalidArgumentException('The chart palette is unavailable or has insufficient rendered color slots.');
+            }
             [$minW, $maxW, $allowedHeights] = match ($type) {
                 'kpi' => [2, 4, [2, 3]],
                 'insight' => [3, 5, [2, 3]],
@@ -550,6 +557,8 @@ final class DashboardDefinitionService
                 'type' => $type,
                 'title' => $title,
                 'palette' => $palette,
+                'chartPalette' => $chartPalette,
+                'requiredColorSlots' => $requiredColorSlots,
                 'w' => max($minW, min($maxW, (int) ($widget['w'] ?? $minW))),
                 'h' => $allowedHeights[0],
             ];
@@ -587,7 +596,7 @@ final class DashboardDefinitionService
     private function defaultDashboard(): array
     {
         $template = $this->templates()['executive'];
-        return ['id' => null, 'name' => $template['name'], 'definition' => $template['definition'], 'date_mod' => null];
+        return ['id' => null, 'name' => $template['name'], 'definition' => $this->validate($template['definition']), 'date_mod' => null];
     }
 
     /** @return array<string, array<string, mixed>> */

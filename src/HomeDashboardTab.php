@@ -32,6 +32,7 @@ final class HomeDashboardTab extends CommonGLPI
             'metric_endpoint' => '/plugins/marifex/api/metrics',
             'insight_endpoint' => '/plugins/marifex/api/insights',
             'definition_endpoint' => '/plugins/marifex/api/dashboard',
+            'palette_endpoint' => '/plugins/marifex/api/palettes',
             'ticket_drilldown_url' => '/plugins/marifex/drilldown/tickets',
             'asset_search_url' => '/front/computer.php',
             'licence_search_url' => '/front/softwarelicense.php',

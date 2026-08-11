@@ -50,6 +50,33 @@
   </form>
 
   <div class="card mt-3">
+    <div class="card-header"><div><h2 class="card-title">{{ __('Chart palette governance', 'marifex') }}</h2><div class="text-secondary mt-1">{{ __('Entity-scoped chart series palettes are separate from widget surface themes.', 'marifex') }}</div></div></div>
+    <div id="marifex-palette-manager" class="card-body marifex-palette-manager" data-endpoint="{{ palette_endpoint|e('html_attr') }}" data-csrf-token="{{ csrf_token(true)|e('html_attr') }}" data-catalogue="{{ palette_catalogue|json_encode|e('html_attr') }}">
+      <div class="marifex-palette-manager__list" aria-label="{{ __('Available chart palettes', 'marifex') }}"></div>
+      <div class="marifex-palette-manager__editor">
+        <label class="form-label" for="marifex-palette-json">{{ __('Palette JSON', 'marifex') }}</label>
+        <textarea id="marifex-palette-json" class="form-control" rows="12" maxlength="51200" spellcheck="false"></textarea>
+        <div class="marifex-palette-preview" aria-label="{{ __('Palette preview', 'marifex') }}"></div>
+        <div>
+          <label class="form-label" for="marifex-palette-replacement">{{ __('Replacement palette', 'marifex') }}</label>
+          <select id="marifex-palette-replacement" class="form-select"></select>
+          <div class="form-hint">{{ __('Used only when deleting a custom palette. The first click reports impact; the second confirms replacement.', 'marifex') }}</div>
+        </div>
+        <div class="marifex-palette-manager__actions">
+          <button class="btn btn-primary" type="button" data-action="create">{{ __('Create / import', 'marifex') }}</button>
+          <button class="btn btn-outline-primary" type="button" data-action="update">{{ __('Save selected', 'marifex') }}</button>
+          <button class="btn btn-outline-secondary" type="button" data-action="duplicate">{{ __('Duplicate', 'marifex') }}</button>
+          <button class="btn btn-outline-secondary" type="button" data-action="reverse">{{ __('Reverse', 'marifex') }}</button>
+          <button class="btn btn-outline-secondary" type="button" data-action="export">{{ __('Export JSON', 'marifex') }}</button>
+          <button class="btn btn-outline-success" type="button" data-action="default">{{ __('Set default', 'marifex') }}</button>
+          <button class="btn btn-outline-danger" type="button" data-action="delete">{{ __('Delete and replace', 'marifex') }}</button>
+        </div>
+        <div class="marifex-palette-manager__message" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt-3">
     <div class="card-header"><h2 class="card-title">{{ __('Pipeline health', 'marifex') }}</h2></div>
     <div class="table-responsive">
       <table class="table table-vcenter card-table">

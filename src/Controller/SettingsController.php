@@ -13,6 +13,7 @@ use GlpiPlugin\Marifex\Insight\AnalyticalAuditService;
 use GlpiPlugin\Marifex\Profile;
 use GlpiPlugin\Marifex\Report\HeadlessPdfRenderer;
 use GlpiPlugin\Marifex\Security\EntityScope;
+use GlpiPlugin\Marifex\Palette\PaletteService;
 use Session;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -58,6 +59,8 @@ final class SettingsController extends AbstractController
             'report_engine' => (new HeadlessPdfRenderer())->status(),
             'report_runs' => $this->reportRuns(),
             'report_file_url' => $CFG_GLPI['root_doc'] . '/plugins/marifex/reports/files',
+            'palette_catalogue' => (new PaletteService())->catalogue(),
+            'palette_endpoint' => $CFG_GLPI['root_doc'] . '/plugins/marifex/api/palettes',
         ]);
     }
 
