@@ -302,7 +302,7 @@ $assert(str_contains($dashboardCss, 'grid-auto-flow: row'), 'Dashboard rows must
 $assert(str_contains($dashboardCss, '.marifex-widget--palette-cream_gold') && str_contains($dashboardCss, '--mx-widget-bg-end'), 'Widget palettes must control non-white card backgrounds.');
 $assert(str_contains($dashboardCss, 'container-type: size'), 'Widget content must scale against its own width and height.');
 $assert(str_contains($dashboardCss, 'min(12cqw, 28cqh)'), 'KPI typography must respond to both widget width and height.');
-$assert(str_contains($dashboardCss, 'box-shadow: none') && str_contains($dashboardCss, 'grid-auto-rows: 32px'), 'The premium canvas must remove normal shadows and use compact row units.');
+$assert(str_contains($dashboardCss, 'box-shadow: 0 1px 2px') && str_contains($dashboardCss, 'grid-auto-rows: 32px'), 'The premium canvas must retain a restrained card edge and compact row units.');
 $assert(str_contains($dashboardCss, 'align-content: start') && str_contains($dashboardCss, 'inset-block: 9rem 16px'), 'Widget settings must remain top-aligned and below GLPI sticky navigation.');
 $dashboardBootstrap = file_get_contents(dirname(__DIR__) . '/frontend/main.ts');
 $assert(str_contains($dashboardBootstrap, "meta[property=\"glpi:csrf_token\"]"), 'Dashboard bootstrap must fall back to GLPI core CSRF metadata.');
@@ -349,6 +349,8 @@ $assert(!str_contains($paletteManager, 'prompt(') && !str_contains($paletteManag
 $assert(str_contains($chartPaletteFrontend, 'protanopia') && str_contains($chartPaletteFrontend, 'deuteranopia') && str_contains($chartPaletteFrontend, 'contrastRatio'), 'Phase 5C must provide deterministic visual-accessibility preview primitives.');
 $assert(str_contains($widgetFrontend, "renderMode: 'richText'") && str_contains($widgetFrontend, 'navigateChart') && str_contains($widgetFrontend, 'aria-live="polite"'), 'Charts must provide confined native tooltips and keyboard point inspection.');
 $assert(str_contains($widgetFrontend, 'fontWeight: 600') && str_contains($widgetFrontend, 'chartFontFamily'), 'Chart axes and legends must use the readable governed dashboard typography.');
+$assert(str_contains($dashboardCss, '@media (hover: hover) and (pointer: fine)') && str_contains($dashboardCss, ':focus-within') && str_contains($dashboardCss, ':not(.marifex-widget--editing):hover'), 'Widget cards must expose governed pointer and keyboard hover feedback without affecting edit mode.');
+$assert(substr_count($dashboardCss, 'font-size: 13px') >= 5 && str_contains($dashboardCss, '.marifex-filterbar .form-select') && str_contains($dashboardCss, '.marifex-widget__settings .form-control'), 'Dashboard and widget-settings dropdowns must retain readable governed typography.');
 $assert(str_contains($scope, 'Delta E 00 < 10') && str_contains($scope, 'Phase 5D: reserved, not approved for implementation'), 'The controlled scope must retain Phase 5C thresholds and keep Phase 5D unapproved.');
 $assert(str_contains($definitionService, "'classic_blue'") && str_contains($definitionService, "'slate_gray'"), 'The server palette allowlist must include the approved gradient collection.');
 $executiveWidgets = substr($definitionService, (int) strpos($definitionService, 'private function premiumExecutiveWidgets'));
