@@ -10,10 +10,11 @@ import { paletteSupports, resolvedColors, type ChartPalette } from './chartPalet
 
 use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
-const props = defineProps<{ widget: WidgetDefinition; chartPalettes: ChartPalette[]; sectionLabel?: string; data?: MetricResponse; movement?: InsightItem; indicator?: string; loading: boolean; editing: boolean; interacting: boolean; interactionMode: 'drag' | 'resize' | null; selectedGroup: number | null; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string }>();
-const emit = defineEmits<{ remove: [id: string]; rename: [id: string, title: string]; palette: [id: string, palette: WidgetPaletteKey]; chartPalette: [id: string, palette: string]; selectGroup: [id: number | null]; interactionStart: [id: string, mode: 'drag' | 'resize', event: PointerEvent] }>();
+const props = defineProps<{ widget: WidgetDefinition; chartPalettes: ChartPalette[]; sectionLabel?: string; data?: MetricResponse; movement?: InsightItem; indicator?: string; comparisonPending: boolean; supportsComparison: boolean; loading: boolean; editing: boolean; interacting: boolean; interactionMode: 'drag' | 'resize' | null; selectedGroup: number | null; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string }>();
+const emit = defineEmits<{ remove: [id: string]; rename: [id: string, title: string]; palette: [id: string, palette: WidgetPaletteKey]; chartPalette: [id: string, palette: string]; selectGroup: [id: number | null] }>();
 const chartElement = ref<HTMLElement | null>(null);
 const widgetElement = ref<HTMLElement | null>(null);
+const settingsElement = ref<HTMLElement | null>(null);
 const settingsOpen = ref(false);
 const draftTitle = ref('');
 const draftSurfacePalette = ref<WidgetPaletteKey>('cream_gold');
@@ -21,6 +22,13 @@ const draftChartPalette = ref('chart_cream_gold');
 let chart: ECharts | null = null;
 let resizeObserver: ResizeObserver | null = null;
 const activePalette = computed(() => widgetPalette(props.widget.palette));
+const settingsPaletteStyle = computed(() => ({
+  '--mx-widget-accent': activePalette.value.colors[0],
+  '--mx-widget-bg': activePalette.value.background,
+  '--mx-widget-border': activePalette.value.border,
+  '--mx-widget-muted': activePalette.value.muted,
+  '--mx-widget-text': activePalette.value.text,
+}));
 const activeChartPalette = computed(() => props.chartPalettes.find(item => item.id === props.widget.chartPalette) ?? props.chartPalettes[0]);
 const chartColors = computed(() => activeChartPalette.value ? resolvedColors(activeChartPalette.value) : activePalette.value.colors);
 const assignableChartPalettes = computed(() => props.chartPalettes.filter(item => paletteSupports(item, props.widget.requiredColorSlots)));
@@ -47,13 +55,15 @@ const insightTop = computed(() => latestGroups.value[0]);
 const matrixColumns = computed(() => [...new Map((props.data?.matrix ?? []).map(cell => [cell.column_id, cell.column])).entries()].slice(0, 6));
 const matrixRows = computed(() => [...new Map((props.data?.matrix ?? []).map(cell => [cell.row_id, cell.row])).entries()]);
 function matrixValue(rowId: number, columnId: number): number { return props.data?.matrix?.find(cell => cell.row_id === rowId && cell.column_id === columnId)?.value ?? 0; }
-function toggleSettings(): void {
+async function toggleSettings(): Promise<void> {
   if (settingsOpen.value) { settingsOpen.value = false; return; }
   draftTitle.value = props.widget.title;
   draftSurfacePalette.value = props.widget.palette;
   draftChartPalette.value = props.widget.chartPalette;
   settingsOpen.value = true;
   window.dispatchEvent(new CustomEvent('marifex-widget-settings', { detail: props.widget.id }));
+  await nextTick();
+  settingsElement.value?.querySelector<HTMLInputElement>('input, select, button')?.focus();
 }
 function cancelSettings(): void { settingsOpen.value = false; }
 function applySettings(): void {
@@ -193,7 +203,7 @@ function draw(): void {
   if (props.widget.type === 'line' && props.widget.metric !== 'created_vs_resolved_tickets') chart.setOption({ series: [{ areaStyle: { color: accent, opacity: activeChartPalette.value?.areaOpacity ?? .25 } }] });
 }
 let resizeTimer: number | undefined;
-function resize(): void { if (resizeTimer) window.clearTimeout(resizeTimer); resizeTimer = window.setTimeout(() => chart?.resize({ animation: { duration: 0 } }), 150); }
+function resize(): void { if (resizeTimer) window.clearTimeout(resizeTimer); resizeTimer = window.setTimeout(() => { chart?.resize({ animation: { duration: 0 } }); draw(); }, 150); }
 function dismissTooltip(event: PointerEvent): void { if (chart && widgetElement.value && !widgetElement.value.contains(event.target as Node)) chart.dispatchAction({ type: 'hideTip' }); }
 watch(() => [props.data, props.widget.type, props.widget.palette, props.widget.chartPalette, props.selectedGroup, props.loading], async () => { await nextTick(); draw(); }, { deep: true });
 watch(() => props.editing, editing => { if (!editing) settingsOpen.value = false; });
@@ -202,9 +212,9 @@ onBeforeUnmount(() => { if (resizeTimer) window.clearTimeout(resizeTimer); resiz
 </script>
 
 <template>
-  <article ref="widgetElement" class="card marifex-widget" :class="[`marifex-widget--${widget.type}`, `marifex-widget--palette-${activePalette.key}`, { 'marifex-widget--section-start': sectionLabel, 'marifex-widget--editing': editing, 'marifex-widget--settings-open': settingsOpen, 'marifex-widget--dragging': interacting && interactionMode === 'drag', 'marifex-widget--resizing': interacting && interactionMode === 'resize' }]" :style="{ '--marifex-widget-rows': String(widget.h), gridColumn: widget.x === undefined ? `span ${widget.w}` : `${widget.x + 1} / span ${widget.w}`, gridRow: widget.y === undefined ? `span ${widget.h}` : `${widget.y + 1} / span ${widget.h}` }" :data-widget-id="widget.id" :data-widget-width="widget.w">
+  <article ref="widgetElement" class="card marifex-widget" :class="[`marifex-widget--${widget.type}`, `marifex-widget--palette-${activePalette.key}`, { 'marifex-widget--section-start': sectionLabel, 'marifex-widget--editing': editing, 'marifex-widget--settings-open': settingsOpen, 'marifex-widget--dragging': interacting && interactionMode === 'drag', 'marifex-widget--resizing': interacting && interactionMode === 'resize' }]" :style="{ '--marifex-widget-rows': String(widget.h) }" :data-widget-id="widget.id" :data-widget-width="widget.w" :data-widget-height="widget.h">
     <div v-if="sectionLabel" class="marifex-widget__section-label">{{ sectionLabel }}</div>
-    <div class="card-header marifex-widget__header" :class="{ 'marifex-widget__drag-handle': editing }" @pointerdown="editing && emit('interactionStart', widget.id, 'drag', $event)">
+    <div class="card-header marifex-widget__header" :class="{ 'marifex-widget__drag-handle': editing }">
       <div><span v-if="data?.source === 'live'" class="marifex-widget__kicker">Live GLPI</span><h2 class="card-title">{{ widget.title }}</h2></div>
       <div v-if="editing" class="marifex-widget__actions">
         <span class="marifex-drag-indicator" aria-hidden="true" title="Drag widget"><i></i><i></i><i></i><i></i><i></i><i></i></span>
@@ -212,19 +222,21 @@ onBeforeUnmount(() => { if (resizeTimer) window.clearTimeout(resizeTimer); resiz
         <button class="btn btn-sm btn-ghost-danger marifex-widget-action" type="button" title="Remove widget" aria-label="Remove widget" @pointerdown.stop @click.stop="emit('remove', widget.id)"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7m4 4v6m4-6v6"/></svg></button>
       </div>
     </div>
-    <div v-if="editing && settingsOpen" class="marifex-widget__settings" role="dialog" aria-modal="true" :aria-labelledby="`settings-title-${widget.id}`" @pointerdown.stop>
-      <div class="marifex-widget__settings-heading"><h3 :id="`settings-title-${widget.id}`">Widget settings</h3><p>Changes apply only after confirmation.</p></div>
-      <div><label class="form-label" :for="`title-${widget.id}`">Widget title</label><input :id="`title-${widget.id}`" v-model="draftTitle" class="form-control form-control-sm" maxlength="100"></div>
-      <div><label class="form-label" :for="`palette-${widget.id}`">Widget surface theme</label><select :id="`palette-${widget.id}`" v-model="draftSurfacePalette" class="form-select form-select-sm"><option v-for="palette in widgetPalettes" :key="palette.key" :value="palette.key">{{ palette.label }} · {{ palette.type }}</option></select><div class="form-hint">Controls the card background, border and text treatment.</div></div>
-      <div v-if="widget.requiredColorSlots > 0"><label class="form-label" :for="`chart-palette-${widget.id}`">Chart series palette</label><select :id="`chart-palette-${widget.id}`" v-model="draftChartPalette" class="form-select form-select-sm"><option v-for="palette in assignableChartPalettes" :key="palette.id" :value="palette.id">{{ palette.name }} · r{{ palette.revision }}{{ palette.inherited ? ' · inherited' : '' }}</option></select><div class="form-hint">Controls plotted lines, bars or donut slices. Requires {{ widget.requiredColorSlots }} rendered colour slot{{ widget.requiredColorSlots === 1 ? '' : 's' }}.</div></div>
-      <div v-else class="alert alert-info py-2 mb-0">This widget has no plotted chart series. Use the surface theme to change its appearance.</div>
-      <div class="marifex-widget__settings-actions"><button class="btn btn-outline-secondary" type="button" @click="cancelSettings">Cancel</button><button class="btn btn-primary" type="button" :disabled="!draftTitle.trim()" @click="applySettings">Apply &amp; close</button></div>
-    </div>
+    <Teleport to="body">
+      <div v-if="editing && settingsOpen" ref="settingsElement" class="marifex-widget__settings marifex-widget__settings--drawer" :style="settingsPaletteStyle" role="dialog" aria-modal="true" :aria-labelledby="`settings-title-${widget.id}`" @pointerdown.stop @keydown.esc="cancelSettings">
+        <div class="marifex-widget__settings-heading"><h3 :id="`settings-title-${widget.id}`">Widget settings</h3><p>Changes apply only after confirmation.</p></div>
+        <div><label class="form-label" :for="`title-${widget.id}`">Widget title</label><input :id="`title-${widget.id}`" v-model="draftTitle" class="form-control form-control-sm" maxlength="100"></div>
+        <div><label class="form-label" :for="`palette-${widget.id}`">Widget surface theme</label><select :id="`palette-${widget.id}`" v-model="draftSurfacePalette" class="form-select form-select-sm"><option v-for="palette in widgetPalettes" :key="palette.key" :value="palette.key">{{ palette.label }} · {{ palette.type }}</option></select><div class="form-hint">Controls the card background, border and text treatment.</div></div>
+        <div v-if="widget.requiredColorSlots > 0"><label class="form-label" :for="`chart-palette-${widget.id}`">Chart series palette</label><select :id="`chart-palette-${widget.id}`" v-model="draftChartPalette" class="form-select form-select-sm"><option v-for="palette in assignableChartPalettes" :key="palette.id" :value="palette.id">{{ palette.name }} · r{{ palette.revision }}{{ palette.inherited ? ' · inherited' : '' }}</option></select><div class="form-hint">Controls plotted lines, bars or donut slices. Requires {{ widget.requiredColorSlots }} rendered colour slot{{ widget.requiredColorSlots === 1 ? '' : 's' }}.</div></div>
+        <div v-else class="alert alert-info py-2 mb-0">This widget has no plotted chart series. Use the surface theme to change its appearance.</div>
+        <div class="marifex-widget__settings-actions"><button class="btn btn-outline-secondary" type="button" @click="cancelSettings">Cancel</button><button class="btn btn-primary" type="button" :disabled="!draftTitle.trim()" @click="applySettings">Apply &amp; close</button></div>
+      </div>
+    </Teleport>
     <div class="card-body marifex-widget__body" :aria-busy="loading">
       <div v-if="loading" class="marifex-skeleton"><span></span><span></span><span></span></div>
       <template v-else-if="widget.type === 'kpi'">
         <strong class="marifex-executive-kpi">{{ kpiValue }}</strong>
-        <div class="marifex-kpi-context"><span v-if="isUnmeasurable">No measurable population</span><span v-else-if="movementText" :class="`marifex-semantic--${movement?.direction === 'worsening' ? 'risk' : movement?.direction === 'improving' ? 'healthy' : 'neutral'}`">{{ movementText }}</span><span v-else>No material governed movement</span></div>
+        <div class="marifex-kpi-context"><span v-if="isUnmeasurable">No measurable population</span><span v-else-if="movementText" :class="`marifex-semantic--${movement?.direction === 'worsening' ? 'risk' : movement?.direction === 'improving' ? 'healthy' : 'neutral'}`">{{ movementText }}</span><span v-else-if="comparisonPending">Trend pending</span><span v-else-if="supportsComparison">No material movement</span><span v-else>Current value</span></div>
       </template>
       <template v-else-if="widget.type === 'insight'">
         <div v-if="insightTop" class="marifex-insight"><span>Leading finding</span><strong>{{ insightTop.dimension }}</strong><p>{{ insightTop.value.toLocaleString() }} current records</p><a :href="drilldown(insightTop.dimension_id)">Open detail</a></div>
@@ -255,6 +267,5 @@ onBeforeUnmount(() => { if (resizeTimer) window.clearTimeout(resizeTimer); resiz
       <span class="visually-hidden" aria-live="polite">{{ announcedPoint }}</span>
       <span v-if="indicator" class="marifex-widget__indicator">{{ indicator }}</span>
     </div>
-    <button v-if="editing" class="marifex-widget__resize-handle" type="button" aria-label="Resize widget" title="Drag to resize" @pointerdown.stop="emit('interactionStart', widget.id, 'resize', $event)"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 14h8V6M10 14h4v-4"/></svg></button>
   </article>
 </template>

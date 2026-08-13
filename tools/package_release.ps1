@@ -18,12 +18,23 @@ if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9.-]+)?$') {
     throw "Invalid release version: $Version"
 }
 
+$manifestVersions = @{
+    'composer.json' = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'composer.json') -Raw | ConvertFrom-Json).version
+    'package.json' = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'package.json') -Raw | ConvertFrom-Json).version
+    'marifex.xml' = ([regex]::Match((Get-Content -LiteralPath (Join-Path $repositoryRoot 'marifex.xml') -Raw), '<version>([^<]+)</version>')).Groups[1].Value
+}
+foreach ($manifest in $manifestVersions.GetEnumerator()) {
+    if ($manifest.Value -ne $Version) {
+        throw "Version mismatch: $($manifest.Key) contains $($manifest.Value), expected $Version"
+    }
+}
+
 $releaseRoot = Join-Path $repositoryRoot "versions\$Version"
 New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
 $finalArchive = Join-Path $releaseRoot "marifex-$Version.zip"
 $candidateArchive = Join-Path $releaseRoot ("marifex-$Version.{0}.tmp.zip" -f [guid]::NewGuid().ToString('N'))
 $directories = @('locales', 'public', 'src', 'templates', 'vendor')
-$files = @('composer.json', 'hook.php', 'marifex.xml', 'README.md', 'setup.php')
+$files = @('CHANGELOG.md', 'composer.json', 'hook.php', 'marifex.xml', 'README.md', 'setup.php')
 
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem

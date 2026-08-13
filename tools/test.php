@@ -255,15 +255,16 @@ $assert(str_contains($dashboardFrontend, "'X-Glpi-Csrf-Token': props.csrfToken")
 $assert(str_contains($dashboardFrontend, 'Create from template'), 'Builder must expose dashboard templates.');
 $assert(str_contains($dashboardFrontend, 'duplicateDashboard'), 'Builder must expose dashboard duplication.');
 $assert(str_contains($dashboardFrontend, 'cancelEditing'), 'Builder must preserve draft/cancel behavior.');
-$assert(str_contains($dashboardFrontend, "mode: 'drag' | 'resize'"), 'Builder must provide pointer-driven drag and resize interactions.');
-$assert(!str_contains($dashboardFrontend, 'layoutPositions'), 'Responsive widget placement must not combine fixed row coordinates with breakpoint width overrides.');
-$assert(str_contains($dashboardFrontend, 'widget.x = x') && str_contains($dashboardFrontend, 'widget.y = y'), 'Header drag must record explicit 12-column canvas coordinates instead of only reordering the widget array.');
+$assert(str_contains($dashboardFrontend, 'GridStack.init') && str_contains($dashboardFrontend, "resizable: { handles: 'all' }") && str_contains($dashboardFrontend, "draggable: { handle: '.marifex-widget__header'"), 'Builder must use the researched GridStack interaction model with header drag and edge/corner resize.');
+$assert(str_contains($dashboardFrontend, "float: false") && str_contains($dashboardFrontend, "grid?.compact('compact', true)"), 'Grid collisions and released space must move and compact neighbouring widgets automatically.');
+$assert(str_contains($dashboardFrontend, 'widget.x = Math.max(0, node.x') && str_contains($dashboardFrontend, 'widget.y = Math.max(0, node.y'), 'Grid changes must persist final compacted X/Y coordinates.');
 $assert(str_contains($dashboardDefinition, "\$validatedWidget['x']") && str_contains($dashboardDefinition, "\$validatedWidget['y']"), 'Saved dashboard validation must preserve bounded widget canvas coordinates.');
-$assert(str_contains($widgetFrontend, 'widget.x === undefined') && str_contains($widgetFrontend, 'widget.y === undefined'), 'Widgets must render saved X/Y positions while retaining automatic placement for legacy definitions.');
+$assert(str_contains($dashboardFrontend, ':gs-x="widget.x"') && str_contains($dashboardFrontend, ':gs-y="widget.y"') && str_contains($dashboardFrontend, 'class="grid-stack-item"'), 'GridStack items must render saved geometry while retaining automatic placement for legacy definitions.');
 $assert(str_contains($widgetFrontend, 'settingsOpen') && str_contains($widgetFrontend, 'marifex-widget--settings-open'), 'Widget settings must open as a non-sizing edit overlay.');
 $assert(str_contains($widgetFrontend, 'v-model="draftTitle"') && str_contains($widgetFrontend, "emit('rename', props.widget.id, title)"), 'Widget title edits must remain staged until Apply and then update the dashboard definition before Save.');
 $assert(str_contains($dashboardFrontend, "'executive-sla-list': 'Service health'") && str_contains($dashboardFrontend, "'executive-change-open': 'Change and problem control'"), 'Executive widgets must expose all controlled below-fold section labels.');
 $assert(str_contains($widgetFrontend, 'marifex-widget__section-label') && str_contains($dashboardCss, '.marifex-widget__section-label'), 'Section labels must render inside widget geometry so saved free-canvas positions remain stable.');
+$assert(!str_contains($dashboardCss, 'grid-column: span 6 !important') && str_contains($dashboardFrontend, "breakpoints: [{ w: 768, c: 1, layout: 'list' }]") && str_contains($dashboardFrontend, 'clientWidth ?? 768) < 768'), 'Desktop view must preserve saved geometry while mobile stacking remains presentation-only.');
 $assert(str_contains($dashboardFrontend, "metric: 'asset_inventory_total'"), 'Widget catalog must expose certified Phase 4 asset metrics.');
 $assert(str_contains($dashboardFrontend, "metric: 'open_changes'"), 'Widget catalog must expose certified Phase 4 change metrics.');
 $assert(str_contains($dashboardFrontend, "metric: 'open_problems'"), 'Widget catalog must expose certified Phase 4 problem metrics.');
@@ -292,17 +293,19 @@ $assert(str_contains($widgetFrontend, 'donutGroups') && str_contains($widgetFron
 $assert(str_contains($widgetFrontend, "widget.type === 'attention'") && str_contains($widgetFrontend, "widget.type === 'matrix'"), 'Controlled attention and matrix presentations must be rendered.');
 $assert(str_contains($widgetFrontend, 'Widget surface theme') && str_contains($widgetFrontend, 'Chart series palette') && str_contains($widgetFrontend, "emit('palette'"), 'Every widget must expose independent surface and chart palette selectors in edit mode.');
 $assert(str_contains($widgetFrontend, 'Apply &amp; close') && str_contains($widgetFrontend, 'cancelSettings') && !str_contains($widgetFrontend, 'marifex-widget__settings-close'), 'Widget settings must use explicit staged Cancel and Apply-and-close actions instead of an unreliable close icon.');
+$assert(str_contains($widgetFrontend, '<Teleport to="body">') && str_contains($widgetFrontend, 'marifex-widget__settings--drawer'), 'Widget settings must render at document level so GridStack sibling stacking contexts cannot cover the drawer.');
+$assert(str_contains($dashboardCss, '.marifex-widget__settings--drawer') && !str_contains($dashboardCss, '.marifex-widget--settings-open { z-index'), 'The settings drawer must own a document-level stacking layer instead of attempting to raise a nested widget card.');
 $assert(str_contains($widgetFrontend, 'v-if="widget.requiredColorSlots > 0"') && str_contains($widgetFrontend, 'This widget has no plotted chart series'), 'Only plotted chart widgets may expose a chart-series palette selector.');
 $assert(!str_contains($widgetFrontend, 'vs previous period'), 'KPI cards must not compare only the last two samples as if they were the selected horizon.');
 $assert(str_contains($dashboardFrontend, '@palette="recolorWidget"'), 'Per-widget palette changes must update the saved dashboard definition.');
 $paletteFrontend = file_get_contents(dirname(__DIR__) . '/frontend/palettes.ts');
 $assert(str_contains($paletteFrontend, "defaultWidgetPalette: WidgetPaletteKey = 'cream_gold'") && str_contains($paletteFrontend, "type: 'Gradient'"), 'Cream Gold must remain the default widget gradient palette.');
 $assert(substr_count($paletteFrontend, "type: 'Gradient'") >= 13 && str_contains($paletteFrontend, "key: 'classic_blue'") && str_contains($paletteFrontend, "key: 'slate_gray'"), 'The complete approved gradient palette collection must be available to widgets.');
-$assert(str_contains($dashboardCss, 'grid-auto-flow: row'), 'Dashboard rows must remain aligned instead of backfilling widgets into uneven masonry gaps.');
+$assert(str_contains($dashboardCss, '.grid-stack-placeholder') && str_contains($dashboardCss, '.ui-resizable-handle'), 'The edit canvas must visibly preview snap-grid placement and resize affordances.');
 $assert(str_contains($dashboardCss, '.marifex-widget--palette-cream_gold') && str_contains($dashboardCss, '--mx-widget-bg-end'), 'Widget palettes must control non-white card backgrounds.');
 $assert(str_contains($dashboardCss, 'container-type: size'), 'Widget content must scale against its own width and height.');
 $assert(str_contains($dashboardCss, 'min(12cqw, 28cqh)'), 'KPI typography must respond to both widget width and height.');
-$assert(str_contains($dashboardCss, 'box-shadow: 0 1px 2px') && str_contains($dashboardCss, 'grid-auto-rows: 32px'), 'The premium canvas must retain a restrained card edge and compact row units.');
+$assert(str_contains($dashboardCss, 'box-shadow: 0 1px 2px') && str_contains($dashboardFrontend, 'cellHeight: 48') && str_contains($dashboardFrontend, 'margin: 8'), 'The premium GridStack canvas must retain restrained card edges and controlled size units.');
 $assert(str_contains($dashboardCss, 'align-content: start') && str_contains($dashboardCss, 'inset-block: 9rem 16px'), 'Widget settings must remain top-aligned and below GLPI sticky navigation.');
 $dashboardBootstrap = file_get_contents(dirname(__DIR__) . '/frontend/main.ts');
 $assert(str_contains($dashboardBootstrap, "meta[property=\"glpi:csrf_token\"]"), 'Dashboard bootstrap must fall back to GLPI core CSRF metadata.');
@@ -313,6 +316,8 @@ $assert(str_contains($homeDashboard, 'instanceof Central'), 'Analytics must be r
 $assert(str_contains($homeDashboard, "@marifex/dashboard/embed.html.twig"), 'Home tab must render the scoped dashboard application.');
 $setup = file_get_contents(dirname(__DIR__) . '/setup.php');
 $assert(str_contains($setup, "['addtabon' => \\Central::class]"), 'Plugin must register its Analytics tab on GLPI Home.');
+$changelog = file_get_contents(dirname(__DIR__) . '/CHANGELOG.md');
+$assert(str_contains($changelog, '[0.14.1-dev]') && str_contains($changelog, 'document body'), 'The release changelog must record the document-level widget-settings drawer repair.');
 $dashboardController = file_get_contents(dirname(__DIR__) . '/src/Controller/DashboardController.php');
 $assert(str_contains($dashboardController, '/front/central.php?forcetab='), 'Legacy dashboard route must redirect to the Home Analytics tab.');
 
@@ -334,6 +339,28 @@ $paletteController = file_get_contents(__DIR__ . '/../src/Controller/PaletteCont
 $chartPaletteFrontend = file_get_contents(__DIR__ . '/../frontend/chartPalettes.ts');
 $scope = file_get_contents(__DIR__ . '/../docs/DASHBOARD_DESIGN_SCOPE.md');
 $assert(str_contains($paletteRegistry, 'SURFACE_TO_CHART') && substr_count($paletteRegistry, "'chart_") >= 16, 'Phase 5C must exhaustively map every built-in surface theme to a chart palette.');
+$assert(str_contains($paletteRegistry, "'charcoal_gold' => ['Charcoal Gold', ['#F2BD31','#263247','#FFE08A','#58657A'") && str_contains($paletteRegistry, "\$key === 'charcoal_gold' ? 2 : 1"), 'Charcoal Gold chart palette must contain both charcoal and gold series colours under revision 2.');
+$builtInPalettes = \GlpiPlugin\Marifex\Palette\PaletteRegistry::builtIns();
+$assert(count($builtInPalettes) === 16 && count(\GlpiPlugin\Marifex\Palette\PaletteRegistry::SURFACE_TO_CHART) === 16, 'All sixteen built-in surface and chart palettes must be registered together.');
+foreach ($builtInPalettes as $paletteId => $paletteDefinition) {
+    $colors = $paletteDefinition['colors'] ?? [];
+    $assert(count($colors) >= 6 && count($colors) <= 12 && count(array_unique($colors)) === count($colors), sprintf('%s must provide 6 to 12 distinct chart colours.', $paletteId));
+    $assert(count(array_filter($colors, static fn(string $color): bool => preg_match('/^#[0-9A-F]{6}$/', $color) === 1)) === count($colors), sprintf('%s must use normalized hexadecimal chart colours.', $paletteId));
+}
+$reportRendererSource = file_get_contents(__DIR__ . '/../src/Report/HtmlReportRenderer.php');
+$assert(str_contains($reportRendererSource, 'PaletteRegistry::builtIns()') && str_contains($reportRendererSource, 'PaletteRegistry::SURFACE_TO_CHART'), 'Screen and report chart palettes must resolve from the same governed built-in registry.');
+$paletteFrontend = file_get_contents(dirname(__DIR__) . '/frontend/palettes.ts');
+$frontendPaletteColors = [];
+preg_match_all("/\{ key: '([^']+)'.*?colors: \[([^\]]+)\] \}/", $paletteFrontend, $frontendPaletteMatches, PREG_SET_ORDER);
+foreach ($frontendPaletteMatches as $frontendPaletteMatch) {
+    preg_match_all("/'(#[0-9A-Fa-f]{6})'/", $frontendPaletteMatch[2], $frontendColorMatches);
+    $frontendPaletteColors[$frontendPaletteMatch[1]] = array_map('strtoupper', $frontendColorMatches[1]);
+}
+$assert(count($frontendPaletteColors) === 16, 'Frontend must expose all sixteen governed surface palettes.');
+foreach (\GlpiPlugin\Marifex\Palette\PaletteRegistry::SURFACE_TO_CHART as $surfaceKey => $chartKey) {
+    $assert(str_contains($paletteFrontend, "key: '$surfaceKey'"), sprintf('Frontend surface fallback is missing %s.', $surfaceKey));
+    $assert(($frontendPaletteColors[$surfaceKey] ?? []) === $builtInPalettes[$chartKey]['colors'], sprintf('Frontend, server and report colours must match for %s.', $surfaceKey));
+}
 $assert(str_contains($paletteValidator, '51200') && str_contains($paletteValidator, 'duplicate keys') && str_contains($paletteValidator, "['categorical','monochrome','gradient']"), 'Phase 5C imports must enforce the controlled schema, size and duplicate-key rules.');
 $validator = new \GlpiPlugin\Marifex\Palette\PaletteValidator();
 $validPaletteJson = '{"schemaVersion":1,"name":"Regression Palette","type":"categorical","colors":["#1D4ED8","#10B981","#8B5CF6","#F59E0B","#EF4444","#64748B"],"areaOpacity":0.25,"isRecursive":false}';
@@ -350,6 +377,13 @@ $assert(str_contains($chartPaletteFrontend, 'protanopia') && str_contains($chart
 $assert(str_contains($widgetFrontend, "renderMode: 'richText'") && str_contains($widgetFrontend, 'navigateChart') && str_contains($widgetFrontend, 'aria-live="polite"'), 'Charts must provide confined native tooltips and keyboard point inspection.');
 $assert(str_contains($widgetFrontend, 'fontWeight: 600') && str_contains($widgetFrontend, 'chartFontFamily'), 'Chart axes and legends must use the readable governed dashboard typography.');
 $assert(str_contains($dashboardCss, '@media (hover: hover) and (pointer: fine)') && str_contains($dashboardCss, ':focus-within') && str_contains($dashboardCss, ':not(.marifex-widget--editing):hover'), 'Widget cards must expose governed pointer and keyboard hover feedback without affecting edit mode.');
+$assert(!preg_match('/\.marifex-widget:hover\s*\{[^}]*transform:/', $dashboardCss), 'Edit-mode widget cards must never become a containing block for the fixed settings dialog.');
+$assert(str_contains($widgetFrontend, 'Trend pending') && str_contains($widgetFrontend, 'Current value'), 'KPI context must distinguish incomplete trend history from current-only values.');
+$insightStripFrontend = file_get_contents(dirname(__DIR__) . '/frontend/InsightStrip.vue');
+$assert(str_contains($insightStripFrontend, 'trend analysis is preparing') && str_contains($insightStripFrontend, 'Measures awaiting update'), 'Baseline readiness must use compact user-facing language and friendly affected-measure details.');
+$assert(!str_contains($insightStripFrontend, ' snapshots ·') && !str_contains($insightStripFrontend, 'certified snapshot') && !str_contains($insightStripFrontend, 'Latest snapshot is stale'), 'Executive readiness language must not expose data-engineering terminology.');
+$assert(str_contains($dashboardCss, '.marifex-insight-readiness__sources') && str_contains($dashboardCss, 'grid-template-columns: repeat(2,minmax(0,1fr))'), 'Expanded baseline readiness must use the available width without tiny technical text.');
+$assert(str_contains($dashboardCss, '.marifex-insight-readiness__sources small { color: #111827;'), 'Affected-measure availability text must use the approved near-black readable colour.');
 $assert(substr_count($dashboardCss, 'font-size: 13px') >= 5 && str_contains($dashboardCss, '.marifex-filterbar .form-select') && str_contains($dashboardCss, '.marifex-widget__settings .form-control'), 'Dashboard and widget-settings dropdowns must retain readable governed typography.');
 $assert(str_contains($scope, 'Delta E 00 < 10') && str_contains($scope, 'Phase 5D: reserved, not approved for implementation'), 'The controlled scope must retain Phase 5C thresholds and keep Phase 5D unapproved.');
 $assert(str_contains($definitionService, "'classic_blue'") && str_contains($definitionService, "'slate_gray'"), 'The server palette allowlist must include the approved gradient collection.');
@@ -385,7 +419,7 @@ $assert(str_contains($csvRenderer, "preg_match('/^[=+\\-@\\t\\r]/'"), 'CSV expor
 $assert(str_contains($pdfRenderer, '--headless=new') && str_contains($pdfRenderer, '--print-to-pdf='), 'PDF export must use the scoped headless-browser architecture.');
 $assert(str_contains($pdfRenderer, "is_file('/.dockerenv')") && str_contains($pdfRenderer, "['--no-sandbox']"), 'Containerized PDF export must use the explicit Chromium sandbox compatibility flag.');
 $assert(str_contains($pdfRenderer, '--no-pdf-header-footer'), 'Generated PDFs must not expose temporary renderer paths in browser headers or footers.');
-$assert(str_contains($htmlRenderer, 'palette-cream_gold') && str_contains($htmlRenderer, 'PALETTES'), 'Static PDF reports must preserve per-widget palettes.');
+$assert(str_contains($htmlRenderer, 'palette-cream_gold') && str_contains($htmlRenderer, 'PaletteRegistry::builtIns()'), 'Static PDF reports must preserve per-widget palettes through the governed registry.');
 $assert(str_contains($htmlRenderer, 'palette-classic_blue') && str_contains($htmlRenderer, 'palette-slate_gray'), 'Static PDF reports must render the approved gradient collection.');
 $reportFixture = [
     'dashboard' => ['name' => 'PDF fixture'], 'from' => '2026-01-01', 'to' => '2026-01-31',

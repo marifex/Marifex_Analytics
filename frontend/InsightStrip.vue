@@ -7,6 +7,35 @@ const expanded = ref(false);
 const inspected = ref<string | null>(null);
 const inspectedInsight = computed(() => props.data?.insights.find(item => item.key === inspected.value) ?? null);
 const governedSuppressions = computed(() => (props.data?.suppressed ?? []).filter(item => item.code !== 'NO_MATERIAL_CHANGE').slice(0, 4));
+const notReadyMetrics = computed(() => props.data?.readiness.metrics.filter(metric => !metric.ready) ?? []);
+const baselineMode = computed(() => Boolean(props.data && !props.data.insights.length && notReadyMetrics.value.length));
+const metricLabels: Record<string, string> = {
+  historical_open_backlog: 'Open backlog',
+  created_vs_resolved_tickets: 'Created versus resolved tickets',
+  unassigned_open_tickets: 'Unassigned tickets',
+  tickets_approaching_sla_breach: 'Tickets approaching SLA breach',
+  sla_breach_count: 'SLA breaches',
+  open_tickets_by_priority: 'Open tickets by priority',
+  historical_group_backlog: 'Assignment-group backlog',
+  tickets_by_request_source: 'Request-source distribution',
+  technician_workload_distribution: 'Technician workload',
+  sla_breaches_by_technician: 'SLA breaches by technician',
+  stale_computer_inventory: 'Stale computer inventory',
+  asset_inventory_total: 'Managed computer inventory',
+  repeat_incident_computers: 'Computers with repeated incidents',
+  software_license_overallocated_seats: 'Overallocated licence seats',
+  software_license_compliance_rate: 'Licence compliance',
+  daily_change_volume: 'Changes raised',
+  daily_change_resolutions: 'Changes resolved',
+  daily_problem_volume: 'Problems raised',
+  daily_problem_resolutions: 'Problems resolved',
+};
+const baselineCompleted = computed(() => notReadyMetrics.value.length ? Math.min(...notReadyMetrics.value.map(metric => metric.completed)) : 0);
+const baselineRequired = computed(() => props.data?.readiness.required_snapshots ?? 0);
+const baselineSummary = computed(() => `${props.data?.horizon_days ?? ''}-day trend analysis is preparing`);
+const baselineMeta = computed(() => `${baselineCompleted.value} of ${baselineRequired.value} days available · ${notReadyMetrics.value.length} measure${notReadyMetrics.value.length === 1 ? '' : 's'} awaiting update`);
+function sourceLabel(metric: string): string { return metricLabels[metric] ?? metric.replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase()); }
+function stateLabel(state: string): string { return ({ stale: 'Latest daily update pending', missing: 'Historical data unavailable', unavailable: 'Historical data unavailable' } as Record<string, string>)[state] ?? 'More historical data required'; }
 function evidenceUrl(item: InsightItem): string {
   return { ticket: props.ticketUrl, asset: props.assetUrl, licence: props.licenceUrl, change: props.changeUrl, problem: props.problemUrl }[item.evidence_target];
 }
@@ -16,9 +45,9 @@ function format(value: number, unit: string): string { return unit === 'percent'
 <template>
   <section class="marifex-insight-strip" :class="{ 'is-expanded': expanded }" aria-labelledby="marifex-insight-summary">
     <button class="marifex-insight-strip__summary" type="button" :aria-expanded="expanded" @click="expanded = !expanded">
-      <span class="marifex-insight-strip__badge">Insights</span>
-      <strong id="marifex-insight-summary">{{ loading ? 'Calculating certified movements...' : error || data?.summary || 'No analytical insight is available.' }}</strong>
-      <small v-if="data">{{ data.readiness.ready_metrics }}/{{ data.readiness.total_metrics }} comparison sources ready</small>
+      <span class="marifex-insight-strip__badge">{{ baselineMode ? 'Data status' : 'Insights' }}</span>
+      <strong id="marifex-insight-summary">{{ loading ? 'Calculating certified movements...' : error || (baselineMode ? baselineSummary : data?.summary) || 'No analytical insight is available.' }}</strong>
+      <small v-if="data">{{ baselineMode ? baselineMeta : `${data.readiness.ready_metrics}/${data.readiness.total_metrics} comparison sources ready` }}</small>
       <span aria-hidden="true">{{ expanded ? '−' : '+' }}</span>
     </button>
     <div v-if="expanded" class="marifex-insight-strip__body">
@@ -29,8 +58,10 @@ function format(value: number, unit: string): string { return unit === 'percent'
       </article>
       <div v-if="governedSuppressions.length && data?.insights.length" class="marifex-insight-suppressions"><strong>Suppressed calculations</strong><span v-for="item in governedSuppressions" :key="item.key"><code>{{ item.code }}</code> {{ item.message }}</span></div>
       <div v-if="!(data?.insights.length)" class="marifex-insight-readiness">
-        <strong>{{ data?.summary || error }}</strong>
-        <span v-for="item in data?.readiness.metrics.filter(metric => !metric.ready).slice(0, 5) ?? []" :key="item.metric">{{ item.metric }}: {{ item.completed }} of {{ item.required }} snapshots ({{ item.state }})</span>
+        <div class="marifex-insight-readiness__intro"><strong>{{ baselineMode ? baselineSummary : data?.summary || error }}</strong><span v-if="baselineMode">Historical data is available for {{ baselineCompleted }} of the required {{ baselineRequired }} days. Trends and period comparisons will appear after the next daily update.</span></div>
+        <div v-if="baselineMode" class="marifex-insight-readiness__sources" aria-label="Measures awaiting update">
+          <span v-for="item in notReadyMetrics" :key="item.metric"><strong>{{ sourceLabel(item.metric) }}</strong><small>{{ item.completed }} of {{ item.required }} days available · {{ stateLabel(item.state) }}</small></span>
+        </div>
       </div>
     </div>
   </section>

@@ -23,7 +23,7 @@ final class PaletteRegistry
             'ocean' => ['Ocean Blue', ['#1479C9','#26A6D1','#49C5B6','#075D9A','#5A8DEE','#1B91A8','#70B7E6','#087F8C','#83D7CB','#2C64AD','#4A9FD8','#0C718F']],
             'mint' => ['Mint', ['#176B43','#248653','#2F9E66','#42B578','#62C58F','#83D5A7','#A4E3BF','#0F5936','#357A55','#55A978','#78BF95','#9BD4B2']],
             'lavender' => ['Lavender', ['#7656B5','#936BD0','#B07EE2','#5E46A1','#C18CE8','#8157BF','#A472D4','#D0A2EF','#684CA7','#9B7AC5','#B891DB','#573C90']],
-            'charcoal_gold' => ['Charcoal Gold', ['#F2BD31','#FFE08A','#D99A00','#FFF0B8','#BD7F00','#F7CF62','#E6AA15','#FFF5D2','#C78D16','#F4C34A','#AA7613','#E9D49B']],
+            'charcoal_gold' => ['Charcoal Gold', ['#F2BD31','#263247','#FFE08A','#58657A','#D99A00','#8B95A7','#FFF0B8','#111827','#BD7F00','#CBD5E1','#E6AA15','#3F4B5F']],
             'neutral' => ['Classic White', ['#4361EE','#A7CF24','#50597B','#F05D7B','#7656B5','#34A853','#F5BD00','#009BB8','#F47B3D','#586174','#9A60B4','#EA7CCC']],
             'classic_blue' => ['Classic Blue', ['#1D4ED8','#2563EB','#3B82F6','#60A5FA','#0EA5E9','#64748B']],
             'teal_green' => ['Teal Green', ['#047857','#10B981','#34D399','#0F766E','#14B8A6','#64748B']],
@@ -40,7 +40,7 @@ final class PaletteRegistry
         foreach ($sets as $key => [$label, $colors]) {
             $result['chart_' . $key] = [
                 'id' => 'chart_' . $key, 'name' => $label, 'type' => 'categorical', 'colors' => $colors,
-                'areaOpacity' => 0.25, 'revision' => 1, 'builtIn' => true, 'inherited' => false, 'readOnly' => true,
+                'areaOpacity' => 0.25, 'revision' => $key === 'charcoal_gold' ? 2 : 1, 'builtIn' => true, 'inherited' => false, 'readOnly' => true,
             ];
         }
         return $result;

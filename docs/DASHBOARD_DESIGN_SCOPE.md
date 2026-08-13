@@ -214,17 +214,19 @@ Titles use sentence case, wrap to at most two lines and never use ellipsis as th
 - Resizing snaps to the approved type-specific size classes. Users cannot create arbitrary one-pixel heights.
 - Width constraints: KPI 2 to 4 columns; standard chart 4 to 8 columns; detailed chart 6 to 12 columns; compact table 5 to 8 columns; detailed table 8 to 12 columns.
 - `ResizeObserver` remains widget-local and must be debounced approximately 100 to 200 milliseconds during resize.
-- User-selected ordering and placement remain stable. A drop records explicit 12-column canvas X/Y coordinates, including intentional vertical gaps; automatic packing or array-only reordering must not override deliberate placement.
-- Empty internal space must be minimized by reflowing chart plot area, axes, legend, labels and table rows for the selected size.
+- The builder uses the GridStack interaction model verified in the controlling research: a 12-column snap grid with pointer drag, edge/corner resize, collision handling and vertical compaction. MarifeX must not substitute a hand-built absolute-position canvas.
+- Dragging or resizing a widget immediately previews the resulting layout. When the active widget consumes occupied cells, affected neighbouring widgets move predictably to the next available cells; when space is released, following widgets compact upward into usable space. Widgets never overlap, and users do not have to resize surrounding cards manually.
+- The final compacted X/Y/W/H geometry is saved. Edit mode and normal view at the same viewport width render that same geometry; leaving edit mode must not apply a second desktop reflow or change the number of widgets in a row.
+- A saved layout preserves user ordering and relative placement, but empty rows and unusable collision gaps are not deliberate layout state. Grid compaction may remove those gaps after drag or resize.
+- Empty internal space must be minimized by reflowing chart plot area, axes, legend, labels, typography and table rows for the selected size. ECharts receives the actual container dimensions through the widget-local debounced `ResizeObserver`.
 - Widget settings open in a fixed, viewport-contained drawer above the dashboard canvas. Title and palette controls align from the top in one column, remain fully visible below GLPI's sticky header and never change widget geometry.
 
 ## Responsive rules
 
 - At 1440 px and wider, the default first screen uses the six-KPI and 7 + 5 layout specified above.
-- At 1200 to 1439 px, KPI tiles may reflow to three per row and analytical pairs may use 6 + 6 when label fit requires it.
-- At 768 to 1199 px, KPI tiles reflow two per row and analytical widgets become full width.
+- At 768 px and wider, the saved 12-column composition remains authoritative in both edit and normal view. Widget content adapts internally; viewport CSS must not silently replace saved card widths.
 - Below 768 px, all widgets become one column; chart legends move below only when a right-side legend cannot meet minimum plot width.
-- Responsive reflow changes presentation placement, not saved semantic filters or metric meaning.
+- Mobile reflow is a presentation-only derived layout and does not overwrite the saved 12-column desktop geometry, semantic filters or metric meaning.
 
 ## Phase 5A: deterministic analytical insight layer
 
@@ -728,4 +730,96 @@ Phase 5C does not include arbitrary CSS, patterns, arbitrary brightness/contrast
 
 ## Phase 5D: reserved, not approved for implementation
 
-Phase 5D remains limited to a future written amendment for governed targets, warning bands, target variance, breach streaks, recovery and exception ranking. No Phase 5D code may be added until its formulas, configuration ownership, evidence rules and acceptance criteria are approved in writing.
+### Proposed governed targets and exception analytics — awaiting written approval
+
+This proposed amendment defines Phase 5D for review. It is not implementation authorization. No Phase 5D code, schema, configuration control, widget, insight, export field or migration may be added until this section is explicitly approved in writing.
+
+Phase 5D adds deterministic target context to existing certified scalar metrics. It creates no new source metric, formula editor, custom SQL, prediction, anomaly inference, causal conclusion, external benchmark, dashboard template or navigation path.
+
+### Formula version and eligible measures
+
+- Formula version: `phase5d-1`.
+- A target may be configured only for the fixed allowlist below. Direction is governed by the registry and cannot be edited.
+- Lower is better: `historical_open_backlog`, `unassigned_open_tickets`, `average_open_ticket_age`, `average_unassigned_time`, `tickets_approaching_sla_breach`, `sla_breach_count`, `sla_breach_rate`, `assignment_changes_per_ticket`, `unsatisfied_survey_responses`, `stale_computer_inventory`, `low_disk_capacity_computers`, `computers_in_stock_over_30_days`, `software_license_overallocated_seats`, `open_changes`, `open_problems`, `ticket_reopen_events`, `ticket_reopen_event_rate`, `first_response_p50_seconds`, `first_response_p75_seconds`, `first_response_p90_seconds`, `dissatisfied_responses_total`, `customer_dissatisfaction_rate`, `solution_refused_tickets`, `refused_solution_rate`, `repeat_incident_computers_90d`, `repeat_incident_asset_rate` and `licence_coverage_gap_rate`.
+- Higher is better: `software_license_compliance_rate`.
+- Neutral composition measures, dimension series, denominator/readiness products, flow volumes and contextual non-monotonic measures such as `licence_utilization_rate` are not target eligible in `phase5d-1`.
+- Each target binds to one metric, one GLPI entity, recursive-entity flag, optional supported assignment-group filter and one governed grain: selected horizon (`7`, `30`, `90`, `180` or `365` days), certified cutoff scalar, fixed trailing 30 days or fixed trailing 90 days. The grain must match the metric registry and is not user-selectable.
+
+### Target record and configuration ownership
+
+An enabled target record contains: metric key, entity, recursive flag, optional group identifier, governed grain, target value, warning distance, critical distance, effective-from date, optional effective-to date, configuration revision, creator, modifier and timestamps.
+
+- Target, warning distance and critical distance use the metric's certified display unit before rounding. Target may be zero; distances must be finite and non-negative, and `critical_distance` must be greater than `warning_distance`.
+- Only a user with GLPI configuration-update permission and visibility of the bound entity may create, change, retire or reactivate a target. Dashboard ownership alone grants no target-management right.
+- Target records are entity-owned. There is no implicit parent inheritance and no cross-entity fallback. Recursive scope is an explicit part of the record identity.
+- At most one enabled record may cover a metric/scope/grain/effective date. Overlapping effective ranges are rejected.
+- Edits create a new immutable revision; prior revisions remain available to calculation evidence and report history. Deletion is a governed retirement, not physical erasure.
+- Targets are configured in the existing MarifeX Settings route. Phase 5D creates no second administration system and no per-widget formula control.
+
+### Deterministic target formulas and bands
+
+Let `A` be the certified unrounded actual value and `T` the effective target in the same unit and grain.
+
+- Directional variance is `A - T` for higher-is-better metrics and `T - A` for lower-is-better metrics. Positive values are favourable, zero meets target and negative values are unfavourable.
+- Target variance percentage is `directional_variance / abs(T) * 100`. When `T = 0`, percentage variance is unavailable and only the absolute directional variance is shown; no substitute denominator is invented.
+- Unfavourable distance is `max(0, -directional_variance)`.
+- Status is `met` when unfavourable distance is `0`; `watch` when it is greater than `0` and at most the warning distance; `warning` when it is greater than the warning distance and at most the critical distance; and `critical` when it is greater than the critical distance.
+- Boundary equality is therefore deterministic: equality with the target is `met`, equality with the warning boundary is `watch`, and equality with the critical boundary is `warning`.
+- Calculations use unrounded values. Formatting occurs only after status, variance and rank are resolved.
+- Target status is contextual and does not replace Phase 5A/5B movement classification. A metric may be improving while still missing target, or declining while still meeting target; both statements may be displayed without merging their semantics.
+
+### Breach streak and recovery
+
+- A target breach is any certified daily evaluation whose unfavourable distance is greater than zero (`watch`, `warning` or `critical`).
+- Current breach streak is the number of consecutive certified daily evaluations ending at the selected cutoff that use the same target revision and are breaches. A `met` evaluation resets the streak to zero.
+- A missing, stale, incomplete, unauthorized or suppressed evaluation breaks the streak. Phase 5D never bridges an evidence gap or treats it as met.
+- A target revision or scope/grain change starts a new streak; evaluations made under different revisions are not joined.
+- Recovery is emitted only when the current certified evaluation is `met` and the immediately preceding certified evaluation, under the same target revision, ended a breach streak of at least one day. Evidence records the recovered streak length and the recovery date.
+- Recovery is historical fact, not a prediction that the metric will remain within target.
+
+### Deterministic exception ranking
+
+Only current breaches with complete, current and authorized evidence enter the exception ranking.
+
+1. severity descending: `critical`, `warning`, then `watch`;
+2. normalized miss descending, calculated as `unfavourable_distance / critical_distance`;
+3. breach-streak days descending;
+4. absolute unfavourable distance descending; and
+5. metric key ascending, then entity identifier ascending and group identifier ascending.
+
+Because `critical_distance` must be positive, normalized miss has no zero-denominator case. Ranking is prioritization by controlled arithmetic, not risk prediction or causal inference. `Met`, unavailable and suppressed measures never appear as exceptions.
+
+### Readiness, cold start and evidence
+
+- Phase 5A/5B authorization, freshness, completeness, population and denominator gates run before any Phase 5D calculation. A target never makes an unsupported metric ready.
+- A target with no certified evaluation on or after its effective date reports `Target configured; awaiting certified evaluation` and produces no status, streak, recovery or rank.
+- A target with one valid evaluation may show current status and variance. Streak requires consecutive certified daily evaluations; recovery requires the immediately preceding valid evaluation under the same revision.
+- Calculation inspection records actual unrounded value, display value, metric formula version, target formula version, direction, target and band values, absolute and percentage variance, status, streak dates, recovery evidence, ranking inputs, target revision, scope, grain, cutoff, freshness and every suppression reason.
+- Evidence actions use the existing Phase 5C allowlisted native GLPI targets and existing authorization checks. Phase 5D adds no arbitrary URL or raw-query drill-through.
+- Screen, PDF and report history preserve the effective target revision and identical results. CSV adds controlled target-analysis columns only for rows already authorized for export; it never contains configuration audit identities.
+
+### UI boundary
+
+- Existing KPI and insight surfaces may show a compact target marker, variance, status and breach streak. Existing charts may show one governed target line and the two governed warning boundaries when applicable.
+- The Executive insight brief remains capped at five findings across Phase 5A, 5B and 5D. Current `critical` target exceptions rank ahead of target warnings, watch states and recoveries, subject to the existing deterministic brief selection rules.
+- The existing dashboard, widget catalogue, drag/resize system, palettes, chart inspection and navigation remain unchanged. Phase 5D adds no mandatory card row and does not expand default dashboard layouts without a separate written layout amendment.
+- Status is conveyed by text and icon as well as colour. Target lines and bands must remain distinguishable under every governed chart palette and high-contrast mode.
+
+### Phase 5D exclusions
+
+Phase 5D excludes editable formulas, SQL, arbitrary dimensions, user-defined direction, inherited or cross-entity targets, external benchmarks, forecast targets, seasonality, anomaly detection, causal diagnosis, automatic remediation, notifications, email delivery, approval workflows, individual technician performance targets, financial targets, Phase 6 MSP/customer comparison and Phase 7 predictive/AI features.
+
+### Phase 5D acceptance criteria
+
+1. Only the explicit allowlist accepts targets, and each measure uses its fixed direction, certified unit and governed grain.
+2. Target records enforce entity authorization, non-overlapping effective ranges, immutable revisions and retirement without erasing evidence.
+3. Directional variance, zero-target handling, unfavourable distance and all band boundaries match the formulas above using unrounded values.
+4. Movement semantics and target semantics remain independent and can be inspected separately.
+5. Streaks use consecutive certified evaluations under one target revision; missing evidence, a met result or a revision change breaks the streak as defined.
+6. Recovery requires a current met evaluation immediately after a supported breach streak and never implies prediction.
+7. Exception ranking follows the five deterministic sort keys and excludes met, stale, unavailable, unauthorized and suppressed records.
+8. Cold-start states never invent target status, streak, recovery or rank before the required evidence exists.
+9. Screen, PDF, CSV and report history reproduce the same target revision, calculations, suppression and authorization outcomes.
+10. Target markers, bands, text, icons, keyboard inspection and high-contrast rendering pass browser tests at minimum and standard widget sizes.
+11. Phase 5D adds no metric source, default dashboard card row, navigation system, notification, arbitrary formula, prediction or causal language.
+12. Structural, formula, migration, permission, export and browser integration tests cover every allowlisted direction, all exact boundaries, target zero, revision changes, evidence gaps and deterministic ranking ties.

@@ -4,29 +4,11 @@ declare(strict_types=1);
 
 namespace GlpiPlugin\Marifex\Report;
 
+use GlpiPlugin\Marifex\Palette\PaletteRegistry;
 use GlpiPlugin\Marifex\Palette\PaletteService;
 
 final class HtmlReportRenderer
 {
-    private const PALETTES = [
-        'cream_gold' => ['#d99a00', '#f2bd31', '#ffda68', '#b87900', '#8d6411', '#f7c95f', '#c88c14', '#ffe59a', '#aa7410', '#6f5220'],
-        'ocean' => ['#1479c9', '#26a6d1', '#49c5b6', '#075d9a', '#5a8dee', '#1b91a8', '#70b7e6', '#087f8c', '#83d7cb', '#2c64ad'],
-        'mint' => ['#176b43', '#248653', '#2f9e66', '#42b578', '#62c58f', '#83d5a7', '#a4e3bf', '#0f5936', '#357a55', '#55a978'],
-        'lavender' => ['#7656b5', '#936bd0', '#b07ee2', '#5e46a1', '#c18ce8', '#8157bf', '#a472d4', '#d0a2ef', '#684ca7', '#9b7ac5'],
-        'charcoal_gold' => ['#f2bd31', '#ffe08a', '#d99a00', '#fff0b8', '#bd7f00', '#f7cf62', '#e6aa15', '#fff5d2', '#c78d16', '#f4c34a'],
-        'neutral' => ['#4361ee', '#a7cf24', '#50597b', '#f05d7b', '#7656b5', '#34a853', '#f5bd00', '#009bb8', '#f47b3d', '#586174'],
-        'classic_blue' => ['#1d4ed8', '#2563eb', '#3b82f6'],
-        'teal_green' => ['#047857', '#10b981', '#34d399'],
-        'deep_purple' => ['#5b21b6', '#8b5cf6', '#a78bfa'],
-        'warm_amber' => ['#b45309', '#fbbf24', '#fde68a'],
-        'coral_red' => ['#b91c1c', '#ef4444', '#fca5a5'],
-        'sky_blue' => ['#2563eb', '#60a5fa', '#93c5fd'],
-        'bright_orange' => ['#c2410c', '#f97316', '#fb923c'],
-        'rose_pink' => ['#be185d', '#f472b6', '#fb7185'],
-        'forest_green' => ['#065f46', '#34d399', '#6ee7b7'],
-        'slate_gray' => ['#4b5563', '#9ca3af', '#cbd5e1'],
-    ];
-
     /** @param array<string, mixed> $report */
     public function render(array $report): string
     {
@@ -64,9 +46,10 @@ final class HtmlReportRenderer
     private function widget(array $widget, array $data): string
     {
         $title = $this->e((string) $widget['title']);
-        $palette = isset(self::PALETTES[$widget['palette'] ?? '']) ? (string) $widget['palette'] : 'cream_gold';
+        $palette = isset(PaletteRegistry::SURFACE_TO_CHART[$widget['palette'] ?? '']) ? (string) $widget['palette'] : 'cream_gold';
         $chartPalette = isset($widget['chartPalette']) && class_exists(\Session::class) ? (new PaletteService())->resolve((string) $widget['chartPalette']) : null;
-        $colors = is_array($chartPalette['colors'] ?? null) ? $chartPalette['colors'] : self::PALETTES[$palette];
+        $fallback = PaletteRegistry::builtIns()[PaletteRegistry::SURFACE_TO_CHART[$palette]]['colors'];
+        $colors = is_array($chartPalette['colors'] ?? null) ? $chartPalette['colors'] : $fallback;
         $body = match ($widget['type']) {
             'kpi' => '<div class="kpi">' . $this->e($this->kpi($widget['metric'], $data)) . '</div><p class="context">Current certified value</p>',
             'line' => $this->line($data['series'] ?? [], $colors[0]),

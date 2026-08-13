@@ -1,10 +1,23 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import WidgetCard from './WidgetCard.vue';
 import InsightStrip from './InsightStrip.vue';
 import type { DashboardTemplate, DashboardWorkspace, InsightItem, InsightResponse, MetricResponse, ReportSchedule, SavedDashboard, WidgetDefinition } from './types';
 import { defaultWidgetPalette, type WidgetPaletteKey } from './palettes';
 import type { ChartPalette, PaletteCatalogue } from './chartPalettes';
+
+type GridNode = { id?: string; x?: number; y?: number; w?: number; h?: number; el?: HTMLElement };
+type GridInstance = {
+  on: (name: string, callback: (event: Event, payload: GridNode[] | HTMLElement) => void) => GridInstance;
+  enableMove: (enabled: boolean) => GridInstance;
+  enableResize: (enabled: boolean) => GridInstance;
+  update: (element: HTMLElement, options: Partial<GridNode> & Record<string, unknown>) => GridInstance;
+  makeWidget: (element: HTMLElement) => GridInstance;
+  removeWidget: (element: HTMLElement, removeDOM?: boolean, triggerEvent?: boolean) => GridInstance;
+  compact: (layout?: 'compact' | 'list', doSort?: boolean) => GridInstance;
+  destroy: (removeDOM?: boolean) => void;
+};
+type GridStackGlobal = { init: (options: Record<string, unknown>, element: HTMLElement) => GridInstance };
 
 const props = defineProps<{ metricEndpoint: string; insightEndpoint: string; definitionEndpoint: string; paletteEndpoint: string; csrfToken: string; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string; reportExportUrl: string; reportScheduleEndpoint: string; canExport: boolean; canSchedule: boolean }>();
 const dashboard = ref<SavedDashboard | null>(null);
@@ -32,8 +45,9 @@ const selectedGroup = ref<number | null>(null);
 const gridElement = ref<HTMLElement | null>(null);
 const interactingWidget = ref<string | null>(null);
 const interactionMode = ref<'drag' | 'resize' | null>(null);
-let interaction: { id: string; mode: 'drag' | 'resize'; pointerId: number; startX: number; startY: number; startW: number; startH: number } | null = null;
-let dragGhost: HTMLElement | null = null;
+let grid: GridInstance | null = null;
+let gridRebuildToken = 0;
+let applyingGridChange = false;
 let editSnapshot: SavedDashboard | null = null;
 let refreshTimer: number | undefined;
 
@@ -173,6 +187,11 @@ function insightFor(widget: WidgetDefinition): InsightItem | undefined {
   const key = widgetInsightKeys[widget.metric];
   return key ? insightData.value?.insights.find(item => item.key === key) : undefined;
 }
+function comparisonPending(widget: WidgetDefinition): boolean {
+  const readinessMetric = widget.metric === 'current_open_tickets' ? 'historical_open_backlog' : widget.metric;
+  return insightData.value?.readiness.metrics.find(item => item.metric === readinessMetric)?.ready === false;
+}
+function supportsComparison(widget: WidgetDefinition): boolean { return widgetInsightKeys[widget.metric] !== undefined; }
 function indicatorFor(widget: WidgetDefinition): string | undefined {
   const indicator = insightData.value?.indicators.find(item => item.metric === widget.metric);
   return indicator ? `${indicator.label} · ${indicator.value.toFixed(1)}%` : undefined;
@@ -186,6 +205,7 @@ function adoptWorkspace(workspace: DashboardWorkspace): void {
   templates.value = workspace.templates;
   selectedGroup.value = workspace.dashboard.definition.filters.groupId;
   scheduleRefresh();
+  void rebuildGrid();
 }
 function scheduleRefresh(): void {
   if (refreshTimer !== undefined) window.clearInterval(refreshTimer);
@@ -340,78 +360,92 @@ function removeWidget(id: string): void { if (definition.value && definition.val
 function renameWidget(id: string, title: string): void { const widget = definition.value?.widgets.find(item => item.id === id); const clean = title.trim(); if (widget && clean) widget.title = clean; }
 function recolorWidget(id: string, palette: WidgetPaletteKey): void { const widget = definition.value?.widgets.find(item => item.id === id); if (widget) widget.palette = palette; }
 function recolorChart(id: string, palette: string): void { const widget = definition.value?.widgets.find(item => item.id === id); if (widget) widget.chartPalette = palette; }
-function beginInteraction(id: string, mode: 'drag' | 'resize', event: PointerEvent): void {
-  if (!editing.value || event.button !== 0) return;
-  const widget = definition.value?.widgets.find(item => item.id === id); if (!widget) return;
-  event.preventDefault();
-  (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
-  interaction = { id, mode, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startW: widget.w, startH: widget.h };
-  interactingWidget.value = id; interactionMode.value = mode;
-  if (mode === 'drag') {
-    const card = gridElement.value?.querySelector<HTMLElement>(`[data-widget-id="${CSS.escape(id)}"]`);
-    const box = card?.getBoundingClientRect();
-    if (box) {
-      dragGhost = document.createElement('div');
-      dragGhost.className = 'marifex-drag-ghost';
-      dragGhost.textContent = widget.title;
-      Object.assign(dragGhost.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
-      document.body.appendChild(dragGhost);
-    }
+function widgetConstraints(widget: WidgetDefinition): { minW: number; maxW: number; heights: number[] } {
+  if (widget.type === 'kpi') return { minW: 2, maxW: 4, heights: [2, 3] };
+  if (widget.type === 'insight') return { minW: 3, maxW: 5, heights: [2, 3] };
+  if (['line', 'bar', 'donut'].includes(widget.type)) return { minW: 4, maxW: 8, heights: [6, 7] };
+  if (widget.type === 'table') return { minW: 5, maxW: 8, heights: [6, 7] };
+  if (['detail_table', 'matrix'].includes(widget.type)) return { minW: 6, maxW: 12, heights: [7, 8] };
+  return { minW: 6, maxW: 8, heights: [6, 7] };
+}
+function widgetFromNode(node: GridNode): WidgetDefinition | undefined {
+  const id = node.id ?? node.el?.dataset.widgetId;
+  return definition.value?.widgets.find(widget => widget.id === id);
+}
+function gridNodes(payload: GridNode[] | HTMLElement): GridNode[] {
+  if (Array.isArray(payload)) return payload;
+  const node = (payload as HTMLElement & { gridstackNode?: GridNode }).gridstackNode;
+  return node ? [{ ...node, el: payload }] : [];
+}
+function applyGridNodes(nodes: GridNode[]): void {
+  if (!editing.value || applyingGridChange || (gridElement.value?.clientWidth ?? 768) < 768) return;
+  for (const node of nodes) {
+    const widget = widgetFromNode(node); if (!widget) continue;
+    widget.x = Math.max(0, node.x ?? widget.x ?? 0);
+    widget.y = Math.max(0, node.y ?? widget.y ?? 0);
+    widget.w = node.w ?? widget.w;
+    widget.h = node.h ?? widget.h;
   }
+}
+function beginGridInteraction(mode: 'drag' | 'resize', nodes: GridNode[]): void {
+  const widget = nodes[0] ? widgetFromNode(nodes[0]) : undefined;
+  interactingWidget.value = widget?.id ?? null;
+  interactionMode.value = mode;
   document.body.classList.add('marifex-layout-interacting');
 }
-function moveInteraction(event: PointerEvent): void {
-  if (!interaction || event.pointerId !== interaction.pointerId || !definition.value || !gridElement.value) return;
-  event.preventDefault();
-  const widget = definition.value.widgets.find(item => item.id === interaction!.id); if (!widget) return;
-  if (interaction.mode === 'resize') {
-    const styles = getComputedStyle(gridElement.value);
-    const gap = Number.parseFloat(styles.columnGap) || 16;
-    const columnWidth = (gridElement.value.clientWidth - gap * 11) / 12;
-    const rowHeight = Number.parseFloat(styles.gridAutoRows) || 84;
-    const constraints = widget.type === 'kpi' ? { minW: 2, maxW: 4, heights: [2, 3] }
-      : widget.type === 'insight' ? { minW: 3, maxW: 5, heights: [2, 3] }
-      : ['line', 'bar', 'donut'].includes(widget.type) ? { minW: 4, maxW: 8, heights: [6, 7] }
-      : widget.type === 'table' ? { minW: 5, maxW: 8, heights: [6, 7] }
-      : ['detail_table', 'matrix'].includes(widget.type) ? { minW: 6, maxW: 12, heights: [7, 8] }
-      : { minW: 6, maxW: 8, heights: [6, 7] };
-    widget.w = Math.max(constraints.minW, Math.min(constraints.maxW, interaction.startW + Math.round((event.clientX - interaction.startX) / (columnWidth + gap))));
-    const rawH = interaction.startH + Math.round((event.clientY - interaction.startY) / (rowHeight + gap));
-    widget.h = constraints.heights.reduce((nearest, value) => Math.abs(value - rawH) < Math.abs(nearest - rawH) ? value : nearest);
-    return;
+function finishGridInteraction(mode: 'drag' | 'resize', nodes: GridNode[]): void {
+  if (mode === 'resize' && grid && nodes[0]) {
+    const widget = widgetFromNode(nodes[0]);
+    const element = nodes[0].el;
+    if (widget && element) {
+      const allowed = widgetConstraints(widget).heights;
+      const raw = nodes[0].h ?? widget.h;
+      const height = allowed.reduce((nearest, value) => Math.abs(value - raw) < Math.abs(nearest - raw) ? value : nearest);
+      applyingGridChange = true;
+      grid.update(element, { h: height });
+      applyingGridChange = false;
+      nodes[0].h = height;
+    }
   }
-  if (dragGhost) dragGhost.style.transform = `translate3d(${event.clientX - interaction.startX}px, ${event.clientY - interaction.startY}px, 0)`;
-  const styles = getComputedStyle(gridElement.value);
-  const columnGap = Number.parseFloat(styles.columnGap) || 16;
-  const rowGap = Number.parseFloat(styles.rowGap) || 16;
-  const columnWidth = (gridElement.value.clientWidth - columnGap * 11) / 12;
-  const rowHeight = Number.parseFloat(styles.gridAutoRows) || 32;
-  const gridBox = gridElement.value.getBoundingClientRect();
-  const x = Math.max(0, Math.min(12 - widget.w, Math.round((event.clientX - gridBox.left - (columnWidth * widget.w) / 2) / (columnWidth + columnGap))));
-  const y = Math.max(0, Math.round((event.clientY - gridBox.top - (rowHeight * widget.h) / 2) / (rowHeight + rowGap)));
-  const candidate = {
-    left: gridBox.left + x * (columnWidth + columnGap),
-    top: gridBox.top + y * (rowHeight + rowGap),
-    right: gridBox.left + x * (columnWidth + columnGap) + widget.w * columnWidth + (widget.w - 1) * columnGap,
-    bottom: gridBox.top + y * (rowHeight + rowGap) + widget.h * rowHeight + (widget.h - 1) * rowGap,
-  };
-  const blocked = Array.from(gridElement.value.querySelectorAll<HTMLElement>('.marifex-widget:not(.marifex-widget--dragging)')).some(card => {
-    const box = card.getBoundingClientRect();
-    return candidate.left < box.right - 2 && candidate.right > box.left + 2 && candidate.top < box.bottom - 2 && candidate.bottom > box.top + 2;
-  });
-  if (blocked) return;
-  widget.x = x;
-  widget.y = y;
-}
-function endInteraction(event?: PointerEvent): void {
-  if (!interaction || (event && event.pointerId !== interaction.pointerId)) return;
-  dragGhost?.remove(); dragGhost = null;
-  interaction = null; interactingWidget.value = null; interactionMode.value = null;
+  applyGridNodes(nodes);
+  grid?.compact('compact', true);
+  interactingWidget.value = null;
+  interactionMode.value = null;
   document.body.classList.remove('marifex-layout-interacting');
 }
+async function rebuildGrid(): Promise<void> {
+  const token = ++gridRebuildToken;
+  await nextTick();
+  if (token !== gridRebuildToken || !gridElement.value || !definition.value) return;
+  grid?.destroy(false); grid = null;
+  const GridStack = (window as Window & { GridStack?: GridStackGlobal }).GridStack;
+  if (!GridStack) { error.value = 'The GLPI dashboard layout engine is unavailable. Reload the Home page and try again.'; return; }
+  grid = GridStack.init({
+    column: 12,
+    cellHeight: 48,
+    // GridStack applies this inset on every side of each item. Eight pixels
+    // creates the approved 16px gutter without starving two-row KPI cards.
+    margin: 8,
+    float: false,
+    animate: true,
+    disableDrag: !editing.value,
+    disableResize: !editing.value,
+    draggable: { handle: '.marifex-widget__header', cancel: '.marifex-widget__actions,.marifex-widget__settings,button,a,input,select' },
+    resizable: { handles: 'all' },
+    columnOpts: { breakpoints: [{ w: 768, c: 1, layout: 'list' }] },
+  }, gridElement.value);
+  grid.on('change', (_event, payload) => applyGridNodes(gridNodes(payload)));
+  grid.on('dragstart', (_event, payload) => beginGridInteraction('drag', gridNodes(payload)));
+  grid.on('resizestart', (_event, payload) => beginGridInteraction('resize', gridNodes(payload)));
+  grid.on('dragstop', (_event, payload) => finishGridInteraction('drag', gridNodes(payload)));
+  grid.on('resizestop', (_event, payload) => finishGridInteraction('resize', gridNodes(payload)));
+  grid.enableMove(editing.value); grid.enableResize(editing.value);
+}
 async function chooseGroup(id: number | null): Promise<void> { selectedGroup.value = selectedGroup.value === id ? null : id; await persistFilters(); }
-onMounted(() => { void load(); window.addEventListener('pointermove', moveInteraction, { passive: false }); window.addEventListener('pointerup', endInteraction); window.addEventListener('pointercancel', endInteraction); });
-onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(refreshTimer); window.removeEventListener('pointermove', moveInteraction); window.removeEventListener('pointerup', endInteraction); window.removeEventListener('pointercancel', endInteraction); dragGhost?.remove(); document.body.classList.remove('marifex-layout-interacting'); });
+watch(editing, enabled => { grid?.enableMove(enabled); grid?.enableResize(enabled); });
+watch(() => definition.value?.widgets.map(widget => widget.id).join('|'), () => { if (definition.value) void rebuildGrid(); });
+onMounted(() => { void load(); });
+onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(refreshTimer); ++gridRebuildToken; grid?.destroy(false); grid = null; document.body.classList.remove('marifex-layout-interacting'); });
 </script>
 
 <template>
@@ -435,7 +469,7 @@ onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(ref
       <div><label class="form-label" for="marifex-dashboard-name">Dashboard name</label><input id="marifex-dashboard-name" v-model.trim="dashboard.name" class="form-control" maxlength="120"></div>
       <button class="btn btn-outline-primary" type="button" @click="catalogOpen = true">Add widget</button>
       <button v-if="dashboard.id" class="btn btn-outline-danger" type="button" @click="deleteDashboard">Delete dashboard</button>
-      <small>The canvas keeps the saved view geometry while editing. Drag a card by its header, resize from its corner grip, and use the settings icon for title or palette without changing card size.</small>
+      <small>Drag a card by its header or resize from any edge or corner. The snap grid moves neighbouring widgets and compacts released space automatically; charts and content adapt to the resulting card size.</small>
     </div>
 
     <div v-if="definition" class="card marifex-filterbar">
@@ -448,8 +482,10 @@ onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(ref
 
     <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
     <InsightStrip v-if="definition" :data="insightData" :loading="insightLoading" :error="insightError" :ticket-url="ticketSearchUrl" :asset-url="assetSearchUrl" :licence-url="licenceSearchUrl" :change-url="changeSearchUrl" :problem-url="problemSearchUrl" />
-    <div v-if="definition" ref="gridElement" class="marifex-widget-grid" :class="{ 'marifex-widget-grid--editing': editing }">
-      <WidgetCard v-for="widget in definition.widgets" :key="widget.id" :widget="widget" :chart-palettes="chartPalettes" :section-label="sectionLabels[widget.id]" :data="dataFor(widget)" :movement="insightFor(widget)" :indicator="indicatorFor(widget)" :loading="loading" :editing="editing" :interacting="interactingWidget === widget.id" :interaction-mode="interactingWidget === widget.id ? interactionMode : null" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" :asset-search-url="assetSearchUrl" :licence-search-url="licenceSearchUrl" :change-search-url="changeSearchUrl" :problem-search-url="problemSearchUrl" @remove="removeWidget" @rename="renameWidget" @palette="recolorWidget" @chart-palette="recolorChart" @select-group="chooseGroup" @interaction-start="beginInteraction" />
+    <div v-if="definition" ref="gridElement" class="grid-stack marifex-widget-grid" :class="{ 'marifex-widget-grid--editing': editing }">
+      <div v-for="widget in definition.widgets" :key="widget.id" class="grid-stack-item" :gs-id="widget.id" :gs-x="widget.x" :gs-y="widget.y" :gs-w="widget.w" :gs-h="widget.h" :gs-min-w="widgetConstraints(widget).minW" :gs-max-w="widgetConstraints(widget).maxW" :gs-min-h="Math.min(...widgetConstraints(widget).heights)" :gs-max-h="Math.max(...widgetConstraints(widget).heights)" :data-widget-id="widget.id">
+        <WidgetCard class="grid-stack-item-content" :widget="widget" :chart-palettes="chartPalettes" :section-label="sectionLabels[widget.id]" :data="dataFor(widget)" :movement="insightFor(widget)" :indicator="indicatorFor(widget)" :comparison-pending="comparisonPending(widget)" :supports-comparison="supportsComparison(widget)" :loading="loading" :editing="editing" :interacting="interactingWidget === widget.id" :interaction-mode="interactingWidget === widget.id ? interactionMode : null" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" :asset-search-url="assetSearchUrl" :licence-search-url="licenceSearchUrl" :change-search-url="changeSearchUrl" :problem-search-url="problemSearchUrl" @remove="removeWidget" @rename="renameWidget" @palette="recolorWidget" @chart-palette="recolorChart" @select-group="chooseGroup" />
+      </div>
     </div>
 
     <div v-if="catalogOpen" class="marifex-catalog-backdrop" role="presentation" @click.self="catalogOpen = false"><aside class="marifex-catalog" role="dialog" aria-modal="true" aria-labelledby="catalog-title"><header><div><p class="marifex-command__eyebrow">Certified semantic layer</p><h2 id="catalog-title">Widget library</h2></div><button class="btn-close" type="button" aria-label="Close" @click="catalogOpen = false"></button></header><p class="text-secondary">Every widget uses an approved metric. SQL and unrestricted data access are never accepted.</p><div class="marifex-catalog__grid"><button v-for="item in catalog" :key="`${item.metric}-${item.type}`" class="card marifex-catalog-item" type="button" @click="addWidget(item)"><span class="badge bg-azure-lt">{{ item.type }}</span><strong>{{ item.title }}</strong><small>{{ item.metric.replaceAll('_', ' ') }}</small></button></div></aside></div>
