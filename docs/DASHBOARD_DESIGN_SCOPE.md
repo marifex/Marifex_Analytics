@@ -4,10 +4,13 @@ Status: **Approved implementation contract**
 Decision date: **2026-08-09**
 Phase 5A amendment approved: **2026-08-10**
 Phase 5C amendment approved: **2026-08-10**
+Product architecture and Progressive Analytical Activation amendment approved: **2026-08-13**
 
-This document is the single controlled specification for the MarifeX dashboard presentation redesign and the narrowly approved supporting data additions. It consolidates the decisions drawn from the five supplied dashboard samples, the two Gemini reviews, the Claude review and the final MarifeX scope decisions.
+This document is the single controlled specification for the MarifeX dashboard presentation redesign and the narrowly approved supporting data additions. It consolidates the decisions drawn from the five supplied dashboard samples, independent design reviews and the final MarifeX scope decisions.
 
 If this document conflicts with an earlier dashboard-layout statement, this document wins. Existing security, entity isolation, certified semantic metrics, GLPI Home integration, Vue 3, Apache ECharts and plugin-owned Data Mart architecture remain unchanged except for the explicit additions below.
+
+The permanent governing product rules are recorded in [MarifeX Advanced Analytics - Product Architecture Principles](ADVANCED_ANALYTICS_PRODUCT_ARCHITECTURE_PRINCIPLES.md). This scope operationalizes those principles. It remains the controlling implementation contract for exact metrics, formulas, phase boundaries and acceptance criteria.
 
 ## Change-control rule
 
@@ -16,6 +19,17 @@ If this document conflicts with an earlier dashboard-layout statement, this docu
 - Silence, visual similarity and technical convenience are not approval.
 - Implementation must use the exact certified metric meanings; titles must not silently change their business definitions.
 - Scope additions must be documented before product code is changed.
+- Every proposed implementation or scope amendment must demonstrate compliance with [MarifeX Advanced Analytics - Product Architecture Principles](ADVANCED_ANALYTICS_PRODUCT_ARCHITECTURE_PRINCIPLES.md) before approval.
+
+## Product architecture and release position
+
+- Every Advanced Analytics capability follows **Observe -> Compare -> Evaluate -> Explain -> Act**. A higher layer may consume but must never silently redefine, replace or independently recalculate a certified lower-layer calculation.
+- Progressive Analytical Activation is mandatory Phase 5A production behavior. Analytical depth activates from certified readiness, not elapsed time alone.
+- Every decision-relevant certified output preserves analytical provenance and exposes it through governed calculation inspection.
+- Every material finding leads to the deepest evidence available in the currently shipped layers. The UI contains no disabled, `Coming soon` or otherwise unavailable analytical affordance.
+- Advanced Analytics remains read-only. Any GLPI record modification, workflow execution or automated remediation requires a separate future scope and security review.
+- Phase 5A plus Phase 5C constitute the complete initial MarifeX Advanced Analytics product. Phase 5B and reserved Phase 5D are subsequent analytical capability updates and are not blockers to shipping that initial product.
+- The Advanced Analytics Phase 5A-5D labels in this contract are distinct from the repository roadmap `PHASE_5.md`, which governs scheduled reporting and exports.
 
 ## Design problem being corrected
 
@@ -230,7 +244,7 @@ Titles use sentence case, wrap to at most two lines and never use ellipsis as th
 
 ## Phase 5A: deterministic analytical insight layer
 
-Phase 5A extends the approved dashboard from count-oriented reporting to governed movement, flow, composition and concentration analysis. Every statement is produced by a fixed template from certified values. Phase 5A does not introduce AI narrative, prediction, anomaly inference, external benchmarking, arbitrary formulas, custom SQL or causal claims. The fixed calculations named below are approved derived presentations; they do not authorize a user formula editor or unnamed calculations.
+Phase 5A extends the approved dashboard from count-oriented reporting to governed movement, flow, composition and concentration analysis. Every statement is produced by a fixed template from certified values. Progressive Analytical Activation is mandatory Phase 5A production behavior so current certified analytics remain useful while deeper claims wait for their exact evidence gates. Phase 5A does not introduce AI narrative, prediction, anomaly inference, external benchmarking, arbitrary formulas, custom SQL or causal claims. The fixed calculations named below are approved derived presentations; they do not authorize a user formula editor or unnamed calculations.
 
 ### Analytical questions
 
@@ -243,23 +257,56 @@ Phase 5A must help a user answer:
 5. Is the evidence live, snapshot-based, fresh and comparison-ready?
 6. Which governed GLPI evidence should the user open?
 
-### Comparison windows and cold start
+### Progressive Analytical Activation and comparison windows
 
+Activation is evaluated independently for the active entity scope, supported group filter, metric, selected horizon and cutoff. A dashboard never uses a global readiness flag to promote every metric at once. The highest state whose evidence requirements are satisfied is active for that metric:
+
+| Activation state | Evidence gate | Permitted analytical presentation | Required comparison-basis label |
+|---|---|---|---|
+| `CURRENT_STATE` | A current authorized certified live value or completed observation exists and its source passes the metric's applicable availability and freshness rules | Current value, composition and current operational distribution only | `Current value` or the governed `As of` timestamp |
+| `OBSERVED_MOVEMENT` | A stable system-owned monitoring baseline and at least one later certified observation exist for the same scope and grain | Absolute change since monitoring began; no percentage-period, sustained-direction, materiality or prior-period claim | `Since monitoring began` |
+| `COMPARABLE_WINDOW` | One complete selected horizon of consecutive certified observations exists, plus any metric-specific boundary evidence required for within-window statistics | Certified within-window statistics, composition and flow for the selected horizon; no immediately previous equal-window comparison | `Current H-day window` |
+| `CERTIFIED_PERIOD_COMPARISON` | The current and immediately previous complete equal horizons exist and every settled Phase 5A boundary, denominator, authorization and freshness gate passes | The existing Phase 5A period comparison, materiality, sustained-direction and contributor-movement behavior | `vs prior H days` |
+
+- Activation depends on certified data readiness, not elapsed calendar time alone. Missing, stale, unauthorized, suppressed or provenance-ineligible evidence cannot advance a metric.
+- `CURRENT_STATE` may be satisfied by either an authorized certified live value or an authorized certified completed observation, according to the metric registry. Live values use query-time evidence and do not acquire pipeline freshness; completed observations use their governed observation timestamp and cadence-based freshness evidence.
+- `OBSERVED_MOVEMENT` compares the latest certified observation with a stable baseline identified by `monitoring_baseline_at` or an equivalent immutable baseline identity owned by the data-collection system. The identity is keyed by metric, entity scope, recursive setting, supported group filter and governed grain; it is not created from the oldest retained row at query time and is not reset when a user first selects that scope or filter.
+- When a governed scope or filter first becomes analytically collectable, its baseline is the first certified observation produced for that exact key. If certified observations already exist for that exact key when a user first selects it, the existing system-owned baseline is used. Another scope's baseline is never reused.
+- Retention must preserve the baseline identity and its referenced certified value or evidence. If that evidence is unavailable, `OBSERVED_MOVEMENT` is suppressed as `INSUFFICIENT_HISTORY` until a separately governed baseline reinitialization occurs; retention must never silently move the baseline forward.
+- `OBSERVED_MOVEMENT` is a factual absolute change only and must never be styled or worded as a certified period-over-period comparison.
+- `COMPARABLE_WINDOW` does not create a new formula or relax an existing gate. It permits only already-certified within-window values whose settled formula needs one complete current horizon.
 - Comparisons follow the dashboard's selected 7, 30, 90, 180 or 365-day horizon. The comparison is always the immediately previous equal-length period; Phase 5A does not introduce a separate fixed weekly comparison.
-- A comparison requires `2 x horizon` consecutive completed daily snapshots within the active entity scope. A 30-day comparison therefore requires 60 completed daily snapshots. Missing required days keep the comparison unavailable.
-- An endpoint-change measure also requires the certified boundary snapshot immediately before each compared period. Boundary snapshots do not alter the `2 x horizon` daily-bucket progress count, but a missing boundary suppresses only the affected endpoint measure as `INSUFFICIENT_HISTORY`.
-- Comparison readiness is calculated independently for the active entity scope, group filter, metric, horizon and cutoff. It is not a global dashboard flag.
-- Switching from a comparison-ready horizon to an unready horizon immediately removes the previous comparison and shows progress for the newly selected horizon. Switching back restores only the comparison valid for that horizon. Cached calculations must be keyed by entity scope, filter, metric, horizon and cutoff.
-- During cold start, current certified absolute values remain visible, while comparison, sustained-direction and contributor-movement claims are suppressed. The insight strip must not say `No material changes` when comparison history is incomplete.
-- Cold-start text identifies the selected baseline and progress, for example: `Building 30-day comparison baseline: 37 of 60 completed snapshots.` When the required snapshots are consecutive and scheduled future snapshots are healthy, the UI may also show the calculated availability date.
+- A certified period comparison requires `2 x horizon` consecutive completed daily observations within the active entity scope. A 30-day comparison therefore requires 60 completed daily observations. Missing required days keep the comparison unavailable.
+- An endpoint-change measure also requires the certified boundary observation immediately before each compared period. Boundary observations do not alter the `2 x horizon` daily-bucket progress count, but a missing boundary suppresses only the affected endpoint measure as `INSUFFICIENT_HISTORY`.
+- Switching from a comparison-ready horizon to an unready horizon immediately removes the previous comparison and activates the correct lower state for the newly selected horizon. Switching back restores only the comparison valid for that horizon. Cached calculations must be keyed by entity scope, filter, metric, horizon, cutoff and effective provenance.
+- Before certified comparison readiness, current certified absolute values remain visible. Comparison, sustained-direction, materiality and contributor-movement claims remain suppressed unless their named activation state explicitly permits them. The insight strip must not say `No material changes` when comparison history is incomplete.
+- Readiness text identifies the selected basis and progress, for example: `30-day trend analysis is preparing - 37 of 60 days available.` When observations are consecutive and scheduled future observations are healthy, the UI may also show the calculated availability date.
+- Activation states are visually distinguishable without intrusive warning banners. Unavailable higher states are absent; the UI must not show disabled controls, `Coming soon` actions or empty analytical affordances.
 
-| Selected horizon | Consecutive completed snapshots required |
+| Selected horizon | Consecutive completed daily observations required for certified period comparison |
 |---:|---:|
 | 7 days | 14 |
 | 30 days | 60 |
 | 90 days | 180 |
 | 180 days | 360 |
 | 365 days | 730 |
+
+### Analytical provenance and confidence inspection
+
+Every decision-relevant Phase 5A value and finding preserves one of these provenance classes:
+
+| Provenance | Controlled meaning | Certified-use rule |
+|---|---|---|
+| `OBSERVED` | Directly obtained from certified operational or daily-observation data | Eligible when all existing authorization, completeness and freshness gates pass; strongest source provenance |
+| `CERTIFIED_BOOTSTRAP` | Reconstructed through a separately approved deterministic historical method and independently reconciled for that metric | Eligible only for metrics and GLPI conditions that pass the Historical Baseline Bootstrap spike and a later written production amendment |
+| `DERIVED` | Calculated from one or more certified inputs | Records its derived lineage and recursively inherits the weakest effective provenance of its inputs |
+| `UNCERTIFIED_RECONSTRUCTION` | Historical reconstruction that cannot satisfy certification or independent reconciliation | Never eligible for a certified output |
+
+- For inheritance, `OBSERVED` is stronger than `CERTIFIED_BOOTSTRAP`. A derived result combining them is `DERIVED` with effective inherited provenance `CERTIFIED_BOOTSTRAP`.
+- If any input is `UNCERTIFIED_RECONSTRUCTION`, the calculation layer rejects the result for certified KPIs, comparisons, materiality decisions, insights, target evaluation, exception ranking and certified recommendations. The UI must not be the only enforcement point.
+- Provenance never changes an approved numerator, denominator, grain, boundary, materiality gate, suppression rule or formula version. It records how the certified input evidence was obtained.
+- Calculation inspection shows, where applicable: formula and formula version; current and comparison periods; source values; materiality gate and actual pass, bypass or suppression outcome; coverage; activation state; provenance and inherited provenance; entity and supported filter scope; last refresh; and governed supporting evidence.
+- Inspection wording uses client-facing labels such as `Observed`, `Certified historical reconstruction` and `Derived from observed data`; raw internal provenance codes may additionally appear in exports or audit evidence.
 
 ### Approved derived measures
 
@@ -389,7 +436,7 @@ Phase 5A uses these stable reasons across screen, PDF, CSV and scheduled output:
 
 | Code | Meaning |
 |---|---|
-| `INSUFFICIENT_HISTORY` | Two complete selected horizons or required cutoff snapshots are unavailable |
+| `INSUFFICIENT_HISTORY` | Required historical evidence for the requested analytical capability is unavailable, including a stable monitoring baseline, complete horizons or required boundary observations |
 | `DENOMINATOR_BELOW_MINIMUM` | A ratio denominator is below its approved floor |
 | `MISSING_SOURCE` | A required source has never completed or has no certified data |
 | `UNAVAILABLE_SOURCE` | A required governed pipeline is disabled or unavailable |
@@ -454,6 +501,8 @@ An insight enters the Executive brief only after passing the approved materialit
 - Each expanded insight contains: metric and direction; current and previous values; absolute and percentage or percentage-point movement; comparison window; largest contributing dimension when valid; source and freshness; governed evidence action; and calculation-inspection action.
 - Calculation inspection displays the exact numerator, denominator, source values, formula version, comparison window, zero/suppression handling and result.
 - When insufficient history, denominator or freshness suppresses an insight, the UI states the exact reason and does not render an empty card.
+- Every material finding exposes the deepest authorized evidence available in the currently shipped layers. A movement may lead to its certified largest contributor and then to supporting GLPI records. If a deeper layer has not shipped, the path terminates naturally without a disabled or `Coming soon` affordance.
+- Evidence actions are read-only: calculation inspection, contributing dimensions, filtered GLPI evidence, authorized records and authorized operational queues. Ticket reassignment, priority or status changes, approvals, workflows, remediation, bulk changes and every other GLPI write-back require separate future scope and security review.
 - Insight-level tabs are prohibited. Phase 5A uses the existing dashboard selector, existing Executive and focused dashboards, existing user-owned dashboards, duplication, templates, drag, resize and saved layouts. It creates no second view-management system and does not restrict the Phase 3 dashboard ownership model.
 
 ### Export, scheduling, security and audit
@@ -463,7 +512,7 @@ An insight enters the Executive brief only after passing the approved materialit
 - Screen, PDF, CSV and scheduled output apply identical denominator, materiality, freshness and authorization rules. Suppressed screen insights do not reappear as unsupported claims in exports.
 - Scheduled reports continue to execute with the owner's current rights and entity context, revalidating owner, entity and recipients before generation. Phase 5A does not introduce unapproved per-recipient impersonation or cached cross-session insights.
 - Entity and profile filtering is applied before aggregation and contributor selection. A derived value, contributor or evidence link must never expose a group, entity or record outside the current authorization scope.
-- Export and scheduled-report history stores the insight formula-version identifier, scoped source values, comparison values, applicable gates, pass/fail results and surfaced insights. Configuration and scope-version changes are audited.
+- Export and scheduled-report history stores the insight formula-version identifier, activation state, provenance and inherited provenance, scoped source values, comparison values, applicable gates, pass/fail results and surfaced insights. Configuration and scope-version changes are audited.
 - Phase 5A does not log every successful interactive dashboard render. Interactive failures may use bounded operational logs. Any future per-render behavioral audit requires an approved retention and privacy policy.
 
 ### Deferred and excluded analytical capabilities
@@ -530,12 +579,61 @@ The following remain outside approved scope:
 24. PDF, CSV and scheduled output use the same calculations, suppression and authorization rules as the screen; CSV output remains a valid single-file format.
 25. Entity and profile restrictions are applied before aggregation and contributor selection, and export history retains formula-version and materiality evidence.
 26. No deferred Phase 5B measure or other excluded capability appears in the registry, templates, configuration or output without a later written amendment.
+27. Each metric activates through `CURRENT_STATE`, `OBSERVED_MOVEMENT`, `COMPARABLE_WINDOW` and `CERTIFIED_PERIOD_COMPARISON` only when its exact evidence gate passes for the active scope, filter, horizon and cutoff.
+28. `OBSERVED_MOVEMENT` uses the explicit `Since monitoring began` basis and a stable system-owned baseline keyed to the exact governed scope and grain. Retention, first-time filter selection and another scope's baseline never silently redefine it; the movement is never represented as a prior-period comparison, material finding, sustained direction or causal explanation.
+29. One complete horizon activates only settled within-window calculations; two complete equal horizons and all boundary evidence remain mandatory for certified period comparison.
+30. Every decision-relevant value preserves its provenance and DERIVED results inherit the weakest provenance recursively without changing the certified formula.
+31. `UNCERTIFIED_RECONSTRUCTION` is rejected by the calculation layer and cannot affect certified values, comparisons, materiality, insights, target evaluation, ranking or recommendations.
+32. Screen, PDF, CSV and report-history evidence use consistent activation state, comparison-basis label, provenance, coverage, formula version and suppression outcome.
+33. Every material finding reaches the deepest currently shipped authorized evidence and exposes no disabled, `Coming soon` or unavailable analytical action.
+34. Every Advanced Analytics evidence action is read-only; no GLPI operational record is modified.
+
+## Historical Baseline Bootstrap engineering spike - specification only
+
+Status: **Investigation authorized; production bootstrap not approved; spike not yet executed.**
+
+The spike determines whether existing GLPI history can safely reduce cold start for selected certified metrics. It must not create production schema, migration, automatic action, settings control, dashboard behavior or deployable bootstrap path. Progressive Analytical Activation remains the production cold-start mechanism unless a later written amendment approves named metrics and compatibility conditions.
+
+### Candidate boundary
+
+- Start with metrics whose source facts are historically immutable and complete enough for deterministic reconstruction, including tickets created, tickets resolved and selected resolution elapsed-time measures.
+- Do not assume that historical backlog, assignment state, SLA state, priority state, reopen state, asset lifecycle or any event-reconstruction-dependent metric is certifiable.
+- Evaluate each candidate independently. Passing one metric does not certify another metric or a whole source table.
+- Reconstructed evidence remains `UNCERTIFIED_RECONSTRUCTION` throughout the spike unless and until that candidate passes every applicable exit gate. The spike itself does not authorize production `CERTIFIED_BOOTSTRAP` data.
+
+### Required test design and evidence
+
+- Use a representative, anonymized or synthetic GLPI dataset containing 50,000 tickets across 12 months, with documented distributions for status, entities, groups, solutions, deletions and relevant history records.
+- Record the exact GLPI version, database engine and version, enabled plugins affecting candidate source data, timezone, entity configuration, retention/history configuration and any source-table assumptions.
+- Run each reconstruction from a clean spike environment. Measure wall-clock duration, CPU time, peak memory, database reads and writes, temporary and persistent storage, lock duration, query plans, failure recovery and impact on concurrent representative GLPI reads.
+- Repeat the measured run sufficiently to report median and worst observed results under a documented environment. Do not turn spike measurements into a production performance claim.
+- Produce a candidate matrix containing: metric key; settled production formula version; historical source fields; ambiguity analysis; minimum GLPI/configuration requirement; deterministic reconstruction algorithm; independent reconciliation source or calculation; tolerance; result; provenance eligibility; and rejection reason.
+
+### Independent reconciliation rule
+
+- Reconciliation is defined separately for every candidate and must use an authoritative GLPI source or an independently implemented calculation that does not reuse the bootstrap aggregation path.
+- The spike records exact expected and reconstructed values at controlled cutoffs, discrepancy counts and values, accepted tolerance and the reason that tolerance is valid. Silent unexplained differences are prohibited.
+- A metric without a valid independent reconciliation method cannot receive `CERTIFIED_BOOTSTRAP` provenance, regardless of apparent reconstruction completeness or performance.
+- Ambiguous event ordering, missing required history, configuration-dependent semantics or irreconcilable discrepancies disqualify only the affected candidate and must be reported explicitly.
+
+### Mandatory exit gate
+
+The spike is complete only when its review report answers all four questions with metric-level evidence:
+
+1. **Certification feasibility:** Which currently certified metrics can be reconstructed without ambiguity, and which cannot?
+2. **Performance and resources:** What wall-clock, CPU, memory, database I/O, storage and concurrent-read impact results from bootstrapping 12 months for 50,000 tickets in the documented environment?
+3. **Compatibility:** What minimum GLPI version, database behavior, source history, timezone, entity and configuration conditions are required for each candidate?
+4. **Independent reconciliation:** What independent reconciliation method exists for each candidate, what tolerance applies and did it pass?
+
+No production bootstrap implementation, schema or provenance promotion may be proposed until this report is reviewed and the user separately approves a metric-specific production amendment.
 
 ## Phase 5B: certified quality, demand and distribution analytics
 
 This section is the controlled written amendment that authorizes Phase 5B after Phase 5A operational acceptance. Phase 5B extends the existing certified data mart and deterministic insight engine. It does not add AI narrative, prediction, anomaly detection, causal claims, arbitrary user formulas, custom SQL, a second dashboard-management system or a new dashboard template.
 
 Phase 5A is considered operationally accepted when all certified sources are current and at least one supported horizon completes its two-horizon comparison gate. Longer horizons may remain in the approved per-horizon cold-start state while genuine daily snapshots accumulate. Scheduled email delivery is excluded from this acceptance because the deployment mail transport is not configured.
+
+Phase 5B implementation authorization depends on Phase 5A operational acceptance; this dependency does not make Phase 5B part of the initial Phase 5A plus Phase 5C release or make Phase 5C a technical prerequisite for Phase 5B.
 
 ### Phase 5B formula version and common governance
 
@@ -730,11 +828,21 @@ Phase 5C does not include arbitrary CSS, patterns, arbitrary brightness/contrast
 
 ## Phase 5D: reserved, not approved for implementation
 
-### Proposed governed targets and exception analytics — awaiting written approval
+### Proposed governed targets and exception analytics - awaiting written approval
 
 This proposed amendment defines Phase 5D for review. It is not implementation authorization. No Phase 5D code, schema, configuration control, widget, insight, export field or migration may be added until this section is explicitly approved in writing.
 
 Phase 5D adds deterministic target context to existing certified scalar metrics. It creates no new source metric, formula editor, custom SQL, prediction, anomaly inference, causal conclusion, external benchmark, dashboard template or navigation path.
+
+### Reserved deterministic lifecycle state machine
+
+This subsection records future architecture only. It does not approve Phase 5D implementation or settle transition thresholds that are not already defined below.
+
+- The reserved lifecycle states are `HEALTHY`, `WARNING`, `BREACH`, `PERSISTENT_BREACH` and `RECOVERING`. `RECOVERING` returns to `HEALTHY` only after a future governed sustained-recovery condition is explicitly approved.
+- The next lifecycle state may depend only on the current lifecycle state, the current certified period measurement, the applicable governed target and warning configuration, and bounded state metadata such as consecutive-period count.
+- Arbitrary historical-pattern analysis cannot influence the deterministic transition function. Explicit streak metadata must not become implicit anomaly detection.
+- Target-band statuses (`met`, `watch`, `warning`, `critical`) and lifecycle states are separate controlled outputs. A later Phase 5D amendment must define their deterministic mapping and reconcile `RECOVERING` with the recovery evidence below without changing any Phase 5A movement calculation.
+- Higher-layer target evaluation consumes the certified Phase 5A/5B value, formula version, readiness and provenance. It must not independently reconstruct or redefine that value.
 
 ### Formula version and eligible measures
 
@@ -776,6 +884,7 @@ Let `A` be the certified unrounded actual value and `T` the effective target in 
 - A target revision or scope/grain change starts a new streak; evaluations made under different revisions are not joined.
 - Recovery is emitted only when the current certified evaluation is `met` and the immediately preceding certified evaluation, under the same target revision, ended a breach streak of at least one day. Evidence records the recovered streak length and the recovery date.
 - Recovery is historical fact, not a prediction that the metric will remain within target.
+- These recovery-event rules remain provisional and must not be interpreted as the transition definition for the reserved `RECOVERING` lifecycle state. Their final relationship is controlled by Phase 5D acceptance criterion 13 and requires separate Phase 5D implementation approval.
 
 ### Deterministic exception ranking
 
@@ -791,7 +900,7 @@ Because `critical_distance` must be positive, normalized miss has no zero-denomi
 
 ### Readiness, cold start and evidence
 
-- Phase 5A/5B authorization, freshness, completeness, population and denominator gates run before any Phase 5D calculation. A target never makes an unsupported metric ready.
+- Phase 5A/5B authorization, freshness, completeness, population, denominator and provenance gates run before any Phase 5D calculation. A target never makes an unsupported metric ready, and `UNCERTIFIED_RECONSTRUCTION` can never feed target status, lifecycle state, streak, recovery or rank.
 - A target with no certified evaluation on or after its effective date reports `Target configured; awaiting certified evaluation` and produces no status, streak, recovery or rank.
 - A target with one valid evaluation may show current status and variance. Streak requires consecutive certified daily evaluations; recovery requires the immediately preceding valid evaluation under the same revision.
 - Calculation inspection records actual unrounded value, display value, metric formula version, target formula version, direction, target and band values, absolute and percentage variance, status, streak dates, recovery evidence, ranking inputs, target revision, scope, grain, cutoff, freshness and every suppression reason.
@@ -823,3 +932,4 @@ Phase 5D excludes editable formulas, SQL, arbitrary dimensions, user-defined dir
 10. Target markers, bands, text, icons, keyboard inspection and high-contrast rendering pass browser tests at minimum and standard widget sizes.
 11. Phase 5D adds no metric source, default dashboard card row, navigation system, notification, arbitrary formula, prediction or causal language.
 12. Structural, formula, migration, permission, export and browser integration tests cover every allowlisted direction, all exact boundaries, target zero, revision changes, evidence gaps and deterministic ranking ties.
+13. Before implementation approval, the lifecycle transition table must define the deterministic relationship between target-band status and `HEALTHY`, `WARNING`, `BREACH`, `PERSISTENT_BREACH` and `RECOVERING`, including bounded persistence and sustained-recovery counts, without altering certified lower-layer calculations.

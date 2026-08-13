@@ -23,7 +23,7 @@ final class ReportExporter
     public function createImmediate(array $dashboard, string $format): array
     {
         $scope = new EntityScope();
-        return $this->create($dashboard, $scope->activeEntityIds(), $scope->activeEntityId(), $format, null, 0, 'UTC');
+        return $this->create($dashboard, $scope->activeEntityIds(), $scope->activeEntityId(), $scope->isRecursive(), $format, null, 0, 'UTC');
     }
 
     /** @param array<string, mixed> $schedule
@@ -60,6 +60,7 @@ final class ReportExporter
             $dashboard,
             $entityIds,
             $entityId,
+            (int) $schedule['is_recursive'] === 1,
             (string) $schedule['format'],
             (int) $schedule['id'],
             count($recipients),
@@ -76,6 +77,7 @@ final class ReportExporter
         array $dashboard,
         array $entityIds,
         int $entityId,
+        bool $recursive,
         string $format,
         ?int $scheduleId,
         int $recipientCount,
@@ -100,7 +102,7 @@ final class ReportExporter
         ]);
         $runId = (int) $DB->insertId();
         try {
-            $report = $this->data->build($dashboard, $entityIds, $entityId, $timezone);
+            $report = $this->data->build($dashboard, $entityIds, $entityId, $timezone, $recursive);
             $path = $this->store->path($format);
             if ($format === 'csv') {
                 (new CsvReportRenderer())->render($report, $path);

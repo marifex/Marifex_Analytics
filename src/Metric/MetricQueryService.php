@@ -24,7 +24,7 @@ final class MetricQueryService
     {
         $definition = $this->registry->get($metricKey);
 
-        return match ($definition->key) {
+        $response = match ($definition->key) {
             'current_open_tickets' => $this->currentOpenTickets($definition, $groupId),
             'latest_solution_refused_tickets' => $this->latestSolutionRefusedTickets($definition),
             'active_sla_exceptions' => $this->activeSlaExceptions($definition),
@@ -121,6 +121,12 @@ final class MetricQueryService
             'first_response_p75_seconds' => $this->responsePercentileSeries($definition, 0.75, $from ?? new DateTimeImmutable('-180 days'), $to ?? new DateTimeImmutable('today')),
             'first_response_p90_seconds' => $this->responsePercentileSeries($definition, 0.90, $from ?? new DateTimeImmutable('-180 days'), $to ?? new DateTimeImmutable('today')),
         };
+        return $response + [
+            'provenance' => $definition->provenance->value,
+            'provenance_label' => $definition->provenance->clientLabel(),
+            'effective_provenance' => $definition->provenance->value,
+            'effective_provenance_label' => $definition->provenance->clientLabel(),
+        ];
     }
 
     /** @return array<string, mixed> */

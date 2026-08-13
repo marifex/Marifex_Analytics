@@ -33,11 +33,24 @@ final class HtmlReportRenderer
         $items = '';
         foreach (array_slice($payload['insights'] ?? [], 0, 5) as $insight) {
             $direction = in_array($insight['direction'] ?? '', ['worsening', 'improving', 'neutral'], true) ? (string) $insight['direction'] : 'neutral';
-            $items .= '<li class="' . $direction . '"><strong>' . $this->e((string) $insight['label']) . '</strong> ' . $this->e((string) $insight['narrative']) . '</li>';
+            $calculation = $insight['calculation'] ?? [];
+            $evidence = implode(' · ', array_filter([
+                (string) ($calculation['formula_version'] ?? ''),
+                (string) ($insight['comparison_basis'] ?? ''),
+                (string) ($insight['effective_provenance_label'] ?? ''),
+            ]));
+            $items .= '<li class="' . $direction . '"><strong>' . $this->e((string) $insight['label']) . '</strong> ' . $this->e((string) $insight['narrative']) . ($evidence === '' ? '' : ' <small>' . $this->e($evidence) . '</small>') . '</li>';
+        }
+        foreach ($payload['observed_movements'] ?? [] as $movement) {
+            $items .= '<li class="neutral"><strong>' . $this->e((string) $movement['label']) . '</strong> '
+                . $this->e(sprintf('%s by %s since monitoring began.', (float) $movement['absolute_change'] >= 0 ? 'Increased' : 'Decreased', number_format(abs((float) $movement['absolute_change']))))
+                . ' <small>' . $this->e((string) ($movement['effective_provenance_label'] ?? '')) . '</small></li>';
         }
         if ($items === '') $items = '<li class="neutral">' . $this->e((string) ($payload['summary'] ?? 'No material snapshot changes in the selected period.')) . '</li>';
         $readiness = $payload['readiness'] ?? [];
-        return '<section class="report-insights"><div><strong>Executive insight summary</strong><span>Snapshot ' . $this->e((string) ($payload['cutoff'] ?? '')) . ' · ' . $this->e((string) ($payload['formula_version'] ?? '')) . '</span></div><ul>' . $items . '</ul><small>' . (int) ($readiness['ready_metrics'] ?? 0) . ' of ' . (int) ($readiness['total_metrics'] ?? 0) . ' core comparison sources ready</small></section>';
+        $activation = $readiness['activation_counts'] ?? [];
+        $status = sprintf('%d period comparisons · %d current windows · %d monitoring movements · %d current values', (int) ($activation['CERTIFIED_PERIOD_COMPARISON'] ?? 0), (int) ($activation['COMPARABLE_WINDOW'] ?? 0), (int) ($activation['OBSERVED_MOVEMENT'] ?? 0), (int) ($activation['CURRENT_STATE'] ?? 0));
+        return '<section class="report-insights"><div><strong>Executive insight summary</strong><span>As of ' . $this->e((string) ($payload['cutoff'] ?? '')) . ' · ' . $this->e((string) ($payload['formula_version'] ?? '')) . '</span></div><ul>' . $items . '</ul><small>' . $this->e($status) . '</small></section>';
     }
 
     /** @param array<string, mixed> $widget

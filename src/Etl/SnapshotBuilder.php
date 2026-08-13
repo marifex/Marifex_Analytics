@@ -8,6 +8,9 @@ use Config;
 use DateTimeImmutable;
 use DateTimeZone;
 use Glpi\DBAL\QueryExpression;
+use GlpiPlugin\Marifex\Analytics\MonitoringBaselineCollector;
+use GlpiPlugin\Marifex\Analytics\ObservationCompletionRecorder;
+use GlpiPlugin\Marifex\Insight\AnalyticalAuditService;
 
 final class SnapshotBuilder
 {
@@ -103,6 +106,15 @@ final class SnapshotBuilder
 
         (new TicketOperationsSnapshotBuilder())->run($localDay, $timezone);
         (new DomainSnapshotBuilder())->run($localDay, $timezone);
+        (new ObservationCompletionRecorder())->record($localDay);
+        $baselinesCreated = (new MonitoringBaselineCollector())->capture($localDay);
+        if ($baselinesCreated > 0) {
+            (new AnalyticalAuditService())->record('monitoring_baselines_established', [], [
+                'observation_date' => $snapshotDate,
+                'created' => $baselinesCreated,
+                'provenance' => 'OBSERVED',
+            ], 0, 0);
+        }
 
         return $processed;
     }

@@ -6,9 +6,19 @@ namespace GlpiPlugin\Marifex\Insight;
 
 use DateInterval;
 use DateTimeImmutable;
+use GlpiPlugin\Marifex\Analytics\ActivationDecision;
+use GlpiPlugin\Marifex\Analytics\ActivationEvaluator;
+use GlpiPlugin\Marifex\Analytics\ActivationState;
+use GlpiPlugin\Marifex\Analytics\Provenance;
+use GlpiPlugin\Marifex\Analytics\ProvenanceEvidence;
+use LogicException;
 
 final class InsightCalculator
 {
+    public function __construct(private readonly ActivationEvaluator $activation = new ActivationEvaluator())
+    {
+    }
+
     /**
      * @param array<string, array<string, mixed>> $datasets
      * @param array<string, array<string, mixed>> $sourceStates
@@ -20,8 +30,6 @@ final class InsightCalculator
         $domains = array_values(array_intersect(array_unique($domains), ['ticket', 'asset', 'licence', 'change', 'problem']));
         $suppressed = [];
         $candidates = [];
-        $requiredDates = $this->dateRange($cutoff->sub(new DateInterval('P' . (2 * $horizon - 1) . 'D')), $cutoff);
-
         $this->deriveFlow($candidates, $suppressed, $datasets, $sourceStates, $cutoff, $horizon, 'created_vs_resolved_tickets', 'net_ticket_flow', 'resolution_coverage', 1, 2, 'No new tickets');
         $this->deriveBacklogGrowth($candidates, $suppressed, $datasets, $sourceStates, $cutoff, $horizon, $groupId);
         $this->deriveRatio($candidates, $suppressed, $datasets, $sourceStates, $cutoff, $horizon, 'unassigned_rate', 'unassigned_open_tickets', 'historical_open_backlog');
@@ -79,28 +87,50 @@ final class InsightCalculator
         $readiness = [];
         foreach ($core as $metric) {
             $dates = $datasets[$metric]['completed_dates'] ?? array_values(array_unique(array_map(static fn(array $point): string => (string) ($point['date'] ?? ''), $datasets[$metric]['series'] ?? [])));
-            $completed = count(array_intersect($requiredDates, $dates));
             $state = (string) ($sourceStates[$metric]['state'] ?? 'missing');
-            $readiness[] = ['metric' => $metric, 'completed' => $completed, 'required' => 2 * $horizon, 'ready' => $completed >= 2 * $horizon && $state === 'current', 'state' => $state];
+            $baseline = is_array($datasets[$metric]['monitoring_baseline'] ?? null) ? $datasets[$metric]['monitoring_baseline'] : null;
+            $baselineAt = isset($baseline['monitoring_baseline_at']) ? DateTimeImmutable::createFromFormat('!Y-m-d', (string) $baseline['monitoring_baseline_at']) : null;
+            $decision = $this->activation->evaluate(
+                $cutoff,
+                $horizon,
+                $dates,
+                $state,
+                $this->hasCurrentEvidence($datasets[$metric] ?? [], $cutoff),
+                $this->sourceProvenance([$metric], $sourceStates),
+                $baselineAt === false ? null : $baselineAt,
+                is_array($baseline['evidence'] ?? null),
+            );
+            $readiness[] = [
+                'metric' => $metric,
+                'completed' => $decision->availableDays,
+                'required' => $decision->requiredDays,
+                'ready' => $decision->state === ActivationState::CERTIFIED_PERIOD_COMPARISON,
+                'state' => $state,
+            ] + $decision->toArray() + $this->sourceProvenance([$metric], $sourceStates)->toArray();
         }
         $readyCount = count(array_filter($readiness, static fn(array $item): bool => $item['ready']));
         $strongest = $insights[0]['narrative'] ?? null;
         $indicators = $this->informationalIndicators($datasets, $sourceStates, $cutoff, $groupId);
+        $observedMovements = $this->observedMovements($readiness, $datasets, $sourceStates, $cutoff);
+        $suppressed = $this->decorateSuppressions($suppressed, $datasets, $sourceStates, $cutoff, $horizon);
 
         return [
             'formula_version' => InsightRuleRegistry::FORMULA_VERSION,
+            'formula_versions' => InsightRuleRegistry::formulaVersions(),
             'domains' => $domains === [] ? ['executive'] : $domains,
             'horizon_days' => $horizon,
             'cutoff' => $cutoff->format('Y-m-d'),
             'generated_at' => gmdate(DATE_ATOM),
             'summary' => $strongest ?? ($this->hasIncompleteHistory($readiness) ? sprintf('Building %d-day comparison baseline.', $horizon) : 'No material snapshot changes in the selected period.'),
             'insights' => $insights,
+            'observed_movements' => $observedMovements,
             'suppressed' => array_values($suppressed),
             'indicators' => $indicators,
             'readiness' => [
                 'ready_metrics' => $readyCount,
                 'total_metrics' => count($readiness),
                 'required_snapshots' => 2 * $horizon,
+                'activation_counts' => array_count_values(array_map(static fn(array $item): string => (string) ($item['activation_state'] ?? 'UNAVAILABLE'), $readiness)),
                 'metrics' => $readiness,
             ],
         ];
@@ -111,7 +141,7 @@ final class InsightCalculator
     {
         $sourceKeys = $datasetKey === 'change_flow' ? ['daily_change_volume', 'daily_change_resolutions'] : ($datasetKey === 'problem_flow' ? ['daily_problem_volume', 'daily_problem_resolutions'] : [$datasetKey]);
         if (!$this->sourcesCurrent($sourceKeys, $states, $suppressed, [$netKey, $coverageKey])) return;
-        if (!$this->periodReady($sourceKeys, $datasets, $cutoff, $horizon)) {
+        if (!$this->periodReady($sourceKeys, $datasets, $states, $cutoff, $horizon)) {
             $this->suppress($suppressed, $netKey, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon));
             $this->suppress($suppressed, $coverageKey, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon));
             return;
@@ -152,7 +182,7 @@ final class InsightCalculator
     {
         $key = 'backlog_growth_rate'; $metric = 'historical_open_backlog';
         if (!$this->sourcesCurrent([$metric], $states, $suppressed, [$key])) return;
-        if (!$this->periodReady([$metric], $datasets, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
+        if (!$this->periodReady([$metric], $datasets, $states, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
         $current = $this->scalarAt($datasets[$metric] ?? [], $cutoff);
         $start = $this->scalarAt($datasets[$metric] ?? [], $cutoff->sub(new DateInterval('P' . $horizon . 'D')));
         $previousStart = $this->scalarAt($datasets[$metric] ?? [], $cutoff->sub(new DateInterval('P' . (2 * $horizon) . 'D')));
@@ -168,7 +198,7 @@ final class InsightCalculator
     private function deriveRatio(array &$candidates, array &$suppressed, array $datasets, array $states, DateTimeImmutable $cutoff, int $horizon, string $key, string $numeratorMetric, string $denominatorMetric): void
     {
         if (!$this->sourcesCurrent([$numeratorMetric, $denominatorMetric], $states, $suppressed, [$key])) return;
-        if (!$this->periodReady([$numeratorMetric, $denominatorMetric], $datasets, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
+        if (!$this->periodReady([$numeratorMetric, $denominatorMetric], $datasets, $states, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
         $previousCutoff = $cutoff->sub(new DateInterval('P' . $horizon . 'D'));
         $cn = $this->scalarAt($datasets[$numeratorMetric] ?? [], $cutoff); $cd = $this->scalarAt($datasets[$denominatorMetric] ?? [], $cutoff);
         $pn = $this->scalarAt($datasets[$numeratorMetric] ?? [], $previousCutoff); $pd = $this->scalarAt($datasets[$denominatorMetric] ?? [], $previousCutoff);
@@ -185,7 +215,7 @@ final class InsightCalculator
     {
         $key = 'high_priority_backlog_share'; $metric = 'open_tickets_by_priority';
         if (!$this->sourcesCurrent([$metric], $states, $suppressed, [$key])) return;
-        if (!$this->periodReady([$metric], $datasets, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
+        if (!$this->periodReady([$metric], $datasets, $states, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
         $previous = $cutoff->sub(new DateInterval('P' . $horizon . 'D'));
         $currentMap = $this->dimensionsAt($datasets[$metric] ?? [], $cutoff); $previousMap = $this->dimensionsAt($datasets[$metric] ?? [], $previous);
         $cd = array_sum(array_column($currentMap, 'value')); $pd = array_sum(array_column($previousMap, 'value'));
@@ -199,7 +229,7 @@ final class InsightCalculator
     private function deriveConcentration(array &$candidates, array &$suppressed, array $datasets, array $states, DateTimeImmutable $cutoff, int $horizon, string $key, string $metric, bool $majorityRule): void
     {
         if (!$this->sourcesCurrent([$metric], $states, $suppressed, [$key])) return;
-        if (!$this->periodReady([$metric], $datasets, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
+        if (!$this->periodReady([$metric], $datasets, $states, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
         $previous = $cutoff->sub(new DateInterval('P' . $horizon . 'D'));
         $currentMap = $this->dimensionsAt($datasets[$metric] ?? [], $cutoff, $metric === 'historical_group_backlog');
         $previousMap = $this->dimensionsAt($datasets[$metric] ?? [], $previous, $metric === 'historical_group_backlog');
@@ -215,7 +245,7 @@ final class InsightCalculator
     private function derivePointMovement(array &$candidates, array &$suppressed, array $datasets, array $states, DateTimeImmutable $cutoff, int $horizon, string $key, string $metric): void
     {
         if (!$this->sourcesCurrent([$metric], $states, $suppressed, [$key])) return;
-        if (!$this->periodReady([$metric], $datasets, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
+        if (!$this->periodReady([$metric], $datasets, $states, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
         $current = $this->scalarAt($datasets[$metric] ?? [], $cutoff); $previous = $this->scalarAt($datasets[$metric] ?? [], $cutoff->sub(new DateInterval('P' . $horizon . 'D')));
         if ($current === null || $previous === null) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', 'Required cutoff snapshots are unavailable.'); return; }
         $this->candidate($candidates, $suppressed, $key, $current, $previous, ['formula' => 'current cutoff value - previous cutoff value', 'current_numerator' => $current, 'previous_numerator' => $previous], $horizon, $states, [$metric]);
@@ -225,7 +255,7 @@ final class InsightCalculator
     private function deriveDimensionCountMovement(array &$candidates, array &$suppressed, array $datasets, array $states, DateTimeImmutable $cutoff, int $horizon, string $key, string $metric): void
     {
         if (!$this->sourcesCurrent([$metric], $states, $suppressed, [$key])) return;
-        if (!$this->periodReady([$metric], $datasets, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
+        if (!$this->periodReady([$metric], $datasets, $states, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
         $currentMap = $this->dimensionsAt($datasets[$metric] ?? [], $cutoff); $previousMap = $this->dimensionsAt($datasets[$metric] ?? [], $cutoff->sub(new DateInterval('P' . $horizon . 'D')));
         if ($currentMap === [] && $previousMap === []) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', 'Required cutoff snapshots are unavailable.'); return; }
         $this->candidate($candidates, $suppressed, $key, (float) count(array_filter($currentMap, static fn(array $item): bool => $item['value'] > 0)), (float) count(array_filter($previousMap, static fn(array $item): bool => $item['value'] > 0)), ['formula' => 'count of non-zero certified dimensions'], $horizon, $states, [$metric], $this->contributor($currentMap, $previousMap));
@@ -235,7 +265,7 @@ final class InsightCalculator
     private function derivePeriodScalarMovement(array &$candidates, array &$suppressed, array $datasets, array $states, DateTimeImmutable $cutoff, int $horizon, string $key, string $metric): void
     {
         if (!$this->sourcesCurrent([$metric], $states, $suppressed, [$key])) return;
-        if (!$this->periodReady([$metric], $datasets, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
+        if (!$this->periodReady([$metric], $datasets, $states, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
         $current = $this->scalarPeriodSum($datasets[$metric] ?? [], $cutoff, $horizon, 0);
         $previous = $this->scalarPeriodSum($datasets[$metric] ?? [], $cutoff, $horizon, 1);
         $this->candidate($candidates, $suppressed, $key, $current, $previous, ['formula' => 'sum(current period) compared with sum(previous equal period)', 'current_numerator' => $current, 'previous_numerator' => $previous], $horizon, $states, [$metric]);
@@ -245,7 +275,7 @@ final class InsightCalculator
     private function deriveDimensionPeriodMovement(array &$candidates, array &$suppressed, array $datasets, array $states, DateTimeImmutable $cutoff, int $horizon, string $key, string $metric): void
     {
         if (!$this->sourcesCurrent([$metric], $states, $suppressed, [$key])) return;
-        if (!$this->periodReady([$metric], $datasets, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
+        if (!$this->periodReady([$metric], $datasets, $states, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
         $current = $this->dimensionPeriodMap($datasets[$metric] ?? [], $cutoff, $horizon, 0);
         $previous = $this->dimensionPeriodMap($datasets[$metric] ?? [], $cutoff, $horizon, 1);
         $contributors = $this->contributors($current, $previous, 3);
@@ -259,7 +289,7 @@ final class InsightCalculator
     private function derivePeriodRate(array &$candidates, array &$suppressed, array $datasets, array $states, DateTimeImmutable $cutoff, int $horizon, string $key, string $numerator, string $denominator, int $minimum): void
     {
         if (!$this->sourcesCurrent([$numerator, $denominator], $states, $suppressed, [$key])) return;
-        if (!$this->periodReady([$numerator, $denominator], $datasets, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
+        if (!$this->periodReady([$numerator, $denominator], $datasets, $states, $cutoff, $horizon)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building %d-day comparison baseline.', $horizon)); return; }
         $cn = $this->scalarPeriodSum($datasets[$numerator] ?? [], $cutoff, $horizon, 0); $pn = $this->scalarPeriodSum($datasets[$numerator] ?? [], $cutoff, $horizon, 1);
         $cd = $this->scalarPeriodSum($datasets[$denominator] ?? [], $cutoff, $horizon, 0); $pd = $this->scalarPeriodSum($datasets[$denominator] ?? [], $cutoff, $horizon, 1);
         if ($cd < $minimum || $pd < $minimum) { $this->suppress($suppressed, $key, 'DENOMINATOR_BELOW_MINIMUM', sprintf('Insufficient data: %.0f of %d required.', min($cd, $pd), $minimum)); return; }
@@ -272,6 +302,7 @@ final class InsightCalculator
     private function deriveFixedPointMovement(array &$candidates, array &$suppressed, array $datasets, array $states, DateTimeImmutable $cutoff, string $key, string $metric, int $offsetDays, int $minimumSamples): void
     {
         if (!$this->sourcesCurrent([$metric], $states, $suppressed, [$key])) return;
+        if (!$this->periodReady([$metric], $datasets, $states, $cutoff, $offsetDays)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building fixed %d-day comparison baseline.', $offsetDays)); return; }
         $currentPoint = $this->pointAt($datasets[$metric] ?? [], $cutoff); $previousPoint = $this->pointAt($datasets[$metric] ?? [], $cutoff->sub(new DateInterval('P' . $offsetDays . 'D')));
         if ($currentPoint === null || $previousPoint === null) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building fixed %d-day comparison baseline.', $offsetDays)); return; }
         $samples = min((int) ($currentPoint['sample_count'] ?? PHP_INT_MAX), (int) ($previousPoint['sample_count'] ?? PHP_INT_MAX));
@@ -285,6 +316,7 @@ final class InsightCalculator
     private function deriveFixedRatioMovement(array &$candidates, array &$suppressed, array $datasets, array $states, DateTimeImmutable $cutoff, string $key, string $rateMetric, string $populationMetric, int $offsetDays, int $minimum): void
     {
         if (!$this->sourcesCurrent([$rateMetric, $populationMetric], $states, $suppressed, [$key])) return;
+        if (!$this->periodReady([$rateMetric, $populationMetric], $datasets, $states, $cutoff, $offsetDays)) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building fixed %d-day comparison baseline.', $offsetDays)); return; }
         $current = $this->pointAt($datasets[$rateMetric] ?? [], $cutoff); $previous = $this->pointAt($datasets[$rateMetric] ?? [], $cutoff->sub(new DateInterval('P' . $offsetDays . 'D')));
         $currentPopulation = $this->scalarAt($datasets[$populationMetric] ?? [], $cutoff); $previousPopulation = $this->scalarAt($datasets[$populationMetric] ?? [], $cutoff->sub(new DateInterval('P' . $offsetDays . 'D')));
         if ($current === null || $previous === null || $currentPopulation === null || $previousPopulation === null) { $this->suppress($suppressed, $key, 'INSUFFICIENT_HISTORY', sprintf('Building fixed %d-day comparison baseline.', $offsetDays)); return; }
@@ -298,12 +330,26 @@ final class InsightCalculator
     private function candidate(array &$candidates, array &$suppressed, string $key, float $current, float $previous, array $inputs, int $horizon, array $states, array $sourceKeys, ?array $contributor = null): void
     {
         $rule = InsightRuleRegistry::rules()[$key];
+        $registeredFormula = InsightRuleRegistry::formulas()[$key] ?? throw new LogicException(sprintf('No certified formula is registered for %s.', $key));
+        if (($inputs['formula'] ?? null) !== $registeredFormula) {
+            throw new LogicException(sprintf('Calculation formula for %s diverges from the certified registry.', $key));
+        }
+        $inputs['formula'] = $registeredFormula;
+        $provenance = ProvenanceEvidence::derived(...array_map(fn(string $source): ProvenanceEvidence => $this->sourceProvenance([$source], $states), $sourceKeys));
         $change = $current - $previous;
         $relative = $previous == 0.0 ? null : ($change / abs($previous)) * 100;
         $passes = $previous == 0.0
             ? abs($change) >= $rule['absoluteGate']
             : abs($change) >= $rule['absoluteGate'] && abs((float) $relative) >= InsightRuleRegistry::RELATIVE_GATE;
-        if (!$passes) { $this->suppress($suppressed, $key, 'NO_MATERIAL_CHANGE', 'Valid movement did not pass both materiality gates.'); return; }
+        if (!$passes) {
+            $this->suppress($suppressed, $key, 'NO_MATERIAL_CHANGE', 'Valid movement did not pass both materiality gates.', [
+                'current' => $current, 'previous' => $previous, 'absolute_change' => $change,
+                'relative_change_percent' => $relative, 'inputs' => $inputs,
+                'absolute_gate' => $rule['absoluteGate'], 'relative_gate_percent' => InsightRuleRegistry::RELATIVE_GATE,
+                'materiality_outcome' => 'failed',
+            ]);
+            return;
+        }
         $score = $previous == 0.0 ? abs($change) / $rule['absoluteGate'] : min(abs($change) / $rule['absoluteGate'], abs((float) $relative) / 10.0);
         $direction = $this->direction((string) $rule['healthyDirection'], $change);
         $freshnessTimes = array_values(array_filter(array_map(static fn(string $source): ?string => isset($states[$source]['completed_at']) ? (string) $states[$source]['completed_at'] : null, $sourceKeys)));
@@ -320,9 +366,12 @@ final class InsightCalculator
             'percentage_point_change' => $unit === 'percent' ? round($change, 1) : null, 'materiality_score' => round($score, 4),
             'comparison_text' => sprintf('versus previous %d days', $horizon), 'narrative' => $narrative,
             'contributor' => $contributor, 'evidence_target' => $rule['evidence'], 'source' => 'data_mart',
+            'activation_state' => ActivationState::CERTIFIED_PERIOD_COMPARISON->value,
+            'comparison_basis' => ActivationState::CERTIFIED_PERIOD_COMPARISON->comparisonBasis($horizon),
+            'comparison_horizon_days' => $horizon,
             'as_of' => $freshnessTimes[0] ?? null,
-            'calculation' => $inputs + ['formula_version' => InsightRuleRegistry::FORMULA_VERSION, 'absolute_gate' => $rule['absoluteGate'], 'relative_gate_percent' => 10.0, 'result' => $current],
-        ];
+            'calculation' => $inputs + ['formula_version' => InsightRuleRegistry::formulaVersion($key), 'absolute_gate' => $rule['absoluteGate'], 'relative_gate_percent' => 10.0, 'materiality_outcome' => 'passed', 'result' => $current],
+        ] + $provenance->toArray();
     }
 
     /** @param list<string> $sources @param array<string, array<string, mixed>> $states @param array<string, array<string, mixed>> $suppressed @param list<string> $keys */
@@ -330,6 +379,10 @@ final class InsightCalculator
     {
         foreach ($sources as $source) {
             $state = (string) ($states[$source]['state'] ?? 'missing');
+            if (!$this->sourceProvenance([$source], $states)->isEligibleForCertifiedUse()) {
+                foreach ($keys as $key) $this->suppress($suppressed, $key, 'UNAVAILABLE_SOURCE', sprintf('%s evidence is not eligible for certified analytical use.', $source));
+                return false;
+            }
             if ($state !== 'current') {
                 $code = match ($state) { 'stale' => 'STALE_SOURCE', 'unavailable' => 'UNAVAILABLE_SOURCE', default => 'MISSING_SOURCE' };
                 $message = (string) ($states[$source]['reason'] ?? sprintf('%s source is %s.', $source, $state));
@@ -340,13 +393,112 @@ final class InsightCalculator
         return true;
     }
 
-    /** @param list<string> $metrics @param array<string, array<string, mixed>> $datasets */
-    private function periodReady(array $metrics, array $datasets, DateTimeImmutable $cutoff, int $horizon): bool
+    /** @param list<string> $sources @param array<string, array<string, mixed>> $states */
+    private function sourceProvenance(array $sources, array $states): ProvenanceEvidence
     {
-        $required = $this->dateRange($cutoff->sub(new DateInterval('P' . (2 * $horizon - 1) . 'D')), $cutoff);
+        $evidence = [];
+        foreach ($sources as $source) {
+            $code = (string) ($states[$source]['effective_provenance'] ?? $states[$source]['provenance'] ?? Provenance::OBSERVED->value);
+            $provenance = Provenance::tryFrom($code) ?? Provenance::UNCERTIFIED_RECONSTRUCTION;
+            $evidence[] = match ($provenance) {
+                Provenance::OBSERVED => ProvenanceEvidence::observed(),
+                Provenance::CERTIFIED_BOOTSTRAP => ProvenanceEvidence::certifiedBootstrap(),
+                Provenance::UNCERTIFIED_RECONSTRUCTION => ProvenanceEvidence::uncertifiedReconstruction(),
+                Provenance::DERIVED => ProvenanceEvidence::uncertifiedReconstruction(),
+            };
+        }
+        if (count($evidence) === 1) {
+            return $evidence[0];
+        }
+        if (array_filter($evidence, static fn(ProvenanceEvidence $item): bool => !$item->isEligibleForCertifiedUse()) !== []) {
+            return ProvenanceEvidence::uncertifiedReconstruction();
+        }
+        return ProvenanceEvidence::derived(...$evidence);
+    }
+
+    /** @param array<string, mixed> $dataset */
+    private function hasCurrentEvidence(array $dataset, DateTimeImmutable $cutoff): bool
+    {
+        // A completed observation certifies a valid zero even when no rollup row exists.
+        if (($dataset['current_observation_complete'] ?? false) === true) {
+            return true;
+        }
+        if (array_key_exists('value', $dataset)) {
+            return true;
+        }
+        foreach ($dataset['series'] ?? [] as $point) {
+            if (($point['date'] ?? null) === $cutoff->format('Y-m-d')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Observational movements are deliberately emitted outside the materiality candidate pipeline.
+     * They are factual absolute deltas only and can never be ranked into the Executive brief.
+     *
+     * @param list<array<string, mixed>> $readiness
+     * @param array<string, array<string, mixed>> $datasets
+     * @param array<string, array<string, mixed>> $states
+     * @return list<array<string, mixed>>
+     */
+    private function observedMovements(array $readiness, array $datasets, array $states, DateTimeImmutable $cutoff): array
+    {
+        $items = [];
+        foreach ($readiness as $status) {
+            if (($status['activation_state'] ?? null) !== ActivationState::OBSERVED_MOVEMENT->value) {
+                continue;
+            }
+            $metric = (string) $status['metric'];
+            $baseline = $datasets[$metric]['monitoring_baseline'] ?? null;
+            $baselineValue = is_array($baseline) && is_array($baseline['evidence'] ?? null) && isset($baseline['evidence']['value'])
+                ? (float) $baseline['evidence']['value']
+                : null;
+            $currentValue = $this->scalarAt($datasets[$metric] ?? [], $cutoff);
+            if ($baselineValue === null || $currentValue === null) {
+                continue;
+            }
+            $provenance = ProvenanceEvidence::derived(
+                $this->sourceProvenance([$metric], $states),
+                ProvenanceEvidence::observed(),
+            );
+            $items[] = [
+                'metric' => $metric,
+                'label' => (string) ($datasets[$metric]['label'] ?? $metric),
+                'current' => $currentValue,
+                'baseline' => $baselineValue,
+                'absolute_change' => $currentValue - $baselineValue,
+                'monitoring_baseline_at' => (string) $baseline['monitoring_baseline_at'],
+                'activation_state' => ActivationState::OBSERVED_MOVEMENT->value,
+                'comparison_basis' => ActivationState::OBSERVED_MOVEMENT->comparisonBasis(0),
+                'materiality_eligible' => false,
+                'executive_insight_eligible' => false,
+                'formula_version' => InsightRuleRegistry::PHASE_5A_FORMULA_VERSION,
+                'formula' => 'latest certified observation - stable monitoring baseline',
+            ] + $provenance->toArray();
+        }
+        return $items;
+    }
+
+    /** @param list<string> $metrics @param array<string, array<string, mixed>> $datasets @param array<string, array<string, mixed>> $states */
+    private function periodReady(array $metrics, array $datasets, array $states, DateTimeImmutable $cutoff, int $horizon): bool
+    {
         foreach ($metrics as $metric) {
             $dates = $datasets[$metric]['completed_dates'] ?? array_values(array_unique(array_map(static fn(array $point): string => (string) ($point['date'] ?? ''), $datasets[$metric]['series'] ?? [])));
-            if (count(array_intersect($required, $dates)) !== count($required)) return false;
+            $baseline = is_array($datasets[$metric]['monitoring_baseline'] ?? null) ? $datasets[$metric]['monitoring_baseline'] : null;
+            $baselineAt = isset($baseline['monitoring_baseline_at']) ? DateTimeImmutable::createFromFormat('!Y-m-d', (string) $baseline['monitoring_baseline_at']) : null;
+            $decision = $this->activation->evaluate(
+                $cutoff,
+                $horizon,
+                $dates,
+                (string) ($states[$metric]['state'] ?? 'missing'),
+                $this->hasCurrentEvidence($datasets[$metric] ?? [], $cutoff),
+                $this->sourceProvenance([$metric], $states),
+                $baselineAt === false ? null : $baselineAt,
+                is_array($baseline['evidence'] ?? null),
+            );
+            if ($decision->state !== ActivationState::CERTIFIED_PERIOD_COMPARISON) return false;
         }
         return true;
     }
@@ -499,9 +651,64 @@ final class InsightCalculator
     }
 
     /** @param array<string, array<string, mixed>> $suppressed */
-    private function suppress(array &$suppressed, string $key, string $code, string $message): void
+    private function suppress(array &$suppressed, string $key, string $code, string $message, array $evidence = []): void
     {
-        $suppressed[$key] = ['key' => $key, 'code' => $code, 'message' => $message];
+        $suppressed[$key] = ['key' => $key, 'code' => $code, 'message' => $message] + $evidence;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $suppressed
+     * @param array<string, array<string, mixed>> $datasets
+     * @param array<string, array<string, mixed>> $states
+     * @return array<string, array<string, mixed>>
+     */
+    private function decorateSuppressions(array $suppressed, array $datasets, array $states, DateTimeImmutable $cutoff, int $selectedHorizon): array
+    {
+        foreach ($suppressed as $key => &$item) {
+            $sources = InsightRuleRegistry::sources()[$key] ?? [];
+            $horizon = InsightRuleRegistry::comparisonHorizon($key, $selectedHorizon);
+            $decisions = [];
+            foreach ($sources as $metric) {
+                $dataset = $datasets[$metric] ?? [];
+                $baseline = is_array($dataset['monitoring_baseline'] ?? null) ? $dataset['monitoring_baseline'] : null;
+                $baselineAt = isset($baseline['monitoring_baseline_at']) ? DateTimeImmutable::createFromFormat('!Y-m-d', (string) $baseline['monitoring_baseline_at']) : null;
+                $decisions[$metric] = $this->activation->evaluate(
+                    $cutoff,
+                    $horizon,
+                    $dataset['completed_dates'] ?? array_values(array_unique(array_map(static fn(array $point): string => (string) ($point['date'] ?? ''), $dataset['series'] ?? []))),
+                    (string) ($states[$metric]['state'] ?? 'missing'),
+                    $this->hasCurrentEvidence($dataset, $cutoff),
+                    $this->sourceProvenance([$metric], $states),
+                    $baselineAt === false ? null : $baselineAt,
+                    is_array($baseline['evidence'] ?? null),
+                );
+            }
+            $activationRank = [null => -1, ActivationState::CURRENT_STATE->value => 0, ActivationState::OBSERVED_MOVEMENT->value => 1, ActivationState::COMPARABLE_WINDOW->value => 2, ActivationState::CERTIFIED_PERIOD_COMPARISON->value => 3];
+            $weakest = null;
+            foreach ($decisions as $decision) {
+                if ($weakest === null || ($activationRank[$decision->state?->value] ?? -1) < ($activationRank[$weakest->state?->value] ?? -1)) {
+                    $weakest = $decision;
+                }
+            }
+            $provenance = $sources === [] ? ProvenanceEvidence::uncertifiedReconstruction() : $this->sourceProvenance($sources, $states);
+            $rule = InsightRuleRegistry::rules()[$key] ?? null;
+            $item['activation_state'] = $weakest?->state?->value;
+            $item['comparison_basis'] = $weakest?->comparisonBasis ?? '';
+            $item['formula_version'] = InsightRuleRegistry::formulaVersion($key);
+            $item['formula'] = InsightRuleRegistry::formulas()[$key] ?? '';
+            [$currentFrom, $currentTo] = $this->period($cutoff, $horizon, 0);
+            [$previousFrom, $previousTo] = $this->period($cutoff, $horizon, 1);
+            $item['current_period'] = ['from' => $currentFrom, 'to' => $currentTo];
+            $item['previous_period'] = ['from' => $previousFrom, 'to' => $previousTo];
+            $item['materiality_outcome'] ??= 'suppressed:' . $item['code'];
+            $item['absolute_gate'] ??= $rule['absoluteGate'] ?? null;
+            $item['relative_gate_percent'] ??= InsightRuleRegistry::RELATIVE_GATE;
+            $item['coverage'] = array_map(static fn(ActivationDecision $decision): array => $decision->toArray(), $decisions);
+            $item['sources'] = $sources;
+            $item += $provenance->toArray();
+        }
+        unset($item);
+        return $suppressed;
     }
 
     /** @param list<array<string, mixed>> $readiness */

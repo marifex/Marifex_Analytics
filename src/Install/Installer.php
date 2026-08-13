@@ -9,10 +9,11 @@ use DBmysql;
 use Migration;
 use RuntimeException;
 use GlpiPlugin\Marifex\Insight\AnalyticalAuditService;
+use GlpiPlugin\Marifex\Analytics\MonitoringBaselineCollector;
 
 final class Installer
 {
-    private const VERSION = 210;
+    private const VERSION = 230;
     private const TABLE_PREFIX = 'glpi_plugin_marifex_';
 
     public function install(): void
@@ -25,6 +26,7 @@ final class Installer
 
         $configuration = Config::getConfigurationValues('plugin:marifex');
         $installedVersion = (int) ($configuration['schema_version'] ?? 0);
+        $baselineTableExisted = $DB->tableExists('glpi_plugin_marifex_monitoring_baselines');
         $migration = new Migration(self::VERSION);
         foreach (Schema::tables() as $table => $sql) {
             if (!$DB->tableExists($table)) {
@@ -81,6 +83,11 @@ final class Installer
             $migration->addField('glpi_plugin_marifex_report_runs', 'presentation_evidence', 'json DEFAULT NULL');
         }
         $migration->executeMigration();
+
+        if (!$baselineTableExisted || ($installedVersion > 0 && $installedVersion < 220)) {
+            $baselineCount = (new MonitoringBaselineCollector())->captureEarliestCertifiedObservations();
+            (new AnalyticalAuditService())->record('monitoring_baselines_established', [], ['created' => $baselineCount, 'provenance' => 'OBSERVED'], 0, 0);
+        }
 
         if ($installedVersion > 0 && $installedVersion < 210) {
             (new \GlpiPlugin\Marifex\Palette\PaletteMigrationService())->migrateDashboardDefinitions();

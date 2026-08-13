@@ -13,6 +13,7 @@ final class EntityScope
     public function __construct(
         private readonly ?array $fixedEntityIds = null,
         private readonly ?int $fixedEntityId = null,
+        private readonly ?bool $fixedRecursive = null,
     ) {
     }
 
@@ -46,6 +47,21 @@ final class EntityScope
         }
 
         return (int) Session::getActiveEntity();
+    }
+
+    public function isRecursive(): bool
+    {
+        if ($this->fixedRecursive !== null) {
+            return $this->fixedRecursive;
+        }
+        if ($this->fixedEntityIds !== null) {
+            return count($this->fixedEntityIds) > 1;
+        }
+        if (Session::getLoginUserID() === false) {
+            throw new RuntimeException('An authenticated GLPI session is required.');
+        }
+
+        return Session::getIsActiveEntityRecursive();
     }
 
     public function canAccessEntity(int $entityId): bool

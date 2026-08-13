@@ -23,6 +23,17 @@ $manifestVersions = @{
     'package.json' = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'package.json') -Raw | ConvertFrom-Json).version
     'marifex.xml' = ([regex]::Match((Get-Content -LiteralPath (Join-Path $repositoryRoot 'marifex.xml') -Raw), '<version>([^<]+)</version>')).Groups[1].Value
 }
+$packageLockText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'package-lock.json') -Raw
+$packageLockVersions = [regex]::Matches($packageLockText, '"version"\s*:\s*"([^"]+)"')
+if ($packageLockVersions.Count -lt 2) {
+    throw 'Could not read root versions from package-lock.json.'
+}
+$manifestVersions['package-lock.json'] = $packageLockVersions[0].Groups[1].Value
+$manifestVersions['package-lock.json packages root'] = $packageLockVersions[1].Groups[1].Value
+$readme = Get-Content -LiteralPath (Join-Path $repositoryRoot 'README.md') -Raw
+if (-not $readme.Contains($Version)) {
+    throw "Version mismatch: README.md does not contain $Version"
+}
 foreach ($manifest in $manifestVersions.GetEnumerator()) {
     if ($manifest.Value -ne $Version) {
         throw "Version mismatch: $($manifest.Key) contains $($manifest.Value), expected $Version"

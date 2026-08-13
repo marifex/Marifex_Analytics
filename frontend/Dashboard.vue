@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import WidgetCard from './WidgetCard.vue';
 import InsightStrip from './InsightStrip.vue';
-import type { DashboardTemplate, DashboardWorkspace, InsightItem, InsightResponse, MetricResponse, ReportSchedule, SavedDashboard, WidgetDefinition } from './types';
+import type { DashboardTemplate, DashboardWorkspace, InsightItem, InsightResponse, MetricResponse, ObservedMovement, ReportSchedule, SavedDashboard, WidgetDefinition } from './types';
 import { defaultWidgetPalette, type WidgetPaletteKey } from './palettes';
 import type { ChartPalette, PaletteCatalogue } from './chartPalettes';
 
@@ -186,6 +186,10 @@ const widgetInsightKeys: Record<string, string> = {
 function insightFor(widget: WidgetDefinition): InsightItem | undefined {
   const key = widgetInsightKeys[widget.metric];
   return key ? insightData.value?.insights.find(item => item.key === key) : undefined;
+}
+function observedMovementFor(widget: WidgetDefinition): ObservedMovement | undefined {
+  const readinessMetric = widget.metric === 'current_open_tickets' ? 'historical_open_backlog' : widget.metric;
+  return insightData.value?.observed_movements.find(item => item.metric === readinessMetric);
 }
 function comparisonPending(widget: WidgetDefinition): boolean {
   const readinessMetric = widget.metric === 'current_open_tickets' ? 'historical_open_backlog' : widget.metric;
@@ -484,7 +488,7 @@ onBeforeUnmount(() => { if (refreshTimer !== undefined) window.clearInterval(ref
     <InsightStrip v-if="definition" :data="insightData" :loading="insightLoading" :error="insightError" :ticket-url="ticketSearchUrl" :asset-url="assetSearchUrl" :licence-url="licenceSearchUrl" :change-url="changeSearchUrl" :problem-url="problemSearchUrl" />
     <div v-if="definition" ref="gridElement" class="grid-stack marifex-widget-grid" :class="{ 'marifex-widget-grid--editing': editing }">
       <div v-for="widget in definition.widgets" :key="widget.id" class="grid-stack-item" :gs-id="widget.id" :gs-x="widget.x" :gs-y="widget.y" :gs-w="widget.w" :gs-h="widget.h" :gs-min-w="widgetConstraints(widget).minW" :gs-max-w="widgetConstraints(widget).maxW" :gs-min-h="Math.min(...widgetConstraints(widget).heights)" :gs-max-h="Math.max(...widgetConstraints(widget).heights)" :data-widget-id="widget.id">
-        <WidgetCard class="grid-stack-item-content" :widget="widget" :chart-palettes="chartPalettes" :section-label="sectionLabels[widget.id]" :data="dataFor(widget)" :movement="insightFor(widget)" :indicator="indicatorFor(widget)" :comparison-pending="comparisonPending(widget)" :supports-comparison="supportsComparison(widget)" :loading="loading" :editing="editing" :interacting="interactingWidget === widget.id" :interaction-mode="interactingWidget === widget.id ? interactionMode : null" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" :asset-search-url="assetSearchUrl" :licence-search-url="licenceSearchUrl" :change-search-url="changeSearchUrl" :problem-search-url="problemSearchUrl" @remove="removeWidget" @rename="renameWidget" @palette="recolorWidget" @chart-palette="recolorChart" @select-group="chooseGroup" />
+        <WidgetCard class="grid-stack-item-content" :widget="widget" :chart-palettes="chartPalettes" :section-label="sectionLabels[widget.id]" :data="dataFor(widget)" :movement="insightFor(widget)" :observed-movement="observedMovementFor(widget)" :indicator="indicatorFor(widget)" :comparison-pending="comparisonPending(widget)" :supports-comparison="supportsComparison(widget)" :loading="loading" :editing="editing" :interacting="interactingWidget === widget.id" :interaction-mode="interactingWidget === widget.id ? interactionMode : null" :selected-group="selectedGroup" :ticket-search-url="ticketSearchUrl" :asset-search-url="assetSearchUrl" :licence-search-url="licenceSearchUrl" :change-search-url="changeSearchUrl" :problem-search-url="problemSearchUrl" @remove="removeWidget" @rename="renameWidget" @palette="recolorWidget" @chart-palette="recolorChart" @select-group="chooseGroup" />
       </div>
     </div>
 

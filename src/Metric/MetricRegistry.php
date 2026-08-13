@@ -104,6 +104,11 @@ final class MetricRegistry
         return $this->definitions[$key] ?? throw new InvalidArgumentException('Unknown metric.');
     }
 
+    public function has(string $key): bool
+    {
+        return isset($this->definitions[$key]);
+    }
+
     /** @return list<MetricDefinition> */
     public function all(): array
     {

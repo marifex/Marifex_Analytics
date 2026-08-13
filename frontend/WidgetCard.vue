@@ -4,13 +4,13 @@ import { init, use, type ECharts } from 'echarts/core';
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
-import type { DimensionPoint, InsightItem, MetricResponse, Point, WidgetDefinition } from './types';
+import type { DimensionPoint, InsightItem, MetricResponse, ObservedMovement, Point, WidgetDefinition } from './types';
 import { widgetPalette, widgetPalettes, type WidgetPaletteKey } from './palettes';
 import { paletteSupports, resolvedColors, type ChartPalette } from './chartPalettes';
 
 use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
-const props = defineProps<{ widget: WidgetDefinition; chartPalettes: ChartPalette[]; sectionLabel?: string; data?: MetricResponse; movement?: InsightItem; indicator?: string; comparisonPending: boolean; supportsComparison: boolean; loading: boolean; editing: boolean; interacting: boolean; interactionMode: 'drag' | 'resize' | null; selectedGroup: number | null; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string }>();
+const props = defineProps<{ widget: WidgetDefinition; chartPalettes: ChartPalette[]; sectionLabel?: string; data?: MetricResponse; movement?: InsightItem; observedMovement?: ObservedMovement; indicator?: string; comparisonPending: boolean; supportsComparison: boolean; loading: boolean; editing: boolean; interacting: boolean; interactionMode: 'drag' | 'resize' | null; selectedGroup: number | null; ticketSearchUrl: string; assetSearchUrl: string; licenceSearchUrl: string; changeSearchUrl: string; problemSearchUrl: string }>();
 const emit = defineEmits<{ remove: [id: string]; rename: [id: string, title: string]; palette: [id: string, palette: WidgetPaletteKey]; chartPalette: [id: string, palette: string]; selectGroup: [id: number | null] }>();
 const chartElement = ref<HTMLElement | null>(null);
 const widgetElement = ref<HTMLElement | null>(null);
@@ -118,6 +118,11 @@ const movementText = computed(() => {
   const native = props.movement.unit === 'percent' ? `${Math.abs(change).toFixed(1)} pp` : Math.abs(change).toLocaleString();
   const previous = props.movement.unit === 'percent' ? `${props.movement.previous.toFixed(1)}%` : props.movement.previous.toLocaleString();
   return `${change >= 0 ? '↑' : '↓'} ${native} from ${previous}, ${props.movement.comparison_text}`;
+});
+const observedMovementText = computed(() => {
+  if (!props.observedMovement) return null;
+  const change = props.observedMovement.absolute_change;
+  return `${change >= 0 ? '+' : '−'}${Math.abs(change).toLocaleString()} ${props.observedMovement.comparison_basis.toLowerCase()}`;
 });
 const drilldown = (groupId?: number) => {
   if (props.widget.metric.startsWith('asset_') || ['stale_computer_inventory', 'low_disk_capacity_computers', 'computers_in_stock_over_30_days', 'incidents_by_operating_system', 'repeat_incident_computers', 'incident_linked_computers', 'repeat_incident_computers_90d', 'repeat_incident_asset_rate'].includes(props.widget.metric)) return props.assetSearchUrl;
@@ -236,7 +241,7 @@ onBeforeUnmount(() => { if (resizeTimer) window.clearTimeout(resizeTimer); resiz
       <div v-if="loading" class="marifex-skeleton"><span></span><span></span><span></span></div>
       <template v-else-if="widget.type === 'kpi'">
         <strong class="marifex-executive-kpi">{{ kpiValue }}</strong>
-        <div class="marifex-kpi-context"><span v-if="isUnmeasurable">No measurable population</span><span v-else-if="movementText" :class="`marifex-semantic--${movement?.direction === 'worsening' ? 'risk' : movement?.direction === 'improving' ? 'healthy' : 'neutral'}`">{{ movementText }}</span><span v-else-if="comparisonPending">Trend pending</span><span v-else-if="supportsComparison">No material movement</span><span v-else>Current value</span></div>
+        <div class="marifex-kpi-context"><span v-if="isUnmeasurable">No measurable population</span><span v-else-if="movementText" :class="`marifex-semantic--${movement?.direction === 'worsening' ? 'risk' : movement?.direction === 'improving' ? 'healthy' : 'neutral'}`">{{ movementText }}</span><span v-else-if="observedMovementText">{{ observedMovementText }}</span><span v-else-if="comparisonPending">Trend pending</span><span v-else-if="supportsComparison">No material movement</span><span v-else>Current value</span></div>
       </template>
       <template v-else-if="widget.type === 'insight'">
         <div v-if="insightTop" class="marifex-insight"><span>Leading finding</span><strong>{{ insightTop.dimension }}</strong><p>{{ insightTop.value.toLocaleString() }} current records</p><a :href="drilldown(insightTop.dimension_id)">Open detail</a></div>

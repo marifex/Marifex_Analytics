@@ -53,6 +53,7 @@ final class SettingsController extends AbstractController
                 'certified_total' => count($phase4Metrics),
                 'comparison_ready' => (int) ($phase5['readiness']['ready_metrics'] ?? 0),
                 'comparison_total' => (int) ($phase5['readiness']['total_metrics'] ?? 0),
+                'activation_counts' => $phase5['readiness']['activation_counts'] ?? [],
                 'formula_version' => (string) ($phase5['formula_version'] ?? ''),
                 'metrics' => $phase5['readiness']['metrics'] ?? [],
             ],

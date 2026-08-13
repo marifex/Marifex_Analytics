@@ -4,8 +4,15 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
+use GlpiPlugin\Marifex\Analytics\ActivationEvaluator;
+use GlpiPlugin\Marifex\Analytics\ActivationState;
+use GlpiPlugin\Marifex\Analytics\MonitoringBaselineRepository;
+use GlpiPlugin\Marifex\Analytics\MonitoringScope;
+use GlpiPlugin\Marifex\Analytics\Provenance;
+use GlpiPlugin\Marifex\Analytics\ProvenanceEvidence;
 use GlpiPlugin\Marifex\Install\Schema;
 use GlpiPlugin\Marifex\Insight\InsightCalculator;
+use GlpiPlugin\Marifex\Insight\InsightDomainRegistry;
 use GlpiPlugin\Marifex\Insight\InsightRuleRegistry;
 use GlpiPlugin\Marifex\Metric\MetricRegistry;
 use GlpiPlugin\Marifex\Report\CsvReportRenderer;
@@ -19,9 +26,108 @@ $assert = static function (bool $condition, string $message) use (&$failures): v
 };
 
 $definitions = (new MetricRegistry())->all();
+$assert(array_keys(InsightRuleRegistry::rules()) === array_keys(InsightRuleRegistry::formulas()), 'Every controlled analytical rule must resolve exactly one server-owned certified formula under the active formula version.');
+$assert(array_keys(InsightRuleRegistry::rules()) === array_keys(InsightRuleRegistry::sources()), 'Every controlled analytical rule must declare its certified source lineage for activation, provenance and export evidence.');
 $assert(count($definitions) === 62, 'The semantic layer must expose every controlled dashboard metric through Phase 5B.');
 $assert(count(array_filter($definitions, static fn ($definition): bool => $definition->source === 'live')) === 4, 'Only the four approved current-state products may query the operational source live.');
 $assert(count(array_filter($definitions, static fn ($definition): bool => $definition->source === 'data_mart')) === 58, 'Historical and governed dimensional metrics must use certified Data Mart products.');
+$assert(count(array_filter($definitions, static fn ($definition): bool => $definition->provenance === Provenance::OBSERVED)) === count($definitions), 'Production metric inputs must default to OBSERVED provenance while historical bootstrap remains unapproved.');
+
+$observed = ProvenanceEvidence::observed();
+$bootstrap = ProvenanceEvidence::certifiedBootstrap();
+$derivedObserved = ProvenanceEvidence::derived($observed, $observed);
+$derivedMixed = ProvenanceEvidence::derived($observed, $bootstrap);
+$assert($derivedObserved->provenance === Provenance::DERIVED && $derivedObserved->effectiveProvenance === Provenance::OBSERVED, 'A derived result from observed inputs must retain DERIVED structure and OBSERVED effective provenance.');
+$assert($derivedMixed->provenance === Provenance::DERIVED && $derivedMixed->effectiveProvenance === Provenance::CERTIFIED_BOOTSTRAP, 'A derived result must inherit the weakest certified provenance recursively.');
+$assert(InsightDomainRegistry::forWidgets([['metric' => 'asset_inventory_total'], ['metric' => 'software_license_compliance_rate']]) === ['asset', 'licence'], 'Asset and licence report insights must use the same governed domain context as the screen.');
+$assert(InsightDomainRegistry::forWidgets([['metric' => 'daily_change_volume']]) === ['change'], 'Change report insights must use the same governed domain context as the screen.');
+$assert(InsightDomainRegistry::forWidgets([['metric' => 'historical_open_backlog'], ['metric' => 'asset_inventory_total']]) === [], 'A ticket-bearing dashboard must retain the controlled Executive insight context across outputs.');
+$uncertifiedRejected = false;
+try {
+    ProvenanceEvidence::derived($observed, ProvenanceEvidence::uncertifiedReconstruction());
+} catch (DomainException) {
+    $uncertifiedRejected = true;
+}
+$assert($uncertifiedRejected, 'UNCERTIFIED_RECONSTRUCTION must be rejected by the calculation layer.');
+
+$activationEvaluator = new ActivationEvaluator();
+$activationCutoff = new DateTimeImmutable('2026-03-31');
+$sixtyDates = array_map(static fn (int $offset): string => $activationCutoff->modify('-' . $offset . ' days')->format('Y-m-d'), range(0, 59));
+$thirtyDates = array_slice($sixtyDates, 0, 30);
+$certifiedComparison = $activationEvaluator->evaluate($activationCutoff, 30, $sixtyDates, 'current', true, $observed, new DateTimeImmutable('2026-02-01'), true);
+$comparableWindow = $activationEvaluator->evaluate($activationCutoff, 30, $thirtyDates, 'current', true, $observed, new DateTimeImmutable('2026-02-01'), true);
+$observedMovement = $activationEvaluator->evaluate($activationCutoff, 30, [$activationCutoff->format('Y-m-d')], 'current', true, $observed, new DateTimeImmutable('2026-03-01'), true);
+$currentState = $activationEvaluator->evaluate($activationCutoff, 30, [$activationCutoff->format('Y-m-d')], 'current', true, $observed);
+$boundaryLimited = $activationEvaluator->evaluate($activationCutoff, 30, $sixtyDates, 'current', true, $observed, new DateTimeImmutable('2026-02-01'), true, false);
+$ineligible = $activationEvaluator->evaluate($activationCutoff, 30, $sixtyDates, 'current', true, ProvenanceEvidence::uncertifiedReconstruction());
+$staleActivation = $activationEvaluator->evaluate($activationCutoff, 30, $sixtyDates, 'stale', true, $observed);
+$assert($certifiedComparison->state === ActivationState::CERTIFIED_PERIOD_COMPARISON && $certifiedComparison->comparisonBasis === 'vs prior 30 days', 'Two consecutive horizons must activate the certified period comparison.');
+$assert($comparableWindow->state === ActivationState::COMPARABLE_WINDOW && $comparableWindow->comparisonBasis === 'Current 30-day window', 'One consecutive horizon must activate only the comparable current window.');
+$assert($observedMovement->state === ActivationState::OBSERVED_MOVEMENT && $observedMovement->comparisonBasis === 'Since monitoring began', 'A preserved baseline and later observation must activate factual observed movement.');
+$assert($currentState->state === ActivationState::CURRENT_STATE, 'Current certified evidence without historical gates must remain current-state analytics.');
+$assert($boundaryLimited->state === ActivationState::COMPARABLE_WINDOW, 'Missing endpoint boundary evidence must prevent only certified period comparison promotion.');
+$assert($ineligible->state === null && $ineligible->suppressionCode === 'UNAVAILABLE_SOURCE', 'Uncertified evidence must not activate any certified analytical state and must use a governed suppression code.');
+$assert($staleActivation->state === null && $staleActivation->suppressionCode === 'STALE_SOURCE', 'Activation failures must preserve the governed source-state suppression vocabulary.');
+foreach ([7, 30, 90, 180, 365] as $supportedHorizon) {
+    $dates = array_map(static fn (int $offset): string => $activationCutoff->modify('-' . $offset . ' days')->format('Y-m-d'), range(0, 2 * $supportedHorizon - 1));
+    $decision = $activationEvaluator->evaluate($activationCutoff, $supportedHorizon, $dates, 'current', true, $observed);
+    $assert($decision->state === ActivationState::CERTIFIED_PERIOD_COMPARISON && $decision->requiredDays === 2 * $supportedHorizon, sprintf('%d-day readiness must require exactly two consecutive selected horizons.', $supportedHorizon));
+}
+$switchedHorizon = $activationEvaluator->evaluate($activationCutoff, 90, $sixtyDates, 'current', true, $observed);
+$retentionWithoutEvidence = $activationEvaluator->evaluate($activationCutoff, 30, [$activationCutoff->format('Y-m-d')], 'current', true, $observed, new DateTimeImmutable('2026-03-01'), false);
+$assert($switchedHorizon->state === ActivationState::CURRENT_STATE, 'Switching to an unready horizon must immediately remove the prior horizon comparison.');
+$assert($retentionWithoutEvidence->state === ActivationState::CURRENT_STATE && $retentionWithoutEvidence->suppressionCode === 'INSUFFICIENT_HISTORY', 'A preserved baseline identity without its certified evidence must suppress observed movement as INSUFFICIENT_HISTORY rather than moving the baseline.');
+$certifiedZeroPayload = (new InsightCalculator())->calculate([
+    'historical_open_backlog' => [
+        'completed_dates' => [$activationCutoff->format('Y-m-d')],
+        'current_observation_complete' => true,
+        'series' => [],
+    ],
+], [
+    'historical_open_backlog' => ['state' => 'current', 'provenance' => 'OBSERVED'],
+], $activationCutoff, 30);
+$certifiedZeroReadiness = array_column($certifiedZeroPayload['readiness']['metrics'], null, 'metric');
+$assert(($certifiedZeroReadiness['historical_open_backlog']['activation_state'] ?? null) === ActivationState::CURRENT_STATE->value, 'A completed zero observation must activate current-state analytics even when no rollup row exists.');
+$scopeA = new MonitoringScope(3, true, [5, 3, 4], 12, 'historical_open_backlog', 'scalar');
+$scopeB = new MonitoringScope(3, true, [4, 5, 3], 12, 'historical_open_backlog', 'scalar');
+$scopeOtherFilter = new MonitoringScope(3, true, [3, 4, 5], 13, 'historical_open_backlog', 'scalar');
+$scopeNonRecursive = new MonitoringScope(3, false, [3], 12, 'historical_open_backlog', 'scalar');
+$scopeOtherRoot = new MonitoringScope(4, true, [4, 5], 12, 'historical_open_backlog', 'scalar');
+$assert($scopeA->fingerprint() === $scopeB->fingerprint(), 'Monitoring-baseline identity must be stable regardless of entity-list ordering.');
+$assert($scopeA->fingerprint() !== $scopeOtherFilter->fingerprint(), 'Monitoring baselines must never be reused across supported group filters.');
+$assert($scopeA->fingerprint() !== $scopeNonRecursive->fingerprint() && $scopeA->fingerprint() !== $scopeOtherRoot->fingerprint(), 'Monitoring baselines must remain isolated by root entity, recursive setting and exact authorized entity set.');
+$schema = Schema::tables();
+$baselineSchema = $schema['glpi_plugin_marifex_monitoring_baselines'] ?? '';
+$assert(str_contains($baselineSchema, '`scope_fingerprint`') && str_contains($baselineSchema, '`monitoring_baseline_at`') && str_contains($baselineSchema, '`evidence_hash`'), 'The stable monitoring baseline must preserve immutable scope identity, date and certified evidence integrity independently of rollup retention.');
+$snapshotBuilder = file_get_contents(dirname(__DIR__) . '/src/Etl/SnapshotBuilder.php');
+$insightServiceSource = file_get_contents(dirname(__DIR__) . '/src/Insight/InsightService.php');
+$baselineRepositorySource = file_get_contents(dirname(__DIR__) . '/src/Analytics/MonitoringBaselineRepository.php');
+$assert(str_contains($snapshotBuilder, 'MonitoringBaselineCollector') && !str_contains($insightServiceSource, 'establishIfAbsent'), 'Monitoring baselines must be established by collection, never by dashboard query time.');
+$assert(str_contains($baselineRepositorySource, 'canonicalEvidenceJson') && str_contains($baselineRepositorySource, 'integrityValid'), 'Baseline integrity must use deterministic semantic JSON hashing that survives database JSON key normalization.');
+$canonicalFloatHash = MonitoringBaselineRepository::evidenceHash(['format' => 'duration_series', 'value' => 200758.12499062505, 'sample_count' => 32]);
+$assert($canonicalFloatHash === MonitoringBaselineRepository::evidenceHash(['sample_count' => 32, 'value' => 200758.12499062504, 'format' => 'duration_series']), 'Baseline evidence hashing must normalize key order and sub-micro-unit floating-point noise.');
+$assert(!str_contains($snapshotBuilder, "delete('glpi_plugin_marifex_monitoring_baselines'") && str_contains(file_get_contents(dirname(__DIR__) . '/src/Install/Installer.php'), 'monitoring_baselines_established') && str_contains($snapshotBuilder, 'monitoring_baselines_established'), 'Daily retention/reruns must not advance stable baselines and both upgrade and newly collected baseline establishment must leave audit evidence.');
+$observedMovementPayload = (new InsightCalculator())->calculate([
+    'historical_open_backlog' => [
+        'label' => 'Historical open backlog',
+        'completed_dates' => ['2026-03-01', '2026-03-31'],
+        'series' => [['date' => '2026-03-01', 'value' => 100], ['date' => '2026-03-31', 'value' => 112]],
+        'monitoring_baseline' => ['monitoring_baseline_at' => '2026-03-01', 'evidence' => ['value' => 100]],
+    ],
+], [
+    'historical_open_backlog' => ['state' => 'current', 'provenance' => 'OBSERVED', 'effective_provenance' => 'OBSERVED'],
+], new DateTimeImmutable('2026-03-31'), 30);
+$observedItem = $observedMovementPayload['observed_movements'][0] ?? [];
+$assert(($observedItem['absolute_change'] ?? null) === 12.0 && ($observedItem['comparison_basis'] ?? '') === 'Since monitoring began', 'Observed movement must be an absolute delta from the stable monitoring baseline with an explicit comparison basis.');
+$assert(($observedItem['materiality_eligible'] ?? true) === false && ($observedItem['executive_insight_eligible'] ?? true) === false && $observedMovementPayload['insights'] === [], 'Observed movement must never enter materiality or the Executive insight brief.');
+$uncertifiedPayload = (new InsightCalculator())->calculate([
+    'historical_open_backlog' => ['completed_dates' => $sixtyDates, 'series' => array_map(static fn(string $date): array => ['date' => $date, 'value' => 100], $sixtyDates)],
+], [
+    'historical_open_backlog' => ['state' => 'current', 'provenance' => 'UNCERTIFIED_RECONSTRUCTION'],
+], $activationCutoff, 30);
+$uncertifiedSuppression = array_column($uncertifiedPayload['suppressed'], null, 'key');
+$assert(($uncertifiedSuppression['backlog_growth_rate']['code'] ?? '') === 'UNAVAILABLE_SOURCE' && $uncertifiedPayload['insights'] === [], 'Uncertified reconstruction must be rejected before materiality and insight generation using the governed source-unavailable suppression.');
+$assert(($uncertifiedSuppression['backlog_growth_rate']['effective_provenance'] ?? '') === 'UNCERTIFIED_RECONSTRUCTION' && ($uncertifiedSuppression['backlog_growth_rate']['materiality_outcome'] ?? '') === 'suppressed:UNAVAILABLE_SOURCE', 'Suppressed calculations must retain their activation, provenance, formula and materiality outcome as governed evidence.');
 $metricQuery = file_get_contents(dirname(__DIR__) . '/src/Metric/MetricQueryService.php');
 $assert(str_contains($metricQuery, "['breached_count']") && str_contains($metricQuery, "['approaching_count']"), 'Operational attention must use complete SLA counts rather than the truncated detail rows.');
 
@@ -44,7 +150,9 @@ $calculatedInsights = (new InsightCalculator())->calculate($insightSeries, [
     'historical_group_backlog' => ['state' => 'current', 'completed_at' => '2026-01-16 01:00:00'],
 ], new DateTimeImmutable('2026-01-15'), 7);
 $insightsByKey = array_column($calculatedInsights['insights'], null, 'key');
-$assert($calculatedInsights['formula_version'] === 'phase5b-1', 'Combined Phase 5 output must retain the approved Phase 5B formula-set identifier.');
+$assert($calculatedInsights['formula_version'] === 'phase5a-1+phase5b-1' && $calculatedInsights['formula_versions'] === ['phase5a-1', 'phase5b-1'], 'Combined output must identify both approved formula sets without relabelling Phase 5A calculations as Phase 5B.');
+$assert(InsightRuleRegistry::formulaVersion('net_ticket_flow') === 'phase5a-1' && InsightRuleRegistry::formulaVersion('ticket_reopen_count_movement') === 'phase5b-1', 'Each calculation must retain the formula-set identifier of its owning approved phase.');
+$assert(($insightsByKey['net_ticket_flow']['calculation']['formula_version'] ?? null) === 'phase5a-1', 'A rendered or exported Phase 5A finding must retain phase5a-1 calculation evidence.');
 $assert(($insightsByKey['net_ticket_flow']['current'] ?? null) === 70.0 && ($insightsByKey['net_ticket_flow']['previous'] ?? null) === 7.0, 'Net ticket flow must compare equal seven-day periods.');
 $assert(($insightsByKey['resolution_coverage']['current'] ?? null) === 50.0 && ($insightsByKey['resolution_coverage']['previous'] ?? null) === 90.0, 'Resolution coverage must use resolved divided by created for each equal period.');
 $assert(abs((float) ($insightsByKey['backlog_growth_rate']['current'] ?? 0) - 27.3) < 0.01, 'Backlog growth must use certified period boundary snapshots.');
@@ -78,8 +186,9 @@ $phase5bReopen = (new InsightCalculator())->calculate([
 $phase5bReopenByKey = array_column($phase5bReopen['insights'], null, 'key');
 $assert(($phase5bReopenByKey['ticket_reopen_rate_movement']['current'] ?? null) === 20.0 && ($phase5bReopenByKey['ticket_reopen_rate_movement']['previous'] ?? null) === 10.0, 'Reopen event rate must divide reopen events by resolution events without clamping.');
 
+$fixedThirtyDayDates = array_map(static fn(int $offset): string => (new DateTimeImmutable('2026-01-15'))->modify('-' . $offset . ' days')->format('Y-m-d'), range(0, 59));
 $phase5bPercentile = (new InsightCalculator())->calculate([
-    'first_response_p90_seconds' => ['series' => [
+    'first_response_p90_seconds' => ['completed_dates' => $fixedThirtyDayDates, 'series' => [
         ['date' => '2025-12-16', 'value' => 3600, 'sample_count' => 25],
         ['date' => '2026-01-15', 'value' => 7200, 'sample_count' => 25],
     ]],
@@ -88,7 +197,7 @@ $phase5bPercentileByKey = array_column($phase5bPercentile['insights'], null, 'ke
 $assert(($phase5bPercentileByKey['first_response_p90_movement']['current'] ?? null) === 7200.0, 'First-response percentiles must compare fixed 30-day cutoff populations with their observation counts.');
 
 $tables = Schema::tables();
-$assert(count($tables) === 16, 'Analytics schema must contain all sixteen plugin-owned tables through Phase 5C.');
+$assert(count($tables) === 18, 'Analytics schema must contain all eighteen plugin-owned tables including stable baselines and certified observation completion evidence.');
 $assert(isset($tables['glpi_plugin_marifex_daily_matrix_rollups']), 'The approved priority and category matrix must use a bounded plugin-owned rollup.');
 $assert(isset($tables['glpi_plugin_marifex_dashboard_provisions']), 'Dashboard release provisioning must be tracked per user and entity.');
 $assert(isset($tables['glpi_plugin_marifex_report_schedules']), 'Phase 5 must persist governed report schedules.');
@@ -107,6 +216,7 @@ $assert(!str_contains($controller, 'SELECT '), 'Metric controller must not accep
 $assert(str_contains($controller, 'Profile::canView()'), 'Metric controller must enforce the plugin profile right.');
 $insightController = file_get_contents(dirname(__DIR__) . '/src/Controller/InsightController.php');
 $assert(str_contains($insightController, "Route('/api/insights'") && str_contains($insightController, 'Profile::canView()'), 'Phase 5A insights must use a permission-checked bounded API.');
+$assert(str_contains($insightServiceSource, 'assertAuthorizedGroup') && str_contains($insightServiceSource, "'entities_id' => \$this->entityScope->activeEntityIds()"), 'Insight group filters must be rejected unless the selected group belongs to the active authorized entity scope.');
 $assert(str_contains($insightController, "query->get('domains'") && str_contains($insightController, 'InsightService())->build($horizon'), 'Module dashboards must pass the requested analytical domains through the permission-checked API.');
 
 $settings = file_get_contents(dirname(__DIR__) . '/src/Controller/SettingsController.php');
@@ -379,11 +489,14 @@ $assert(str_contains($widgetFrontend, 'fontWeight: 600') && str_contains($widget
 $assert(str_contains($dashboardCss, '@media (hover: hover) and (pointer: fine)') && str_contains($dashboardCss, ':focus-within') && str_contains($dashboardCss, ':not(.marifex-widget--editing):hover'), 'Widget cards must expose governed pointer and keyboard hover feedback without affecting edit mode.');
 $assert(!preg_match('/\.marifex-widget:hover\s*\{[^}]*transform:/', $dashboardCss), 'Edit-mode widget cards must never become a containing block for the fixed settings dialog.');
 $assert(str_contains($widgetFrontend, 'Trend pending') && str_contains($widgetFrontend, 'Current value'), 'KPI context must distinguish incomplete trend history from current-only values.');
+$assert(str_contains($widgetFrontend, 'observedMovementText') && str_contains($widgetFrontend, 'comparison_basis.toLowerCase()'), 'KPI cards must expose factual monitoring movement without period-comparison semantics.');
 $insightStripFrontend = file_get_contents(dirname(__DIR__) . '/frontend/InsightStrip.vue');
 $assert(str_contains($insightStripFrontend, 'trend analysis is preparing') && str_contains($insightStripFrontend, 'Measures awaiting update'), 'Baseline readiness must use compact user-facing language and friendly affected-measure details.');
 $assert(!str_contains($insightStripFrontend, ' snapshots ·') && !str_contains($insightStripFrontend, 'certified snapshot') && !str_contains($insightStripFrontend, 'Latest snapshot is stale'), 'Executive readiness language must not expose data-engineering terminology.');
 $assert(str_contains($dashboardCss, '.marifex-insight-readiness__sources') && str_contains($dashboardCss, 'grid-template-columns: repeat(2,minmax(0,1fr))'), 'Expanded baseline readiness must use the available width without tiny technical text.');
 $assert(str_contains($dashboardCss, '.marifex-insight-readiness__sources small { color: #111827;'), 'Affected-measure availability text must use the approved near-black readable colour.');
+$assert(str_contains($insightStripFrontend, 'effective_provenance_label') && str_contains($insightStripFrontend, 'activation_state') && str_contains($insightStripFrontend, 'calculation.scope'), 'Calculation inspection must expose provenance, activation, coverage, refresh and governed scope evidence.');
+$assert(str_contains($insightStripFrontend, "item.key === 'top_group_workload_share'") && str_contains($insightStripFrontend, 'group_id'), 'Material concentration findings must navigate to the deepest authorized shipped group evidence.');
 $assert(substr_count($dashboardCss, 'font-size: 13px') >= 5 && str_contains($dashboardCss, '.marifex-filterbar .form-select') && str_contains($dashboardCss, '.marifex-widget__settings .form-control'), 'Dashboard and widget-settings dropdowns must retain readable governed typography.');
 $assert(str_contains($scope, 'Delta E 00 < 10') && str_contains($scope, 'Phase 5D: reserved, not approved for implementation'), 'The controlled scope must retain Phase 5C thresholds and keep Phase 5D unapproved.');
 $assert(str_contains($definitionService, "'classic_blue'") && str_contains($definitionService, "'slate_gray'"), 'The server palette allowlist must include the approved gradient collection.');
@@ -414,6 +527,8 @@ $assert(str_contains($reportAuthorization, 'getSonsOf'), 'Scheduled report autho
 $assert(str_contains($reportSchedule, 'Session::checkCSRF') || str_contains(file_get_contents(dirname(__DIR__) . '/src/Controller/ReportScheduleController.php'), 'Session::checkCSRF'), 'Report schedule writes must enforce GLPI CSRF validation.');
 $assert(str_contains($reportRunner, 'validateRecipients'), 'Every scheduled delivery must revalidate recipients.');
 $assert(str_contains($csvRenderer, "'record_type'") && str_contains($csvRenderer, "'formula_version'"), 'Phase 5A CSV output must distinguish records and preserve formula evidence.');
+$assert(str_contains($csvRenderer, '$calculation[\'formula_version\']') && str_contains($insightStripFrontend, 'item.calculation.formula_version'), 'Insight CSV and screen evidence must use the owning per-calculation formula version rather than a global phase label.');
+$assert(str_contains($csvRenderer, "'activation_state'") && str_contains($csvRenderer, "'effective_provenance'") && str_contains($csvRenderer, "'entity_scope'"), 'CSV output must preserve activation, provenance, materiality, coverage and scoped evidence parity.');
 $assert(str_contains($reportExport, "'insight_evidence'") && str_contains($reportExport, "'formula_version'"), 'Report history must retain scoped Phase 5A calculation evidence.');
 $assert(str_contains($csvRenderer, "preg_match('/^[=+\\-@\\t\\r]/'"), 'CSV exports must neutralize spreadsheet formula injection.');
 $assert(str_contains($pdfRenderer, '--headless=new') && str_contains($pdfRenderer, '--print-to-pdf='), 'PDF export must use the scoped headless-browser architecture.');
@@ -421,6 +536,7 @@ $assert(str_contains($pdfRenderer, "is_file('/.dockerenv')") && str_contains($pd
 $assert(str_contains($pdfRenderer, '--no-pdf-header-footer'), 'Generated PDFs must not expose temporary renderer paths in browser headers or footers.');
 $assert(str_contains($htmlRenderer, 'palette-cream_gold') && str_contains($htmlRenderer, 'PaletteRegistry::builtIns()'), 'Static PDF reports must preserve per-widget palettes through the governed registry.');
 $assert(str_contains($htmlRenderer, 'palette-classic_blue') && str_contains($htmlRenderer, 'palette-slate_gray'), 'Static PDF reports must render the approved gradient collection.');
+$assert(str_contains($htmlRenderer, 'monitoring movements') && str_contains($htmlRenderer, "observed_movements"), 'PDF output must preserve Progressive Analytical Activation and observational movement parity with screen output.');
 $reportFixture = [
     'dashboard' => ['name' => 'PDF fixture'], 'from' => '2026-01-01', 'to' => '2026-01-31',
     'generated_at' => '2026-01-31T00:00:00+00:00', 'entities_id' => 0,
@@ -444,6 +560,7 @@ $csvPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'marifex-phase5b-' . bin2h
 $csvFixture = file_get_contents($csvPath);
 @unlink($csvPath);
 $assert(str_contains((string) $csvFixture, 'record_type') && str_contains((string) $csvFixture, 'phase5b-1'), 'CSV export must include governed insight rows in the single report file.');
+$assert(str_contains((string) $csvFixture, 'activation_state') && str_contains((string) $csvFixture, 'effective_provenance') && str_contains((string) $csvFixture, 'entity_scope'), 'Rendered CSV evidence must preserve the same activation, provenance and scope fields as screen/report history.');
 $assert(str_contains($reportSchedule, 'new DateTimeZone($timezone)') && !str_contains($reportSchedule, '!in_array($timezone, DateTimeZone::listIdentifiers(), true)'), 'Schedules must accept valid IANA aliases reported by browsers.');
 $assert(str_contains(file_get_contents(dirname(__DIR__) . '/hook.php'), "'scheduledReports'"), 'Phase 5 must register the scheduled report GLPI automatic action.');
 

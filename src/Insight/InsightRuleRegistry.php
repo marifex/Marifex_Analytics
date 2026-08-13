@@ -6,9 +6,125 @@ namespace GlpiPlugin\Marifex\Insight;
 
 final class InsightRuleRegistry
 {
-    public const FORMULA_VERSION = 'phase5b-1';
+    public const PHASE_5A_FORMULA_VERSION = 'phase5a-1';
+    public const PHASE_5B_FORMULA_VERSION = 'phase5b-1';
+    public const FORMULA_VERSION = 'phase5a-1+phase5b-1';
     public const DENOMINATOR_MINIMUM = 5;
     public const RELATIVE_GATE = 10.0;
+
+    /** @return array<string, string> */
+    public static function formulas(): array
+    {
+        return [
+            'net_ticket_flow' => 'created - resolved',
+            'resolution_coverage' => 'resolved / created * 100',
+            'backlog_growth_rate' => '(period end - period start) / period start * 100',
+            'unassigned_rate' => 'numerator / denominator * 100',
+            'high_priority_backlog_share' => 'priorities [4,5,6] / all priorities * 100',
+            'top_group_workload_share' => 'largest dimension / all represented dimensions * 100',
+            'open_request_source_concentration' => 'largest dimension / all represented dimensions * 100',
+            'stale_inventory_exposure' => 'numerator / denominator * 100',
+            'change_net_flow' => 'created - resolved',
+            'change_resolution_coverage' => 'resolved / created * 100',
+            'problem_net_flow' => 'created - resolved',
+            'problem_resolution_coverage' => 'resolved / created * 100',
+            'sla_breach_count_movement' => 'current cutoff value - previous cutoff value',
+            'sla_breach_rate_movement' => 'current cutoff value - previous cutoff value',
+            'approaching_sla_movement' => 'current cutoff value - previous cutoff value',
+            'unsatisfied_response_movement' => 'sum(current period) compared with sum(previous equal period)',
+            'repeat_incident_computer_movement' => 'count of non-zero certified dimensions',
+            'licence_overallocation_movement' => 'current cutoff value - previous cutoff value',
+            'licence_compliance_movement' => 'current cutoff value - previous cutoff value',
+            'created_request_source_demand_movement' => 'sum created tickets by certified request-source dimension in equal periods',
+            'ticket_reopen_count_movement' => 'sum(current period) compared with sum(previous equal period)',
+            'ticket_reopen_rate_movement' => 'sum(numerator events) / sum(denominator events) * 100',
+            'first_response_p90_movement' => 'current fixed-window value compared with previous fixed-window value',
+            'first_response_p75_movement' => 'current fixed-window value compared with previous fixed-window value',
+            'first_response_p50_movement' => 'current fixed-window value compared with previous fixed-window value',
+            'customer_dissatisfaction_rate_movement' => 'certified fixed-window numerator / certified population * 100',
+            'refused_solution_count_movement' => 'current fixed-window value compared with previous fixed-window value',
+            'refused_solution_rate_movement' => 'certified fixed-window numerator / certified population * 100',
+            'repeat_incident_asset_count_movement' => 'current fixed-window value compared with previous fixed-window value',
+            'repeat_incident_asset_rate_movement' => 'certified fixed-window numerator / certified population * 100',
+            'licence_utilization_movement' => 'certified fixed-window numerator / certified population * 100',
+            'licence_coverage_gap_movement' => 'certified fixed-window numerator / certified population * 100',
+        ];
+    }
+
+    /** @return list<string> */
+    public static function formulaVersions(): array
+    {
+        return [self::PHASE_5A_FORMULA_VERSION, self::PHASE_5B_FORMULA_VERSION];
+    }
+
+    public static function formulaVersion(string $key): string
+    {
+        return in_array($key, [
+            'created_request_source_demand_movement',
+            'ticket_reopen_count_movement',
+            'ticket_reopen_rate_movement',
+            'first_response_p90_movement',
+            'first_response_p75_movement',
+            'first_response_p50_movement',
+            'customer_dissatisfaction_rate_movement',
+            'refused_solution_count_movement',
+            'refused_solution_rate_movement',
+            'repeat_incident_asset_count_movement',
+            'repeat_incident_asset_rate_movement',
+            'licence_utilization_movement',
+            'licence_coverage_gap_movement',
+        ], true) ? self::PHASE_5B_FORMULA_VERSION : self::PHASE_5A_FORMULA_VERSION;
+    }
+
+    /** @return array<string, list<string>> */
+    public static function sources(): array
+    {
+        return [
+            'net_ticket_flow' => ['created_vs_resolved_tickets'],
+            'resolution_coverage' => ['created_vs_resolved_tickets'],
+            'backlog_growth_rate' => ['historical_open_backlog'],
+            'unassigned_rate' => ['unassigned_open_tickets', 'historical_open_backlog'],
+            'high_priority_backlog_share' => ['open_tickets_by_priority'],
+            'top_group_workload_share' => ['historical_group_backlog'],
+            'open_request_source_concentration' => ['tickets_by_request_source'],
+            'stale_inventory_exposure' => ['stale_computer_inventory', 'asset_inventory_total'],
+            'change_net_flow' => ['daily_change_volume', 'daily_change_resolutions'],
+            'change_resolution_coverage' => ['daily_change_volume', 'daily_change_resolutions'],
+            'problem_net_flow' => ['daily_problem_volume', 'daily_problem_resolutions'],
+            'problem_resolution_coverage' => ['daily_problem_volume', 'daily_problem_resolutions'],
+            'sla_breach_count_movement' => ['sla_breach_count'],
+            'sla_breach_rate_movement' => ['sla_breach_rate'],
+            'approaching_sla_movement' => ['tickets_approaching_sla_breach'],
+            'unsatisfied_response_movement' => ['unsatisfied_survey_responses'],
+            'repeat_incident_computer_movement' => ['repeat_incident_computers'],
+            'licence_overallocation_movement' => ['software_license_overallocated_seats'],
+            'licence_compliance_movement' => ['software_license_compliance_rate'],
+            'created_request_source_demand_movement' => ['created_tickets_by_request_source'],
+            'ticket_reopen_count_movement' => ['ticket_reopen_events'],
+            'ticket_reopen_rate_movement' => ['ticket_reopen_events', 'ticket_resolution_events'],
+            'first_response_p90_movement' => ['first_response_p90_seconds'],
+            'first_response_p75_movement' => ['first_response_p75_seconds'],
+            'first_response_p50_movement' => ['first_response_p50_seconds'],
+            'customer_dissatisfaction_rate_movement' => ['customer_dissatisfaction_rate', 'survey_responses_total'],
+            'refused_solution_count_movement' => ['solution_refused_tickets'],
+            'refused_solution_rate_movement' => ['refused_solution_rate', 'solution_proposed_tickets'],
+            'repeat_incident_asset_count_movement' => ['repeat_incident_computers_90d'],
+            'repeat_incident_asset_rate_movement' => ['repeat_incident_asset_rate', 'incident_linked_computers'],
+            'licence_utilization_movement' => ['licence_utilization_rate', 'licence_covered_titles'],
+            'licence_coverage_gap_movement' => ['licence_coverage_gap_rate', 'licence_installed_titles'],
+        ];
+    }
+
+    public static function comparisonHorizon(string $key, int $selectedHorizon): int
+    {
+        return match ($key) {
+            'stale_inventory_exposure', 'first_response_p90_movement', 'first_response_p75_movement',
+            'first_response_p50_movement', 'customer_dissatisfaction_rate_movement',
+            'refused_solution_count_movement', 'refused_solution_rate_movement' => 30,
+            'repeat_incident_asset_count_movement', 'repeat_incident_asset_rate_movement' => 7,
+            default => $selectedHorizon,
+        };
+    }
 
     /** @return array<string, array<string, mixed>> */
     public static function rules(): array

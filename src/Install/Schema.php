@@ -78,6 +78,36 @@ final class Schema
                 `date_mod` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (`id`), UNIQUE KEY `rollup_grain` (`rollup_date`,`entities_id`,`metric_key`,`dimension_key`,`dimension_value`), KEY `metric_entity_date` (`metric_key`,`entities_id`,`rollup_date`)
             ) $suffix",
+            'glpi_plugin_marifex_monitoring_baselines' => "CREATE TABLE `glpi_plugin_marifex_monitoring_baselines` (
+                `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+                `scope_fingerprint` char(64) NOT NULL,
+                `metric_key` varchar(80) NOT NULL,
+                `entities_id` int unsigned NOT NULL,
+                `is_recursive` tinyint(1) NOT NULL DEFAULT 0,
+                `entity_scope` json NOT NULL,
+                `groups_id` int unsigned NOT NULL DEFAULT 0,
+                `grain` varchar(32) NOT NULL,
+                `monitoring_baseline_at` date NOT NULL,
+                `evidence` json NOT NULL,
+                `evidence_hash` char(64) NOT NULL,
+                `provenance` varchar(32) NOT NULL,
+                `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `scope_fingerprint` (`scope_fingerprint`),
+                KEY `metric_scope` (`metric_key`,`entities_id`,`is_recursive`,`groups_id`,`grain`)
+            ) $suffix",
+            'glpi_plugin_marifex_daily_metric_observations' => "CREATE TABLE `glpi_plugin_marifex_daily_metric_observations` (
+                `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+                `observation_date` date NOT NULL,
+                `entities_id` int unsigned NOT NULL,
+                `groups_id` int unsigned NOT NULL DEFAULT 0,
+                `metric_key` varchar(80) NOT NULL,
+                `provenance` varchar(32) NOT NULL,
+                `completed_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `observation_scope` (`observation_date`,`entities_id`,`groups_id`,`metric_key`),
+                KEY `metric_entity_date` (`metric_key`,`entities_id`,`groups_id`,`observation_date`)
+            ) $suffix",
             'glpi_plugin_marifex_dashboard_definitions' => "CREATE TABLE `glpi_plugin_marifex_dashboard_definitions` (
                 `id` int unsigned NOT NULL AUTO_INCREMENT,
                 `name` varchar(255) NOT NULL,
