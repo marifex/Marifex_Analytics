@@ -1,7 +1,8 @@
 {
   "name": "marifex-glpi-analytics",
   "private": true,
-  "version": "0.15.0-dev",
+  "version": "0.15.1-dev",
+  "author": "MarifeX",
   "type": "module",
   "scripts": {
     "build": "vite build",

@@ -430,6 +430,11 @@ $changelog = file_get_contents(dirname(__DIR__) . '/CHANGELOG.md');
 $assert(str_contains($changelog, '[0.14.1-dev]') && str_contains($changelog, 'document body'), 'The release changelog must record the document-level widget-settings drawer repair.');
 $dashboardController = file_get_contents(dirname(__DIR__) . '/src/Controller/DashboardController.php');
 $assert(str_contains($dashboardController, '/front/central.php?forcetab='), 'Legacy dashboard route must redirect to the Home Analytics tab.');
+$mobileEmbed = file_get_contents(dirname(__DIR__) . '/templates/dashboard/mobile_embed.html.twig');
+$assert(str_contains($dashboardController, "#[Route('/Dashboard/Mobile'") && str_contains($dashboardController, 'Profile::canView()'), 'The chrome-free mobile route must retain the existing dashboard access right.');
+$assert(str_contains($dashboardController, "['path' => 'lib/gridstack.css']") && str_contains($dashboardController, "['path' => 'lib/gridstack.js']"), 'The mobile route must load the same GLPI GridStack layout dependency used by the Home dashboard.');
+$assert(strpos($mobileEmbed, "@marifex/dashboard/embed.html.twig") < strpos($mobileEmbed, 'dashboard_js_files'), 'The mobile dashboard scripts must load after the dashboard mount element exists.');
+$assert(str_contains($mobileEmbed, 'js_path(js_file.path') && !str_contains($mobileEmbed, 'layout/parts/page_footer.html.twig'), 'The mobile route must load only its governed footer scripts without importing the full GLPI page chrome.');
 
 $widgetCard = file_get_contents(dirname(__DIR__) . '/frontend/WidgetCard.vue');
 $assert(!str_contains($widgetCard, "type: 'scroll'"), 'Dashboard legends must never use paginated scrolling.');

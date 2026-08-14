@@ -34,6 +34,25 @@ $readme = Get-Content -LiteralPath (Join-Path $repositoryRoot 'README.md') -Raw
 if (-not $readme.Contains($Version)) {
     throw "Version mismatch: README.md does not contain $Version"
 }
+$composer = Get-Content -LiteralPath (Join-Path $repositoryRoot 'composer.json') -Raw | ConvertFrom-Json
+$package = Get-Content -LiteralPath (Join-Path $repositoryRoot 'package.json') -Raw | ConvertFrom-Json
+$pluginManifest = Get-Content -LiteralPath (Join-Path $repositoryRoot 'marifex.xml') -Raw
+$setupMetadata = Get-Content -LiteralPath (Join-Path $repositoryRoot 'setup.php') -Raw
+if (-not ($composer.authors | Where-Object { $_.name -eq 'MarifeX' })) {
+    throw 'Authorship mismatch: composer.json must identify MarifeX as an author.'
+}
+if ($package.author -ne 'MarifeX') {
+    throw 'Authorship mismatch: package.json must identify MarifeX as the author.'
+}
+if ($pluginManifest -notmatch '<authors>\s*<author>MarifeX</author>\s*</authors>') {
+    throw 'Authorship mismatch: marifex.xml must identify MarifeX as an author.'
+}
+if ($setupMetadata -notmatch "'author'\s*=>\s*'MarifeX'") {
+    throw 'Authorship mismatch: setup.php must identify MarifeX as the author.'
+}
+if ($readme -notmatch 'authored and maintained by MarifeX') {
+    throw 'Authorship mismatch: README.md must identify MarifeX ownership.'
+}
 foreach ($manifest in $manifestVersions.GetEnumerator()) {
     if ($manifest.Value -ne $Version) {
         throw "Version mismatch: $($manifest.Key) contains $($manifest.Value), expected $Version"

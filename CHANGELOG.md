@@ -6,6 +6,15 @@ The format follows Keep a Changelog. Development versions remain unreleased unti
 
 ## [Unreleased]
 
+Release candidate: `0.15.1-dev` (authorship metadata correction).
+
+### Fixed
+
+- Declared MarifeX consistently as the author and maintainer in GLPI, Composer, npm package and project documentation metadata.
+- Added release-package checks that reject missing MarifeX authorship metadata.
+- Added the explicitly approved chrome-free mobile dashboard route for the MarifeX Android WebView, using the existing dashboard authorization and endpoint wiring without changing the GLPI Home dashboard.
+- Loaded GridStack and the dashboard bundle at the end of the mobile page so the layout engine and Vue mount point are ready in the correct order.
+
 Release candidate: `0.15.0-dev` (Phase 5A + Phase 5C initial complete Advanced Analytics product).
 
 ### Added

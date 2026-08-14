@@ -28,7 +28,20 @@ final class HomeDashboardTab extends CommonGLPI
         if (!$item instanceof Central || !Profile::canView()) {
             return false;
         }
-        TemplateRenderer::getInstance()->display('@marifex/dashboard/embed.html.twig', [
+        TemplateRenderer::getInstance()->display('@marifex/dashboard/embed.html.twig', self::embedData());
+        return true;
+    }
+
+    /**
+     * Shared with DashboardController's mobile embed route, so both the
+     * in-GLPI tab and the chrome-free mobile page pass the exact same
+     * endpoint wiring to embed.html.twig.
+     *
+     * @return array<string, string|bool>
+     */
+    public static function embedData(): array
+    {
+        return [
             'metric_endpoint' => '/plugins/marifex/api/metrics',
             'insight_endpoint' => '/plugins/marifex/api/insights',
             'definition_endpoint' => '/plugins/marifex/api/dashboard',
@@ -42,7 +55,6 @@ final class HomeDashboardTab extends CommonGLPI
             'report_schedule_endpoint' => '/plugins/marifex/api/reports/schedules',
             'can_export' => Profile::canExport(),
             'can_schedule' => Profile::canSchedule(),
-        ]);
-        return true;
+        ];
     }
 }

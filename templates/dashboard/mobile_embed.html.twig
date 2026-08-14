@@ -1,0 +1,21 @@
+{#
+ # Chrome-free analytics page for embedding in the Android app's WebView -
+ # no GLPI top nav/sector menu, just the dashboard widget itself. Mirrors
+ # the anonymous-page pattern (layout/page_card_notlogged.html.twig) for
+ # the bare <head>/<body> shell, but this page is NOT anonymous - GLPI's
+ # session/login is still required, only Profile::canView() is checked
+ # on top (see DashboardController::mobile()).
+ #}
+
+{# is_anonymous_page/css_files/js_files/js_modules/custom_header_tags/title all
+   come from DashboardController::mobile() as render parameters - see the note
+   there on why they aren't set here with {% set %} instead. #}
+
+{{ include('layout/parts/head.html.twig') }}
+<body class="marifex-mobile-embed">
+    {% include '@marifex/dashboard/embed.html.twig' %}
+    {% for js_file in dashboard_js_files %}
+        <script type="text/javascript" src="{{ js_path(js_file.path, js_file.options ?? []) }}"></script>
+    {% endfor %}
+</body>
+</html>

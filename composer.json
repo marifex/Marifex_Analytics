@@ -1,9 +1,16 @@
 {
   "name": "marifex/glpi-analytics",
-  "version": "0.15.0-dev",
+  "version": "0.15.1-dev",
   "description": "MarifeX Advanced Analytics and Dashboard for GLPI 11",
   "type": "glpi-plugin",
   "license": "proprietary",
+  "authors": [
+    {
+      "name": "MarifeX",
+      "homepage": "https://marifex.com",
+      "role": "Author and maintainer"
+    }
+  ],
   "require": {
     "php": ">=8.2"
   },
