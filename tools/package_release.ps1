@@ -54,6 +54,21 @@ if ($readme -notmatch 'authored and maintained by MarifeX') {
     throw 'Authorship mismatch: README.md must identify MarifeX ownership.'
 }
 if ($composer.license -ne 'GPL-3.0-or-later') {
+if (-not ($composer.authors | Where-Object { $_.homepage -eq 'https://www.marifextech.com' })) {
+    throw 'Contact mismatch: composer.json must identify the approved MarifeX Technologies website.'
+}
+if ($pluginManifest -notmatch '<homepage>https://www.marifextech.com</homepage>') {
+    throw 'Contact mismatch: marifex.xml must identify the approved MarifeX Technologies website.'
+}
+if ($setupMetadata -notmatch "'homepage'\s*=>\s*'https://www.marifextech.com'") {
+    throw 'Contact mismatch: setup.php must identify the approved MarifeX Technologies website.'
+}
+if ($readme -notmatch 'https://www.marifextech.com') {
+    throw 'Contact mismatch: README.md must identify the approved MarifeX Technologies website.'
+}
+if ($readme -notmatch 'mohammed@marifextech.com') {
+    throw 'Contact mismatch: README.md must identify the approved support email.'
+}
     throw 'License mismatch: composer.json must declare GPL-3.0-or-later.'
 }
 if ($pluginManifest -notmatch '<license>GPL-3.0-or-later</license>') {

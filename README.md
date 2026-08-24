@@ -131,4 +131,5 @@ See [LICENSE](LICENSE) for the complete licence terms.
 
 ## Support
 
-Product information and support are available from [MarifeX](https://marifex.com).
+Visit [MarifeX Technologies](https://www.marifextech.com) for product information.
+For support, email [mohammed@marifextech.com](mailto:mohammed@marifextech.com).

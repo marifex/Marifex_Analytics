@@ -54,7 +54,7 @@ function plugin_version_marifex(): array
         'version' => PLUGIN_MARIFEX_VERSION,
         'author' => 'MarifeX',
         'license' => 'GPL-3.0-or-later',
-        'homepage' => 'https://marifex.com',
+        'homepage' => 'https://www.marifextech.com',
         'requirements' => [
             'glpi' => [
                 'min' => PLUGIN_MARIFEX_MIN_GLPI_VERSION,

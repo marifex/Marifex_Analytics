@@ -20,6 +20,7 @@ The format follows Keep a Changelog.
 - Replaced internal phase, activation, provenance and generic dimension terms in the client PDF with clear business language while retaining exact technical evidence in CSV and audit records.
 - Corrected PDF pagination, typography, section placement, long-label wrapping and blank-widget presentation so headings and report cards remain readable without overlap or clipping.
 
+- Corrected the public website and support contact across release metadata and the user guide.
 - Replaced the internal recursive-entity phrase “and descendants” with the client-facing scope description “enterprise-wide.”
 ### Licensing
 
