@@ -14,6 +14,12 @@ Release candidate: `0.15.1-dev` (authorship metadata correction).
 - Added release-package checks that reject missing MarifeX authorship metadata.
 - Added the explicitly approved chrome-free mobile dashboard route for the MarifeX Android WebView, using the existing dashboard authorization and endpoint wiring without changing the GLPI Home dashboard.
 - Loaded GridStack and the dashboard bundle at the end of the mobile page so the layout engine and Vue mount point are ready in the correct order.
+- Removed the unsupported generated PDF page counter that rendered as Page 0.
+- Distinguished live SLA exceptions from the certified SLA snapshot in operational attention.
+- Added live and certified snapshot timestamps to PDF and CSV measures, and labelled donut totals as the records represented by that certified distribution.
+- Replaced internal phase, activation, provenance and generic dimension terms in the client PDF with clear business language while retaining exact technical evidence in CSV and audit records.
+- Corrected PDF pagination, typography, section placement, long-label wrapping and blank-widget presentation so headings and report cards remain readable without overlap or clipping.
+- Replaced the internal recursive-entity phrase “and descendants” with the client-facing scope description “enterprise-wide.”
 
 Release candidate: `0.15.0-dev` (Phase 5A + Phase 5C initial complete Advanced Analytics product).
 
@@ -31,6 +37,9 @@ Release candidate: `0.15.0-dev` (Phase 5A + Phase 5C initial complete Advanced A
 - Matched report insight domains to the selected dashboard composition and preserved exact recursive entity scope in immediate and scheduled reports.
 - Added stable observed-movement context to applicable KPI cards without presenting it as period comparison, materiality or Executive insight.
 - Preserved formula ownership in mixed analytical output: Phase 5A calculations and suppressions retain `phase5a-1`, while already-existing Phase 5B calculations retain `phase5b-1`.
+- Redesigned PDF exports as governed executive reports with a compact scope header, executive insight brief, key certified measures, sectioned analytical content, repeated page furniture and a separate analytical confidence appendix.
+- Reordered CSV exports into a business-first report structure: findings and readable metric summaries appear before suppressed-calculation status and supporting evidence detail, while retaining formula, activation, provenance, scope and materiality fields.
+- Replaced internal entity identifiers in report presentation with the authorized human-readable entity and group scope labels.
 
 ### Security
 

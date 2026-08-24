@@ -10,3 +10,10 @@
 /.idea/
 /.vscode/
 *.log
+
+# Internal product governance and working material
+/AGENTS.md
+/CLAUDE.md
+/docs/
+/FINDINGS-*.md
+/tmp/

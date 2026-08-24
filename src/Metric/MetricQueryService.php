@@ -335,7 +335,7 @@ final class MetricQueryService
         $breached = (int) $sla['breached_count'];
         $approaching = (int) $sla['approaching_count'];
         $items = [
-            ['finding' => 'Open SLA breaches', 'count' => $breached, 'severity' => 'critical', 'target' => 'tickets'],
+            ['finding' => 'Live breached SLA exceptions', 'count' => $breached, 'severity' => 'critical', 'target' => 'tickets'],
             ['finding' => 'Tickets approaching SLA breach', 'count' => $approaching, 'severity' => 'warning', 'target' => 'tickets'],
             ['finding' => 'Unassigned open tickets', 'count' => $this->latestRollupValue('unassigned_open_tickets'), 'severity' => 'warning', 'target' => 'tickets'],
             ['finding' => 'Unsatisfied survey responses', 'count' => $this->latestRollupValue('unsatisfied_survey_responses'), 'severity' => 'critical', 'target' => 'tickets'],

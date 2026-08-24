@@ -514,6 +514,7 @@ $ticketSnapshot = file_get_contents(dirname(__DIR__) . '/src/Etl/TicketOperation
 $assert(str_contains($ticketSnapshot, "'date_answered', 'satisfaction_scaled_to_5'") && str_contains($ticketSnapshot, 'nearestRank'), 'Phase 5B response and satisfaction collectors must retain their certified inputs.');
 $metricQueryService = file_get_contents(dirname(__DIR__) . '/src/Metric/MetricQueryService.php');
 $assert(str_contains($metricQueryService, 'daily_response_observations') && str_contains($metricQueryService, 'licenceTitleSeries'), 'Percentile and distinct-title queries must aggregate authorized observations before calculating results.');
+$assert(str_contains($metricQueryService, 'Live breached SLA exceptions'), 'Operational attention must distinguish the live SLA exception count from the certified SLA snapshot metric.');
 $insightCalculator = file_get_contents(dirname(__DIR__) . '/src/Insight/InsightCalculator.php');
 $assert(!preg_match('/caused by|because of|due to/i', $insightCalculator), 'Governed insight narratives must not contain causal wording.');
 $assert(str_contains($insightCalculator, "'asset' => ['stale_computer_inventory', 'asset_inventory_total'") && str_contains($insightCalculator, "'change' => ['daily_change_volume'"), 'Insight readiness must use the approved per-domain evidence cores.');
@@ -541,15 +542,21 @@ $assert(str_contains($pdfRenderer, "is_file('/.dockerenv')") && str_contains($pd
 $assert(str_contains($pdfRenderer, '--no-pdf-header-footer'), 'Generated PDFs must not expose temporary renderer paths in browser headers or footers.');
 $assert(str_contains($htmlRenderer, 'palette-cream_gold') && str_contains($htmlRenderer, 'PaletteRegistry::builtIns()'), 'Static PDF reports must preserve per-widget palettes through the governed registry.');
 $assert(str_contains($htmlRenderer, 'palette-classic_blue') && str_contains($htmlRenderer, 'palette-slate_gray'), 'Static PDF reports must render the approved gradient collection.');
-$assert(str_contains($htmlRenderer, 'monitoring movements') && str_contains($htmlRenderer, "observed_movements"), 'PDF output must preserve Progressive Analytical Activation and observational movement parity with screen output.');
+$assert(!str_contains($htmlRenderer, 'page-number') && !str_contains($htmlRenderer, 'Page <b'), 'Static PDF reports must not emit the unsupported Chrome page counter.');
+$assert(str_contains($htmlRenderer, 'sourceContext') && str_contains($htmlRenderer, 'tickets represented'), 'Static PDF reports must disclose live versus certified-snapshot timing and distribution coverage.');
+$assert(str_contains($htmlRenderer, 'monitoring-context') && str_contains($htmlRenderer, "observed_movements"), 'PDF output must preserve Progressive Analytical Activation and observational movement parity with screen output.');
 $reportFixture = [
     'dashboard' => ['name' => 'PDF fixture'], 'from' => '2026-01-01', 'to' => '2026-01-31',
     'generated_at' => '2026-01-31T00:00:00+00:00', 'entities_id' => 0,
+    'entity_label' => 'MarifeX', 'scope_label' => 'MarifeX enterprise-wide', 'horizon_days' => 30,
     'widgets' => [
         ['definition' => ['title' => 'Insight', 'type' => 'insight', 'metric' => 'historical_group_backlog'], 'data' => ['series' => [['date' => '2026-01-31', 'dimension' => 'Service Desk', 'value' => 12]]]],
         ['definition' => ['title' => 'Attention', 'type' => 'attention', 'metric' => 'operational_attention'], 'data' => ['rows' => [['finding' => 'Open SLA breaches', 'count' => 3, 'severity' => 'critical']]]],
         ['definition' => ['title' => 'Details', 'type' => 'detail_table', 'metric' => 'active_sla_exceptions'], 'data' => ['rows' => [['id' => 7, 'title' => 'Ticket', 'state' => 'Breached', 'group' => 'L1', 'timing' => '2h overdue']]]],
         ['definition' => ['title' => 'Matrix', 'type' => 'matrix', 'metric' => 'open_tickets_priority_category_matrix'], 'data' => ['matrix' => [['row_id' => 3, 'row' => 'Medium', 'column_id' => 2, 'column' => 'Hardware', 'value' => 5]]]],
+        ['definition' => ['title' => 'Current open tickets', 'type' => 'kpi', 'metric' => 'current_open_tickets'], 'data' => ['value' => 10, 'source' => 'live', 'as_of' => '2026-01-31T09:30:00+00:00']],
+        ['definition' => ['title' => 'Open tickets by priority', 'type' => 'donut', 'metric' => 'open_tickets_by_priority'], 'data' => ['source' => 'data_mart', 'series' => [['date' => '2026-01-30', 'dimension' => 'High', 'value' => 4], ['date' => '2026-01-30', 'dimension' => 'Low', 'value' => 6]]]],
+        ['definition' => ['title' => 'Software marked invalid', 'type' => 'table', 'metric' => 'prohibited_software_installations'], 'data' => ['source' => 'data_mart', 'series' => []]],
     ],
 ];
 $renderedFixture = (new HtmlReportRenderer())->render($reportFixture);
@@ -557,15 +564,27 @@ $assert(str_contains($renderedFixture, 'Service Desk') && str_contains($rendered
 $assert(str_contains($renderedFixture, 'Open SLA breaches') && str_contains($renderedFixture, 'severity-critical'), 'Static PDF attention widgets must include severity and counts.');
 $assert(str_contains($renderedFixture, '#7 Ticket') && str_contains($renderedFixture, '2h overdue'), 'Static PDF detail tables must include record values.');
 $assert(str_contains($renderedFixture, 'Medium') && str_contains($renderedFixture, 'Hardware'), 'Static PDF matrices must include row and column values.');
+$assert(str_contains($renderedFixture, 'Live value · as of 2026-01-31 09:30 UTC') && str_contains($renderedFixture, 'Certified snapshot distribution · as of 2026-01-30 · 10 tickets represented'), 'Static PDF values that can differ must disclose source timing and represented distribution totals.');
+$assert(str_contains($renderedFixture, 'No reportable records') && str_contains($renderedFixture, 'No software is marked invalid in the selected scope.'), 'Empty report widgets must explain the business meaning instead of rendering a blank card.');
 $reportFixture['insights'] = $calculatedInsights;
 $renderedInsightFixture = (new HtmlReportRenderer())->render($reportFixture);
-$assert(str_contains($renderedInsightFixture, 'Executive insight summary') && str_contains($renderedInsightFixture, 'phase5b-1'), 'PDF page one must include the governed combined insight summary and formula version.');
+$assert(str_contains($renderedInsightFixture, 'Executive insight brief') && str_contains($renderedInsightFixture, 'Quality and demand measures, version 1'), 'PDF page one and report notes must present the governed insight brief and calculation standards in client-facing language.');
+$assert(str_contains($renderedInsightFixture, 'Executive performance report') && str_contains($renderedInsightFixture, 'Performance summary'), 'PDF page one must use the approved executive-report hierarchy.');
+$assert(str_contains($renderedInsightFixture, 'Data coverage and calculation notes') && str_contains($renderedInsightFixture, 'MarifeX enterprise-wide') && !str_contains($renderedInsightFixture, 'Entity #0'), 'PDF must provide readable report notes and human organisation scope.');
+$assert(!preg_match('/phase5[ab]-1|Activation profile|Provenance|REPORT APPENDIX|>Dimension</i', $renderedInsightFixture), 'Client-facing PDF output must not expose internal phase, activation, provenance or generic dimension terminology.');
+$assert(str_contains($renderedInsightFixture, 'Organisation coverage') && str_contains($renderedInsightFixture, 'Comparison availability') && str_contains($renderedInsightFixture, 'Measure availability and data origin'), 'PDF report notes must use professional business terminology.');
+$assert(str_contains($htmlRenderer, 'paginateSectionCards') && str_contains($htmlRenderer, 'break-inside:avoid-page'), 'PDF sections and cards must use deterministic pagination that prevents clipped headings and split widgets.');
+$assert(!str_contains($renderedInsightFixture, '<div class="running-header"') && !str_contains($renderedInsightFixture, '<footer'), 'PDF output must not render fixed page furniture that can overlap report content.');
 $csvPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'marifex-phase5b-' . bin2hex(random_bytes(4)) . '.csv';
 (new CsvReportRenderer())->render($reportFixture, $csvPath);
 $csvFixture = file_get_contents($csvPath);
 @unlink($csvPath);
 $assert(str_contains((string) $csvFixture, 'record_type') && str_contains((string) $csvFixture, 'phase5b-1'), 'CSV export must include governed insight rows in the single report file.');
 $assert(str_contains((string) $csvFixture, 'activation_state') && str_contains((string) $csvFixture, 'effective_provenance') && str_contains((string) $csvFixture, 'entity_scope'), 'Rendered CSV evidence must preserve the same activation, provenance and scope fields as screen/report history.');
+$csvText = (string) $csvFixture;
+$assert(str_starts_with(ltrim($csvText, "\xEF\xBB\xBF"), 'record_type,section,metric,current,previous,movement,direction,interpretation,period,data_status,evidence'), 'CSV must open with business-readable report columns before governed technical evidence.');
+$assert(str_contains($csvText, 'Executive insight brief') && str_contains($csvText, 'Evidence detail'), 'CSV must preserve a readable summary-first hierarchy with supporting evidence detail in the same file.');
+$assert(strpos($csvText, 'Executive insight brief') < strpos($csvText, 'metric_detail'), 'CSV insight rows must precede raw evidence detail rows.');
 $assert(str_contains($reportSchedule, 'new DateTimeZone($timezone)') && !str_contains($reportSchedule, '!in_array($timezone, DateTimeZone::listIdentifiers(), true)'), 'Schedules must accept valid IANA aliases reported by browsers.');
 $assert(str_contains(file_get_contents(dirname(__DIR__) . '/hook.php'), "'scheduledReports'"), 'Phase 5 must register the scheduled report GLPI automatic action.');
 
