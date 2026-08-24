@@ -1,12 +1,12 @@
 # Changelog
 
-All notable MarifeX Advanced Analytics changes are recorded here from version `0.14.1-dev` onward.
+All notable MarifeX Advanced Analytics changes are recorded here.
 
-The format follows Keep a Changelog. Development versions remain unreleased until live validation, commit, tag and push are complete.
+The format follows Keep a Changelog.
 
 ## [Unreleased]
 
-Release candidate: `0.15.1-dev` (authorship metadata correction).
+## [0.15.1] - 2026-08-24
 
 ### Fixed
 
@@ -19,9 +19,13 @@ Release candidate: `0.15.1-dev` (authorship metadata correction).
 - Added live and certified snapshot timestamps to PDF and CSV measures, and labelled donut totals as the records represented by that certified distribution.
 - Replaced internal phase, activation, provenance and generic dimension terms in the client PDF with clear business language while retaining exact technical evidence in CSV and audit records.
 - Corrected PDF pagination, typography, section placement, long-label wrapping and blank-widget presentation so headings and report cards remain readable without overlap or clipping.
-- Replaced the internal recursive-entity phrase “and descendants” with the client-facing scope description “enterprise-wide.”
 
-Release candidate: `0.15.0-dev` (Phase 5A + Phase 5C initial complete Advanced Analytics product).
+- Replaced the internal recursive-entity phrase “and descendants” with the client-facing scope description “enterprise-wide.”
+### Licensing
+
+- Released MarifeX Advanced Analytics under the GNU General Public License version 3 or any later version.
+
+
 
 ### Added
 

@@ -53,6 +53,21 @@ if ($setupMetadata -notmatch "'author'\s*=>\s*'MarifeX'") {
 if ($readme -notmatch 'authored and maintained by MarifeX') {
     throw 'Authorship mismatch: README.md must identify MarifeX ownership.'
 }
+if ($composer.license -ne 'GPL-3.0-or-later') {
+    throw 'License mismatch: composer.json must declare GPL-3.0-or-later.'
+}
+if ($pluginManifest -notmatch '<license>GPL-3.0-or-later</license>') {
+    throw 'License mismatch: marifex.xml must declare GPL-3.0-or-later.'
+}
+if ($setupMetadata -notmatch "'license'\s*=>\s*'GPL-3.0-or-later'") {
+    throw 'License mismatch: setup.php must declare GPL-3.0-or-later.'
+}
+if ($readme -notmatch 'GNU General Public License version 3') {
+    throw 'License mismatch: README.md must identify GPLv3.'
+}
+if (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot 'LICENSE'))) {
+    throw 'License mismatch: canonical GPLv3 LICENSE file is missing.'
+}
 foreach ($manifest in $manifestVersions.GetEnumerator()) {
     if ($manifest.Value -ne $Version) {
         throw "Version mismatch: $($manifest.Key) contains $($manifest.Value), expected $Version"
@@ -64,7 +79,7 @@ New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
 $finalArchive = Join-Path $releaseRoot "marifex-$Version.zip"
 $candidateArchive = Join-Path $releaseRoot ("marifex-$Version.{0}.tmp.zip" -f [guid]::NewGuid().ToString('N'))
 $directories = @('locales', 'public', 'src', 'templates', 'vendor')
-$files = @('CHANGELOG.md', 'composer.json', 'hook.php', 'marifex.xml', 'README.md', 'setup.php')
+$files = @('CHANGELOG.md', 'composer.json', 'hook.php', 'LICENSE', 'marifex.xml', 'README.md', 'setup.php')
 
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -104,7 +119,7 @@ try {
         if ($null -ne $invalidEntry) {
             throw "Invalid ZIP entry path: $invalidEntry"
         }
-        foreach ($requiredEntry in @('marifex/setup.php', 'marifex/public/css/marifex.css', 'marifex/public/js/dashboard.js')) {
+        foreach ($requiredEntry in @('marifex/setup.php', 'marifex/LICENSE', 'marifex/public/css/marifex.css', 'marifex/public/js/dashboard.js')) {
             if ($requiredEntry -notin $entryNames) {
                 throw "Required ZIP entry is missing: $requiredEntry"
             }

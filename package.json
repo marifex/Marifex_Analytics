@@ -1,7 +1,7 @@
 {
   "name": "marifex-glpi-analytics",
   "private": true,
-  "version": "0.15.1-dev",
+  "version": "0.15.1",
   "author": "MarifeX",
   "type": "module",
   "scripts": {
@@ -19,4 +19,3 @@
     "vue-tsc": "3.0.5"
   }
 }
-

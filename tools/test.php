@@ -360,6 +360,8 @@ $dashboardCss = file_get_contents(dirname(__DIR__) . '/frontend/dashboard.css');
 $releasePackager = file_get_contents(dirname(__DIR__) . '/tools/package_release.ps1');
 $assert(str_contains($releasePackager, ".Replace('\\', '/')"), 'Release archives must normalize Windows paths to POSIX ZIP entry separators.');
 $assert(str_contains($releasePackager, "\$_ -match '\\\\'"), 'Release packaging must reject any backslash entry before publishing the ZIP.');
+$assert(str_contains($releasePackager, "'LICENSE'") && str_contains($releasePackager, 'marifex/LICENSE'), 'Every release archive must include the canonical GPLv3 license file.');
+$assert(str_contains(file_get_contents(dirname(__DIR__) . '/setup.php'), "'license' => 'GPL-3.0-or-later'"), 'GLPI plugin metadata must declare the approved GPLv3-or-later license.');
 $assert(str_contains($dashboardFrontend, "'X-Requested-With': 'XMLHttpRequest'"), 'Dashboard writes must opt into GLPI AJAX CSRF validation.');
 $assert(str_contains($dashboardFrontend, "'X-Glpi-Csrf-Token': props.csrfToken"), 'Dashboard writes must send the GLPI CSRF header.');
 $assert(str_contains($dashboardFrontend, 'Create from template'), 'Builder must expose dashboard templates.');
