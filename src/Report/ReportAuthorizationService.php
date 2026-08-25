@@ -1,4 +1,10 @@
 <?php
+/*
+ * Copyright (C) 2026 MarifeX
+ *
+ * This file is part of MarifeX Advanced Analytics.
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
 
 declare(strict_types=1);
 
@@ -10,7 +16,7 @@ use InvalidArgumentException;
 
 final class ReportAuthorizationService
 {
-    public function canExecute(int $userId, int $entityId): bool
+    public function canExecute(int $userId, int $entityId, bool $recursive = false): bool
     {
         global $DB;
         $user = $DB->request([
@@ -19,9 +25,16 @@ final class ReportAuthorizationService
             'WHERE' => ['id' => $userId, 'is_active' => 1, 'is_deleted' => 0],
             'LIMIT' => 1,
         ])->current();
-        return (bool) $user
-            && $this->hasRightInEntity($userId, $entityId, Profile::RIGHT_EXPORT, READ)
-            && $this->hasRightInEntity($userId, $entityId, Profile::RIGHT_SCHEDULE, UPDATE);
+        if (!$user) {
+            return false;
+        }
+        foreach ($this->scopeEntityIds($entityId, $recursive) as $scopeEntityId) {
+            if (!$this->hasRightInEntity($userId, $scopeEntityId, Profile::RIGHT_EXPORT, READ)
+                || !$this->hasRightInEntity($userId, $scopeEntityId, Profile::RIGHT_SCHEDULE, UPDATE)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public function hasRightInEntity(int $userId, int $entityId, string $right, int $required): bool
@@ -49,7 +62,7 @@ final class ReportAuthorizationService
                 continue;
             }
             $root = (int) $assignment['entities_id'];
-            if ($root === $entityId || ((int) $assignment['is_recursive'] === 1 && in_array($entityId, getSonsOf('glpi_entities', $root), true))) {
+            if ($root === $entityId || ((int) $assignment['is_recursive'] === 1 && in_array($entityId, array_map('intval', getSonsOf('glpi_entities', $root)), true))) {
                 return true;
             }
         }
@@ -57,7 +70,7 @@ final class ReportAuthorizationService
     }
 
     /** @return list<string> */
-    public function validateRecipients(array $input, int $entityId): array
+    public function validateRecipients(array $input, int $entityId, bool $recursive = false): array
     {
         global $DB;
         $recipients = array_values(array_unique(array_filter(array_map(
@@ -79,8 +92,14 @@ final class ReportAuthorizationService
             ]);
             $authorized = false;
             foreach ($users as $user) {
-                if ($this->hasRightInEntity((int) $user['id'], $entityId, Profile::RIGHT_DASHBOARD, READ)) {
-                    $authorized = true;
+                $authorized = true;
+                foreach ($this->scopeEntityIds($entityId, $recursive) as $scopeEntityId) {
+                    if (!$this->hasRightInEntity((int) $user['id'], $scopeEntityId, Profile::RIGHT_DASHBOARD, READ)) {
+                        $authorized = false;
+                        break;
+                    }
+                }
+                if ($authorized) {
                     break;
                 }
             }
@@ -89,5 +108,15 @@ final class ReportAuthorizationService
             }
         }
         return $recipients;
+    }
+
+    /** @return list<int> */
+    private function scopeEntityIds(int $entityId, bool $recursive): array
+    {
+        $entityIds = [$entityId];
+        if ($recursive) {
+            $entityIds = array_merge($entityIds, array_map('intval', getSonsOf('glpi_entities', $entityId)));
+        }
+        return array_values(array_unique($entityIds));
     }
 }

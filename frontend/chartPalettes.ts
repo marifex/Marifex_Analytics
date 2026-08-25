@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2026 MarifeX
+ *
+ * This file is part of MarifeX Advanced Analytics.
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
 export type ChartPalette = {
   id: string; name: string; type: 'categorical' | 'monochrome' | 'gradient'; colors?: string[];
   baseColor?: string; slotCount?: number; lightnessSpan?: number; areaOpacity: number; revision: number;

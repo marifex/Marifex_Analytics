@@ -1,4 +1,4 @@
-(function(){"use strict";/**
+/*! Copyright (C) 2026 MarifeX | MarifeX Advanced Analytics | SPDX-License-Identifier: GPL-3.0-only */(function(){"use strict";/**
 * @vue/shared v3.5.18
 * (c) 2018-present Yuxi (Evan) You and Vue contributors
 * @license MIT

@@ -77,6 +77,12 @@ if ($pluginManifest -notmatch '<license>GPL-3.0-only</license>') {
 if ($setupMetadata -notmatch "'license'\s*=>\s*'GPL-3.0-only'") {
     throw 'License mismatch: setup.php must declare GPL-3.0-only.'
 }
+if ($setupMetadata -notmatch "PLUGIN_MARIFEX_MIN_GLPI_VERSION',\s*'11\.0\.7'") {
+    throw 'Compatibility mismatch: setup.php must require GLPI 11.0.7 or later.'
+}
+if ($pluginManifest -notmatch '<requirements>GLPI 11\.0\.7 or later; PHP 8\.2 or later</requirements>') {
+    throw 'Compatibility mismatch: marifex.xml must publish the approved GLPI and PHP minimums.'
+}
 if ($readme -notmatch 'GNU General Public License version 3') {
     throw 'License mismatch: README.md must identify GPLv3.'
 }
@@ -94,7 +100,7 @@ New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
 $finalArchive = Join-Path $releaseRoot "marifex-$Version.zip"
 $candidateArchive = Join-Path $releaseRoot ("marifex-$Version.{0}.tmp.zip" -f [guid]::NewGuid().ToString('N'))
 $directories = @('locales', 'public', 'Screenshots', 'src', 'templates', 'vendor')
-$files = @('Adminsetup.md', 'CHANGELOG.md', 'composer.json', 'hook.php', 'LICENSE', 'marifex.xml', 'README.md', 'setup.php')
+$files = @('Adminsetup.md', 'CHANGELOG.md', 'composer.json', 'hook.php', 'LICENSE', 'marifex.xml', 'README.md', 'SECURITY.md', 'setup.php')
 
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem

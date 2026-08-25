@@ -1,6 +1,6 @@
 {
   "name": "marifex/glpi-analytics",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "description": "MarifeX Advanced Analytics and Dashboard for GLPI 11",
   "type": "glpi-plugin",
   "license": "GPL-3.0-only",
@@ -17,11 +17,6 @@
   "autoload": {
     "psr-4": {
       "GlpiPlugin\\Marifex\\": "src/"
-    }
-  },
-  "autoload-dev": {
-    "psr-4": {
-      "GlpiPlugin\\Marifex\\Tests\\": "tests/"
     }
   },
   "scripts": {

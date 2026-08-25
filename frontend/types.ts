@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2026 MarifeX
+ *
+ * This file is part of MarifeX Advanced Analytics.
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
 export type Point = { date: string; value: number; sample_count?: number };
 export type DimensionPoint = Point & { dimension_id: number; dimension: string };
 export type MetricResponse = {

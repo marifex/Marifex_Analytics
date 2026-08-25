@@ -1,4 +1,10 @@
 <?php
+/*
+ * Copyright (C) 2026 MarifeX
+ *
+ * This file is part of MarifeX Advanced Analytics.
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
 
 declare(strict_types=1);
 
@@ -7,8 +13,8 @@ use GlpiPlugin\Marifex\DashboardMenu;
 use GlpiPlugin\Marifex\HomeDashboardTab;
 use GlpiPlugin\Marifex\Profile;
 
-define('PLUGIN_MARIFEX_VERSION', '0.15.1');
-define('PLUGIN_MARIFEX_MIN_GLPI_VERSION', '11.0.0');
+define('PLUGIN_MARIFEX_VERSION', '0.15.2');
+define('PLUGIN_MARIFEX_MIN_GLPI_VERSION', '11.0.7');
 define('PLUGIN_MARIFEX_MAX_GLPI_VERSION', '12.0.0');
 define('PLUGIN_MARIFEX_ROOT', __DIR__);
 
@@ -38,12 +44,12 @@ function plugin_init_marifex(): void
         || str_ends_with($requestPath, '/front/central.php')
         || str_ends_with($requestPath, '/Central')
     )) {
-        $PLUGIN_HOOKS[Hooks::ADD_CSS]['marifex'][] = 'css/marifex.css?v=0.15.1.1';
-        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['marifex'][] = 'js/dashboard.js?v=0.15.1.1';
+        $PLUGIN_HOOKS[Hooks::ADD_CSS]['marifex'][] = 'css/marifex.css?v=0.15.2';
+        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['marifex'][] = 'js/dashboard.js?v=0.15.2';
     }
     if (is_string($requestPath) && str_ends_with($requestPath, '/plugins/marifex/Settings')) {
-        $PLUGIN_HOOKS[Hooks::ADD_CSS]['marifex'][] = 'css/marifex.css?v=0.15.1.1';
-        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['marifex'][] = 'js/palette-manager.js?v=0.15.1.1';
+        $PLUGIN_HOOKS[Hooks::ADD_CSS]['marifex'][] = 'css/marifex.css?v=0.15.2';
+        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['marifex'][] = 'js/palette-manager.js?v=0.15.2';
     }
 }
 
@@ -73,7 +79,7 @@ function plugin_marifex_check_prerequisites(): bool
     }
 
     if (!defined('GLPI_VERSION') || version_compare(GLPI_VERSION, PLUGIN_MARIFEX_MIN_GLPI_VERSION, '<')) {
-        echo 'MarifeX requires GLPI 11 or newer.';
+        echo 'MarifeX requires GLPI 11.0.7 or newer.';
         return false;
     }
 

@@ -1,4 +1,10 @@
 <?php
+/*
+ * Copyright (C) 2026 MarifeX
+ *
+ * This file is part of MarifeX Advanced Analytics.
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
 
 declare(strict_types=1);
 
@@ -7,6 +13,7 @@ namespace GlpiPlugin\Marifex\Controller;
 use Glpi\Controller\AbstractController;
 use GlpiPlugin\Marifex\Profile;
 use GlpiPlugin\Marifex\Report\ReportFileStore;
+use GlpiPlugin\Marifex\Security\EntityScope;
 use Session;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -22,10 +29,13 @@ final class ReportFileController extends AbstractController
     {
         global $DB;
         if (!Profile::canView() || !Profile::canExport()) throw new AccessDeniedHttpException();
-        $where = ['id' => $runId, 'status' => 'completed'];
+        $where = [
+            'id' => $runId,
+            'status' => 'completed',
+            'entities_id' => (new EntityScope())->activeEntityIds(),
+        ];
         if (!Profile::canAdminister()) {
             $where['users_id'] = (int) Session::getLoginUserID();
-            $where['entities_id'] = (int) Session::getActiveEntity();
         }
         $run = $DB->request(['FROM' => 'glpi_plugin_marifex_report_runs', 'WHERE' => $where, 'LIMIT' => 1])->current();
         $path = (string) ($run['file_path'] ?? '');

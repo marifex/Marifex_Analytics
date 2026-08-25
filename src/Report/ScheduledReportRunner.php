@@ -1,4 +1,10 @@
 <?php
+/*
+ * Copyright (C) 2026 MarifeX
+ *
+ * This file is part of MarifeX Advanced Analytics.
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
 
 declare(strict_types=1);
 
@@ -26,7 +32,7 @@ final class ScheduledReportRunner
                 'last_run_at' => gmdate('Y-m-d H:i:s'),
                 'next_run_at' => $next,
             ], ['id' => (int) $schedule['id'], 'next_run_at' => $schedule['next_run_at']]);
-            if (!$authorization->canExecute((int) $schedule['users_id'], (int) $schedule['entities_id'])) {
+            if (!$authorization->canExecute((int) $schedule['users_id'], (int) $schedule['entities_id'], (int) $schedule['is_recursive'] === 1)) {
                 $exporter->recordBlocked($schedule, 'The schedule owner no longer has export and scheduling rights in this entity.');
                 $DB->update('glpi_plugin_marifex_report_schedules', ['is_active' => 0], ['id' => (int) $schedule['id']]);
                 $processed++;
@@ -34,7 +40,7 @@ final class ScheduledReportRunner
             }
             try {
                 $recipients = json_decode((string) $schedule['recipients'], true, 32, JSON_THROW_ON_ERROR);
-                $authorization->validateRecipients($recipients, (int) $schedule['entities_id']);
+                $authorization->validateRecipients($recipients, (int) $schedule['entities_id'], (int) $schedule['is_recursive'] === 1);
             } catch (Throwable $error) {
                 $exporter->recordBlocked($schedule, $error->getMessage());
                 $processed++;

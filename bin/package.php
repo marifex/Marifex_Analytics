@@ -1,4 +1,10 @@
 <?php
+/*
+ * Copyright (C) 2026 MarifeX
+ *
+ * This file is part of MarifeX Advanced Analytics.
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
 
 declare(strict_types=1);
 
@@ -10,8 +16,8 @@ if (!preg_match('/<version>([^<]+)<\/version>/', $version, $match)) {
 $version = $match[1];
 $outputDirectory = $root . '/versions/' . $version;
 $zipPath = $outputDirectory . '/marifex-' . $version . '.zip';
-$directories = ['locales', 'public', 'src', 'templates', 'vendor'];
-$files = ['composer.json', 'hook.php', 'LICENSE', 'marifex.xml', 'README.md', 'setup.php'];
+$directories = ['locales', 'public', 'Screenshots', 'src', 'templates', 'vendor'];
+$files = ['Adminsetup.md', 'CHANGELOG.md', 'composer.json', 'hook.php', 'LICENSE', 'marifex.xml', 'README.md', 'SECURITY.md', 'setup.php'];
 
 if (!is_dir($outputDirectory) && !mkdir($outputDirectory, 0775, true) && !is_dir($outputDirectory)) {
     throw new RuntimeException('Unable to create the version archive directory.');

@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2026 MarifeX
+ *
+ * This file is part of MarifeX Advanced Analytics.
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
 export type WidgetPaletteKey = 'cream_gold' | 'ocean' | 'mint' | 'lavender' | 'charcoal_gold' | 'neutral' | 'classic_blue' | 'teal_green' | 'deep_purple' | 'warm_amber' | 'coral_red' | 'sky_blue' | 'bright_orange' | 'rose_pink' | 'forest_green' | 'slate_gray';
 
 export type WidgetPalette = {

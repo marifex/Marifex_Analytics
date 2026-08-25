@@ -1,4 +1,10 @@
 <?php
+/*
+ * Copyright (C) 2026 MarifeX
+ *
+ * This file is part of MarifeX Advanced Analytics.
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
 
 declare(strict_types=1);
 
@@ -74,6 +80,13 @@ final class IncrementalLogEtl
                 $mapping = $mappingsByOption[(int) $log['id_search_option']];
                 $logId = (int) $log['id'];
                 $ticketId = (int) $log['items_id'];
+                if (!isset($entities[$ticketId])) {
+                    // The operational ticket no longer exists. Advance the source
+                    // checkpoint, but never attribute its history to root entity 0.
+                    $watermark = ['id' => $logId, 'date' => (string) $log['date_mod']];
+                    ++$processed;
+                    continue;
+                }
                 $eventKey = hash('sha256', implode('|', [
                     self::SOURCE,
                     $logId,
@@ -93,7 +106,7 @@ final class IncrementalLogEtl
                 }
                 $DB->updateOrInsert('glpi_plugin_marifex_ticket_events', [
                     'tickets_id' => $ticketId,
-                    'entities_id' => $entities[$ticketId] ?? 0,
+                    'entities_id' => $entities[$ticketId],
                     'event_type' => (string) $mapping['semantic_event'],
                     'source_type' => 'log',
                     'source_id' => $logId,
@@ -102,7 +115,7 @@ final class IncrementalLogEtl
                     'new_value' => $isAssignment ? $this->referenceId((string) $log['new_value']) : (string) $log['new_value'],
                     'payload' => json_encode([
                         'mapping_version' => (int) $mapping['mapping_version'],
-                        'source_missing' => !isset($entities[$ticketId]),
+
                         'source_labels_redacted' => $isAssignment,
                     ], JSON_THROW_ON_ERROR),
                 ], ['event_key' => $eventKey]);

@@ -6,6 +6,30 @@ The format follows Keep a Changelog.
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-08-25
+
+### Added
+
+- Added a public security policy with a private vulnerability reporting channel.
+- Added exact GPLv3-only notices to MarifeX-authored source files and generated dashboard assets.
+
+### Changed
+
+- Corrected the minimum supported GLPI release to 11.0.7 across runtime checks, metadata, documentation and packaging validation.
+- Removed the unused Composer development autoload entry for a test directory that does not exist.
+- Included the public administration guide, changelog, security policy and screenshots in canonical release packaging while continuing to exclude internal scope and research documents.
+
+### Security
+
+- Revalidates every entity in recursive scheduled-report scopes for both owners and recipients before delivery.
+- Restricts completed report downloads to the requester active entity scope, including analytics administrators.
+- Ignores orphan ticket-log events instead of attributing them to root entity 0, and derives snapshot entity ownership from the current operational ticket.
+
+### Validation
+
+- Added structural regression checks for recursive scheduled-report authorization, active-entity report downloads and orphan event attribution.
+- Added release gates for public security documentation, exact GPLv3-only source notices, authorship metadata and GLPI compatibility metadata.
+
 ## [0.15.1] - 2026-08-24
 
 ### Fixed
@@ -24,7 +48,7 @@ The format follows Keep a Changelog.
 - Replaced the internal recursive-entity phrase “and descendants” with the client-facing scope description “enterprise-wide.”
 ### Licensing
 
-- Released MarifeX Advanced Analytics under the GNU General Public License version 3.
+- Released MarifeX Advanced Analytics under GPLv3 only.
 
 
 

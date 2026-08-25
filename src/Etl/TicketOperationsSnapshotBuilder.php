@@ -1,4 +1,10 @@
 <?php
+/*
+ * Copyright (C) 2026 MarifeX
+ *
+ * This file is part of MarifeX Advanced Analytics.
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
 
 declare(strict_types=1);
 
@@ -166,7 +172,7 @@ final class TicketOperationsSnapshotBuilder
         }
 
         foreach ($DB->request([
-            'SELECT' => ['entities_id', 'old_value', 'new_value'],
+            'SELECT' => ['tickets_id', 'old_value', 'new_value'],
             'FROM' => 'glpi_plugin_marifex_ticket_events',
             'WHERE' => [
                 'event_type' => EventMappingRegistry::TICKET_STATUS_CHANGED,
@@ -174,7 +180,10 @@ final class TicketOperationsSnapshotBuilder
                 ['occurred_at' => ['<' , $cutoff]],
             ],
         ]) as $event) {
-            $entityId = (int) $event['entities_id'];
+            $entityId = $ticketEntities[(int) $event['tickets_id']] ?? null;
+            if ($entityId === null) {
+                continue;
+            }
             $values[$entityId] ??= $this->emptyEntity();
             $old = (int) $event['old_value'];
             $new = (int) $event['new_value'];

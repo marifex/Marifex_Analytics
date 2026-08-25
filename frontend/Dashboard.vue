@@ -1,3 +1,8 @@
+<!--
+  Copyright (C) 2026 MarifeX
+  This file is part of MarifeX Advanced Analytics.
+  SPDX-License-Identifier: GPL-3.0-only
+-->
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import WidgetCard from './WidgetCard.vue';

@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2026 MarifeX
+ *
+ * This file is part of MarifeX Advanced Analytics.
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
 import { createApp } from 'vue';
 import Dashboard from './Dashboard.vue';
 import './dashboard.css';

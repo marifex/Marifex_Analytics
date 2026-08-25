@@ -1,6 +1,6 @@
 # MarifeX Advanced Analytics for GLPI
 
-Current release: **0.15.1**
+Current release: **0.15.2**
 
 ## About
 
@@ -143,3 +143,5 @@ See [LICENSE](LICENSE) for the complete licence terms.
 
 Visit [MarifeX Technologies](https://www.marifextech.com) for product information.
 For support, email [mohammed@marifextech.com](mailto:mohammed@marifextech.com).
+
+Report security concerns through the [security policy](SECURITY.md).

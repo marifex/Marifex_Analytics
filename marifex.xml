@@ -2,13 +2,13 @@
 <root>
   <name>MarifeX Advanced Analytics</name>
   <key>marifex</key>
-  <version>0.15.1</version>
+  <version>0.15.2</version>
   <description>Enterprise analytics and dashboards for GLPI 11.</description>
   <homepage>https://www.marifextech.com</homepage>
   <authors>
     <author>MarifeX</author>
   </authors>
   <license>GPL-3.0-only</license>
-  <requirements>GLPI 11; PHP 8.2</requirements>
+  <requirements>GLPI 11.0.7 or later; PHP 8.2 or later</requirements>
 </root>
 

@@ -1,4 +1,10 @@
 <?php
+/*
+ * Copyright (C) 2026 MarifeX
+ *
+ * This file is part of MarifeX Advanced Analytics.
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
 
 declare(strict_types=1);
 
@@ -103,12 +109,17 @@ final class ReportScheduleService
         if (!$dashboard) {
             throw new InvalidArgumentException('The dashboard is not available in this user and entity scope.');
         }
-        $recipients = $this->authorization->validateRecipients(is_array($input['recipients'] ?? null) ? $input['recipients'] : [], $this->entityScope->activeEntityId());
+        $recursive = $this->entityScope->isRecursive();
+        $recipients = $this->authorization->validateRecipients(
+            is_array($input['recipients'] ?? null) ? $input['recipients'] : [],
+            $this->entityScope->activeEntityId(),
+            $recursive,
+        );
         $schedule = compact('frequency', 'hour', 'weekday', 'monthday', 'timezone');
         return [
             'name' => $name,
             'dashboard_definitions_id' => $dashboardId,
-            'is_recursive' => Session::getIsActiveEntityRecursive() ? 1 : 0,
+            'is_recursive' => $recursive ? 1 : 0,
             'format' => $format,
             'frequency' => $frequency,
             'send_hour' => $hour,

@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2026 MarifeX
+ *
+ * This file is part of MarifeX Advanced Analytics.
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
 (() => {
   const root = document.getElementById('marifex-palette-manager');
   if (!root || root.dataset.mounted === '1') return;

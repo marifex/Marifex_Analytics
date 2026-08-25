@@ -1,4 +1,10 @@
 <?php
+/*
+ * Copyright (C) 2026 MarifeX
+ *
+ * This file is part of MarifeX Advanced Analytics.
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
 
 declare(strict_types=1);
 
@@ -362,7 +368,26 @@ $assert(str_contains($releasePackager, ".Replace('\\', '/')"), 'Release archives
 $assert(str_contains($releasePackager, "\$_ -match '\\\\'"), 'Release packaging must reject any backslash entry before publishing the ZIP.');
 $assert(str_contains($releasePackager, "'LICENSE'") && str_contains($releasePackager, 'marifex/LICENSE'), 'Every release archive must include the canonical GPLv3 license file.');
 $assert(str_contains($releasePackager, "'Adminsetup.md'") && str_contains($releasePackager, "'Screenshots'"), 'Every release archive must include the public administrator guide and README screenshots.');
+$assert(str_contains($releasePackager, "'SECURITY.md'") && is_file(dirname(__DIR__) . '/SECURITY.md'), 'Every release archive must include the public security-disclosure policy.');
+$licensedSourceFiles = [
+    dirname(__DIR__) . '/setup.php',
+    dirname(__DIR__) . '/hook.php',
+    dirname(__DIR__) . '/vite.config.ts',
+];
+foreach (['bin', 'frontend', 'public', 'src', 'templates', 'tools'] as $sourceDirectory) {
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(dirname(__DIR__) . '/' . $sourceDirectory, FilesystemIterator::SKIP_DOTS));
+    foreach ($iterator as $sourceFile) {
+        if ($sourceFile->isFile() && in_array(strtolower($sourceFile->getExtension()), ['php', 'ts', 'vue', 'js', 'css', 'twig'], true)) {
+            $licensedSourceFiles[] = $sourceFile->getPathname();
+        }
+    }
+}
+foreach ($licensedSourceFiles as $licensedSourceFile) {
+    $assert(str_contains((string) file_get_contents($licensedSourceFile), 'SPDX-License-Identifier: GPL-3.0-only'), 'MarifeX-authored source must carry the exact GPLv3-only notice: ' . $licensedSourceFile);
+}
 $assert(str_contains(file_get_contents(dirname(__DIR__) . '/setup.php'), "'license' => 'GPL-3.0-only'"), 'GLPI plugin metadata must declare the approved GPLv3 license.');
+$assert(str_contains(file_get_contents(dirname(__DIR__) . '/setup.php'), "PLUGIN_MARIFEX_MIN_GLPI_VERSION', '11.0.7'"), 'GLPI plugin metadata must enforce the approved GLPI 11.0.7 minimum.');
+$assert(str_contains(file_get_contents(dirname(__DIR__) . '/marifex.xml'), 'GLPI 11.0.7 or later'), 'Plugin manifest must publish the approved GLPI 11.0.7 minimum.');
 $assert(str_contains($releasePackager, 'https://www.marifextech.com') && str_contains($releasePackager, 'mohammed@marifextech.com'), 'Release packaging must reject incorrect public website or support contact metadata.');
 $assert(str_contains($dashboardFrontend, "'X-Requested-With': 'XMLHttpRequest'"), 'Dashboard writes must opt into GLPI AJAX CSRF validation.');
 $assert(str_contains($dashboardFrontend, "'X-Glpi-Csrf-Token': props.csrfToken"), 'Dashboard writes must send the GLPI CSRF header.');
@@ -533,7 +558,10 @@ $pdfRenderer = file_get_contents(dirname(__DIR__) . '/src/Report/HeadlessPdfRend
 $htmlRenderer = file_get_contents(dirname(__DIR__) . '/src/Report/HtmlReportRenderer.php');
 $assert(str_contains($reportExport, 'GLPI_PLUGIN_DOC_DIR') || str_contains(file_get_contents(dirname(__DIR__) . '/src/Report/ReportFileStore.php'), 'GLPI_PLUGIN_DOC_DIR'), 'Report files must remain in GLPI protected plugin storage.');
 $assert(str_contains($reportAuthorization, 'RIGHT_EXPORT') && str_contains($reportAuthorization, 'RIGHT_SCHEDULE'), 'Scheduled execution must revalidate Phase 5 profile rights.');
-$assert(str_contains($reportAuthorization, 'getSonsOf'), 'Scheduled report authorization must respect recursive entity access.');
+$assert(str_contains($reportAuthorization, 'scopeEntityIds') && str_contains($reportAuthorization, 'getSonsOf'), 'Scheduled report authorization must revalidate every entity in a saved recursive scope.');
+$assert(substr_count($reportRunner, "(int) \$schedule['is_recursive'] === 1") >= 2, 'Scheduled execution and recipient validation must both use the saved recursive scope.');
+$reportFileController = file_get_contents(dirname(__DIR__) . '/src/Controller/ReportFileController.php');
+$assert(str_contains($reportFileController, "'entities_id' => (new EntityScope())->activeEntityIds()"), 'Completed report downloads must remain inside the requester active entity scope, including administrators.');
 $assert(str_contains($reportSchedule, 'Session::checkCSRF') || str_contains(file_get_contents(dirname(__DIR__) . '/src/Controller/ReportScheduleController.php'), 'Session::checkCSRF'), 'Report schedule writes must enforce GLPI CSRF validation.');
 $assert(str_contains($reportRunner, 'validateRecipients'), 'Every scheduled delivery must revalidate recipients.');
 $assert(str_contains($csvRenderer, "'record_type'") && str_contains($csvRenderer, "'formula_version'"), 'Phase 5A CSV output must distinguish records and preserve formula evidence.');
@@ -595,6 +623,10 @@ $assert(str_contains(file_get_contents(dirname(__DIR__) . '/hook.php'), "'schedu
 $entityScope = file_get_contents(dirname(__DIR__) . '/src/Security/EntityScope.php');
 $assert(str_contains($entityScope, 'Session::getActiveEntities()'), 'Entity scope must use the supported GLPI Session adapter.');
 $assert(!str_contains($entityScope, "\$_SESSION["), 'Entity scope must not depend directly on GLPI session-array internals.');
+
+$incrementalLogEtl = file_get_contents(dirname(__DIR__) . '/src/Etl/IncrementalLogEtl.php');
+$assert(str_contains($incrementalLogEtl, 'if (!isset($entities[$ticketId]))') && !str_contains($incrementalLogEtl, "'entities_id' => \$entities[\$ticketId] ?? 0"), 'Deleted or missing ticket logs must advance the checkpoint without being attributed to root entity 0.');
+$assert(str_contains($ticketSnapshot, "'SELECT' => ['tickets_id', 'old_value', 'new_value']") && str_contains($ticketSnapshot, "\$entityId = \$ticketEntities[(int) \$event['tickets_id']] ?? null;"), 'Status-event snapshots must derive entity attribution from the current operational ticket and ignore orphan events.');
 
 $drilldownController = file_get_contents(dirname(__DIR__) . '/src/Controller/TicketDrilldownController.php');
 $assert(str_contains($drilldownController, 'Profile::canView()'), 'Ticket drilldown must enforce the dashboard right.');
