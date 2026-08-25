@@ -8,6 +8,14 @@ MarifeX Advanced Analytics is an enterprise analytics and reporting plugin for G
 
 MarifeX Advanced Analytics is authored and maintained by MarifeX.
 
+## Product preview
+
+![MarifeX Advanced Analytics dashboard overview](Screenshots/dashboard-overview.png)
+
+![MarifeX Advanced Analytics operational analysis](Screenshots/operational-analysis.png)
+
+![MarifeX Advanced Analytics detailed reporting](Screenshots/detailed-reporting.png)
+
 ## Capabilities
 
 - Home-integrated executive analytics dashboards
@@ -40,6 +48,8 @@ MarifeX Advanced Analytics is authored and maintained by MarifeX.
 5. Install and activate **MarifeX Advanced Analytics**.
 6. Assign dashboard and administration rights to the required GLPI profiles.
 7. Confirm the MarifeX automatic actions are running through GLPI's external cron process.
+
+See [Admin setup](Adminsetup.md) for the complete administrator configuration and verification guide.
 
 ## Opening Analytics
 
@@ -125,7 +135,7 @@ Analytics data is retained by default when the plugin is uninstalled. To remove 
 
 ## License
 
-MarifeX Advanced Analytics is released under the GNU General Public License version 3 or any later version.
+MarifeX Advanced Analytics is released under the GNU General Public License version 3.
 
 See [LICENSE](LICENSE) for the complete licence terms.
 

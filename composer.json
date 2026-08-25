@@ -3,7 +3,7 @@
   "version": "0.15.1",
   "description": "MarifeX Advanced Analytics and Dashboard for GLPI 11",
   "type": "glpi-plugin",
-  "license": "GPL-3.0-or-later",
+  "license": "GPL-3.0-only",
   "authors": [
     {
       "name": "MarifeX",

@@ -24,7 +24,7 @@ The format follows Keep a Changelog.
 - Replaced the internal recursive-entity phrase “and descendants” with the client-facing scope description “enterprise-wide.”
 ### Licensing
 
-- Released MarifeX Advanced Analytics under the GNU General Public License version 3 or any later version.
+- Released MarifeX Advanced Analytics under the GNU General Public License version 3.
 
 
 

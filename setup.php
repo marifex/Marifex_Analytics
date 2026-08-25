@@ -53,7 +53,7 @@ function plugin_version_marifex(): array
         'name' => 'MarifeX Advanced Analytics',
         'version' => PLUGIN_MARIFEX_VERSION,
         'author' => 'MarifeX',
-        'license' => 'GPL-3.0-or-later',
+        'license' => 'GPL-3.0-only',
         'homepage' => 'https://www.marifextech.com',
         'requirements' => [
             'glpi' => [

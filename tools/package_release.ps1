@@ -53,7 +53,9 @@ if ($setupMetadata -notmatch "'author'\s*=>\s*'MarifeX'") {
 if ($readme -notmatch 'authored and maintained by MarifeX') {
     throw 'Authorship mismatch: README.md must identify MarifeX ownership.'
 }
-if ($composer.license -ne 'GPL-3.0-or-later') {
+if ($composer.license -ne 'GPL-3.0-only') {
+    throw 'License mismatch: composer.json must declare GPL-3.0-only.'
+}
 if (-not ($composer.authors | Where-Object { $_.homepage -eq 'https://www.marifextech.com' })) {
     throw 'Contact mismatch: composer.json must identify the approved MarifeX Technologies website.'
 }
@@ -69,13 +71,11 @@ if ($readme -notmatch 'https://www.marifextech.com') {
 if ($readme -notmatch 'mohammed@marifextech.com') {
     throw 'Contact mismatch: README.md must identify the approved support email.'
 }
-    throw 'License mismatch: composer.json must declare GPL-3.0-or-later.'
+if ($pluginManifest -notmatch '<license>GPL-3.0-only</license>') {
+    throw 'License mismatch: marifex.xml must declare GPL-3.0-only.'
 }
-if ($pluginManifest -notmatch '<license>GPL-3.0-or-later</license>') {
-    throw 'License mismatch: marifex.xml must declare GPL-3.0-or-later.'
-}
-if ($setupMetadata -notmatch "'license'\s*=>\s*'GPL-3.0-or-later'") {
-    throw 'License mismatch: setup.php must declare GPL-3.0-or-later.'
+if ($setupMetadata -notmatch "'license'\s*=>\s*'GPL-3.0-only'") {
+    throw 'License mismatch: setup.php must declare GPL-3.0-only.'
 }
 if ($readme -notmatch 'GNU General Public License version 3') {
     throw 'License mismatch: README.md must identify GPLv3.'
@@ -93,8 +93,8 @@ $releaseRoot = Join-Path $repositoryRoot "versions\$Version"
 New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
 $finalArchive = Join-Path $releaseRoot "marifex-$Version.zip"
 $candidateArchive = Join-Path $releaseRoot ("marifex-$Version.{0}.tmp.zip" -f [guid]::NewGuid().ToString('N'))
-$directories = @('locales', 'public', 'src', 'templates', 'vendor')
-$files = @('CHANGELOG.md', 'composer.json', 'hook.php', 'LICENSE', 'marifex.xml', 'README.md', 'setup.php')
+$directories = @('locales', 'public', 'Screenshots', 'src', 'templates', 'vendor')
+$files = @('Adminsetup.md', 'CHANGELOG.md', 'composer.json', 'hook.php', 'LICENSE', 'marifex.xml', 'README.md', 'setup.php')
 
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem

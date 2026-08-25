@@ -8,7 +8,7 @@
   <authors>
     <author>MarifeX</author>
   </authors>
-  <license>GPL-3.0-or-later</license>
+  <license>GPL-3.0-only</license>
   <requirements>GLPI 11; PHP 8.2</requirements>
 </root>
 
